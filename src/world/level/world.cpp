@@ -38,26 +38,18 @@ static int calcSkyDarken(long dayTime) {
 
 static const long MIDDLE_OF_NIGHT_TIME = 12000;
 static bool g_nightMode = false;
-static long g_nightSavedTime = 0;
-static long g_nightTicks = 0;
-
-void worldSetNightMode(World* w, bool night) {
-    if (g_nightMode == night) return;
-    if (night) {
-        g_nightSavedTime = w->dayTime;
-        g_nightTicks = 0;
-        w->dayTime = MIDDLE_OF_NIGHT_TIME;
-    } else {
-        w->dayTime = (g_nightSavedTime + g_nightTicks) % TICKS_PER_DAY;
-    }
-    g_nightMode = night;
-    worldUpdateSkyDarken(w);
-}
+void worldSetNightMode(World* w, bool night) { (void)w; g_nightMode = night; }
 
 bool worldNightModeTick(World* w) {
     if (!g_nightMode) return false;
-    g_nightTicks++;
-    w->dayTime = MIDDLE_OF_NIGHT_TIME;
+    long curTime = w->dayTime;
+    if (curTime % TICKS_PER_DAY != MIDDLE_OF_NIGHT_TIME) {
+        if (curTime % TICKS_PER_DAY < MIDDLE_OF_NIGHT_TIME && (curTime + 20) % TICKS_PER_DAY > MIDDLE_OF_NIGHT_TIME)
+            curTime = MIDDLE_OF_NIGHT_TIME;
+        else
+            curTime += 20;
+        w->dayTime = curTime % TICKS_PER_DAY;
+    }
     return true;
 }
 
@@ -94,7 +86,7 @@ bool worldAllocArrays(World* w) {
     w->dayTime = 0;
     g_skyDarken = 0;
 
-    g_nightMode = false; g_nightSavedTime = 0; g_nightTicks = 0;
+    g_nightMode = false;
     w->tickNextTickList.clear();
     w->tickSet.clear();
     w->lightQueue.clear();

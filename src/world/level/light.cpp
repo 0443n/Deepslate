@@ -18,7 +18,7 @@ static inline unsigned int lpack(int x, int y, int z) {
 }
 static std::vector<unsigned int> g_lightBfs;
 
-static void lightFlood(World* w, int layer, bool markDirty) {
+static void lightFlood(World* w, int layer) {
     size_t head = 0;
     while (head < g_lightBfs.size()) {
         if ((head & 1023) == 0) sceKernelDelayThread(100);
@@ -35,7 +35,6 @@ static void lightFlood(World* w, int layer, bool markDirty) {
             int have = (layer == 0) ? lightSkyGet(w, nx, ny, nz) : lightBlockGet(w, nx, ny, nz);
             if (have < nl) {
                 if (layer == 0) lightSkySet(w, nx, ny, nz, nl); else lightBlockSet(w, nx, ny, nz, nl);
-                if (markDirty) worldMarkDirty(w, nx, ny, nz);
                 g_lightBfs.push_back(lpack(nx, ny, nz));
             }
         }
@@ -87,7 +86,7 @@ void worldInitLight(World* w) {
             }
         }
     }
-    lightFlood(w, 0, false);
+    lightFlood(w, 0);
     g_terrainProgress = 80;
 
     g_lightBfs.clear();
@@ -102,7 +101,7 @@ void worldInitLight(World* w) {
             if (e > 0) { lightBlockSet(w, x, y, z, e); g_lightBfs.push_back(lpack(x, y, z)); }
         }
     }
-    lightFlood(w, 1, false);
+    lightFlood(w, 1);
 }
 
 static void lightEnqueue(World* w, int layer, int x, int y, int z) {
@@ -196,7 +195,7 @@ void worldRemoveBlockLight(World* w, int x, int y, int z) {
             }
         }
     }
-    lightFlood(w, 1, true);
+    lightFlood(w, 1);
 }
 
 void lightOnBlockChanged(World* w, int x, int y, int z) {

@@ -134,9 +134,9 @@ float worldTimeOfDay(long dayTime, float a);
 
 void worldSetNightMode(World* w, bool night);
 
-void worldUpdateSkyDarken(World* w);
-
 bool worldNightModeTick(World* w);
+
+void worldUpdateSkyDarken(World* w);
 
 static inline bool worldIsDay() { return g_skyDarken < 4; }
 

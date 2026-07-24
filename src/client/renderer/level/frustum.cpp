@@ -68,18 +68,17 @@ extern float g_viewDist;
 
 bool leafOpaqueBand(const ChunkMesh* c, int y0, int y1,
                     float camX, float camY, float camZ, bool fancyGraphics) {
-    if (!fancyGraphics) return true;
+    (void)c; (void)y0; (void)y1; (void)camX; (void)camY; (void)camZ;
 
-    if (g_viewDist <= 48.0f) return false;
-    float r = 32.0f;
-    return dist3D_sq(camX, camY, camZ, c, (float)y0, (float)y1) >= r * r;
+    return !fancyGraphics;
+
 }
 
+extern int g_fancyLeaves;
 bool leafCullBand(const ChunkMesh* c, int y0, int y1,
                   float camX, float camY, float camZ, bool fancyGraphics) {
-    (void)fancyGraphics;
+    (void)c; (void)y0; (void)y1; (void)camX; (void)camY; (void)camZ;
 
-    if (g_viewDist <= 32.0f) return false;
-    float r = (g_viewDist <= 48.0f) ? 32.0f : 16.0f;
-    return dist3D_sq(camX, camY, camZ, c, (float)y0, (float)y1) >= r * r;
+    return !(g_fancyLeaves && fancyGraphics);
+
 }

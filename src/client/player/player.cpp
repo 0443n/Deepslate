@@ -1,7 +1,6 @@
 
 #include "client/player/player.h"
 #include "client/renderer/render.h"
-#include "client/renderer/level/mesh_worker.h"
 
 #include "world/level/world.h"
 #include "world/level/level.h"
@@ -34,6 +33,7 @@ extern bool  g_worldBuilt;
 
 int g_viewBobbing = 1;
 int g_fancyGraphics = 0;
+int g_fancyLeaves = 0;
 int g_cloudTicks = 0;
 extern int g_autosave;
 int g_autosaveTick = 0;
@@ -99,7 +99,6 @@ void quitToMenuNoSave(MenuState& s) {
     extern MiningState g_mining;
     g_mining.active = false; g_mining.progress = 0.0f;
 
-    MeshWorker::stop();
     worldFree(&g_world);
     g_level.removeAllEntities();
     g_level.removeAllTileEntities();

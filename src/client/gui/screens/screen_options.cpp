@@ -48,6 +48,8 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
 
         { "Graphics", "Render Distance", {"Tiny", "Short", "Normal", 0}, 3, 2, false, 0, 0, true },
         { 0,          "Fancy Graphics",  {"Off", "On", 0, 0}, 2, 0 },
+
+        { 0,          "Fancy Leaves",    {"Off", "On", 0, 0}, 2, 0 },
         { 0,          "View Bobbing",    {"Off", "On", 0, 0}, 2, 1 },
         { "Experimental", "Mipmapping",  {"Off", "On", 0, 0}, 2, 1 },
 
@@ -57,13 +59,14 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { "Audio", "Sound Volume", {0, 0, 0, 0}, 11, 10, true, 0, 10 },
     },
 };
-static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 4, 4, 1 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 4, 5, 1 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
 extern float g_viewDist;
 extern int   g_viewBobbing;
 extern int   g_fancyGraphics;
+extern int   g_fancyLeaves;
 extern int   g_noMipmap;
 extern int   g_showFps;
 extern int   g_showCoords;
@@ -75,11 +78,12 @@ extern int   g_barOnTop;
 extern float g_sensitivity;
 extern bool  g_thirdPerson;
 
-#define CAT_GRAPHICS   2
-#define ROW_RENDERDIST 0
-#define ROW_FANCY      1
-#define ROW_BOBBING    2
-#define ROW_MIPMAP     3
+#define CAT_GRAPHICS    2
+#define ROW_RENDERDIST  0
+#define ROW_FANCY       1
+#define ROW_FANCYLEAVES 2
+#define ROW_BOBBING     3
+#define ROW_MIPMAP      4
 
 static const float kRenderDist[3] = { 16.0f, 32.0f, 48.0f };
 
@@ -113,6 +117,7 @@ unsigned int optionsValueSig() {
 
 static void optionsApply() {
     g_fancyGraphics = g_optionValueIdx[CAT_GRAPHICS][ROW_FANCY];
+    g_fancyLeaves = g_optionValueIdx[CAT_GRAPHICS][ROW_FANCYLEAVES];
     g_viewBobbing = g_optionValueIdx[CAT_GRAPHICS][ROW_BOBBING];
     int rd = g_optionValueIdx[CAT_GRAPHICS][ROW_RENDERDIST];
     if (rd < 0) rd = 0; else if (rd > 2) rd = 2;
@@ -199,6 +204,11 @@ static bool optionRowIsBoolean(const OptionRowDef& row) {
     return row.numValues == 2 && strcmp(row.values[0], "Off") == 0 && strcmp(row.values[1], "On") == 0;
 }
 
+static bool optionRowDisabled(int category, int row) {
+    return category == CAT_GRAPHICS && row == ROW_FANCYLEAVES &&
+           g_optionValueIdx[CAT_GRAPHICS][ROW_FANCY] == 0;
+}
+
 void optionsHandleInput(MenuState& s, unsigned int pressed) {
     int& optFocus = s.optFocus;
     int& optCategory = s.optCategory;
@@ -238,7 +248,7 @@ void optionsHandleInput(MenuState& s, unsigned int pressed) {
             optionsSave();
             screen = SCREEN_TITLE;
         }
-        if (pressed & PSP_CTRL_CROSS) {
+        if ((pressed & PSP_CTRL_CROSS) && !optionRowDisabled(optCategory, optItemHighlight)) {
             const OptionRowDef& row = g_optionRows[optCategory][optItemHighlight];
             if (optionRowIsBoolean(row) || row.cycle) {
 
@@ -340,11 +350,13 @@ void optionsRender(MenuState& s) {
                                    row.group, 0xFFA0FFFFu, UI_SCALE);
             bool rowGrabbed = (optEditingRow == r);
             bool rowHovered = (optFocus == 1 && optItemHighlight == r) || rowGrabbed;
+            bool rowDisabled = optionRowDisabled(optCategory, r);
 
             if (rowHovered)
                 drawRect(itemsX * UI_SCALE, rY * UI_SCALE, itemsW * UI_SCALE, (rowH - 1.0f) * UI_SCALE, 0x40FFFFFFu);
 
-            unsigned int labelCol = rowHovered ? 0xFFA0FFFFu : 0xFFE0E0E0u;
+            unsigned int labelCol = rowDisabled ? 0xFF707070u : (rowHovered ? 0xFFA0FFFFu : 0xFFE0E0E0u);
+            unsigned int togTint  = rowDisabled ? 0xFF707070u : WHITE;
             fontDrawTextShadow(&font, itemsX * UI_SCALE, (rY + (rowH - 8.0f) / 2.0f) * UI_SCALE, row.label, labelCol, UI_SCALE);
 
             if (optionRowIsBoolean(row)) {
@@ -356,7 +368,7 @@ void optionsRender(MenuState& s) {
                 float drawW = togW * scale, drawH = togH * scale;
                 float drawX = togX + (togW - drawW) / 2.0f, drawY = togY + (togH - drawH) / 2.0f;
                 textureBind(&touchGui);
-                spriteDraw(&touchGui, drawX * UI_SCALE, drawY * UI_SCALE, drawW * UI_SCALE, drawH * UI_SCALE, valIdx == 1 ? 199.0f : 160.0f, 206.0f, 39.0f, 20.0f, WHITE);
+                spriteDraw(&touchGui, drawX * UI_SCALE, drawY * UI_SCALE, drawW * UI_SCALE, drawH * UI_SCALE, valIdx == 1 ? 199.0f : 160.0f, 206.0f, 39.0f, 20.0f, togTint);
             } else if (row.cycle) {
 
                 const char* valTxt = row.values[valIdx] ? row.values[valIdx] : "";
