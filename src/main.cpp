@@ -324,6 +324,16 @@ int main(int argc, char* argv[]) {
                                       lightBytes(&g_world) / 1048576.0f);
                         fontDrawTextShadow(&s.font, 10, ty, memBuf, 0xFFE0E0E0u, 1.0f);
                         ty += 12.0f;
+
+                        {
+                            extern unsigned int g_meshFallbacks;
+                            if (g_meshFallbacks) {
+                                char fbBuf[48];
+                                std::snprintf(fbBuf, sizeof(fbBuf), "MESH fallback x%u", g_meshFallbacks);
+                                fontDrawTextShadow(&s.font, 10, ty, fbBuf, 0xFF40C0FFu, 1.0f);
+                                ty += 12.0f;
+                            }
+                        }
                         {
                             extern float g_viewDist, g_viewDistEff;
                             if (g_viewDistEff > 0.0f && g_viewDistEff < g_viewDist) {

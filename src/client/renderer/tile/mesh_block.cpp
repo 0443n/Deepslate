@@ -245,6 +245,13 @@ int emitLadder(ChunkVertex* out, int n, int gx, int y, int gz, unsigned char id,
     return writeQuadDouble(out, n, P, UV, bright);
 }
 
+static inline bool isNoMipLayerId(unsigned char id) {
+    return isCrossShaped(id) || id == BLOCK_WHEAT || id == BLOCK_MELON_STEM
+        || id == BLOCK_FIRE || isLadder(id) || id == BLOCK_BED || isTorch(id)
+        || isPane(id) || isDoor(id) || isTrapdoor(id)
+        || id == BLOCK_CACTUS || isGlass(id);
+}
+
 int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, int layer, int cap, bool leavesOpaque, bool leavesCull) {
     int n = 0;
 
@@ -296,6 +303,8 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
             continue;
 
         if (isSign(id)) continue;
+
+        if (layer == 0 && isNoMipLayerId(id)) continue;
 
         if (layer == 3 && id == BLOCK_MELON_STEM) {
             if (out && n + 36 > cap) return -1;
@@ -391,7 +400,7 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
         }
 
         bool noMipCube = (id == BLOCK_CACTUS) || isGlass(id);
-        if (layer == 0 && noMipCube) continue;
+
         if (layer == 3 && !noMipCube) continue;
 
         if (out && n + 36 > cap) return -1;

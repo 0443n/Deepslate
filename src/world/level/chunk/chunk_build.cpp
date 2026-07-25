@@ -14,6 +14,8 @@ unsigned int g_tCount = 0, g_tAlloc = 0, g_tEmit = 0, g_tPack = 0;
 #endif
 
 extern int g_lowMemPsp;
+
+unsigned int g_meshFallbacks = 0;
 static int scratchVerts()   { return g_lowMemPsp ? 24576 : 65536; }
 static int scratchVertsWL() { return g_lowMemPsp ?  6144 : 16384; }
 #define SCRATCH_VERTS    scratchVerts()
@@ -186,6 +188,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
 #endif
         } else {
             fast = false;
+            g_meshFallbacks++;
         }
     }
     if (!fast) {
