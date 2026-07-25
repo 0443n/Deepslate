@@ -19,7 +19,13 @@
 #include "nbt/nbt_io.h"
 
 #include <cstdio>
+
+#define STORAGE_LOG 0
+#if STORAGE_LOG
 #define LOGI printf
+#else
+#define LOGI(...) ((void)0)
+#endif
 #include <cstring>
 #include <string>
 
@@ -57,7 +63,17 @@ static void saveChunks(World* w, const char* absDir, bool onlyDirty) {
     RegionFile rf(absDir);
     if (!rf.open()) { LOGI("LevelStorage: can't open chunks.dat for write\n"); return; }
 
-    unsigned char* payload = new unsigned char[CH_PAYLOAD];
+    unsigned char* payload = (unsigned char*)malloc(CH_PAYLOAD);
+    if (!payload) {
+
+        LOGI("LevelStorage: no room for the save buffer, dropping meshes\n");
+        for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
+            chunkFreeMesh(&w->chunks[i]);
+            for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].dirty = true;
+        }
+        payload = (unsigned char*)malloc(CH_PAYLOAD);
+        if (!payload) { LOGI("LevelStorage: save aborted, out of memory\n"); return; }
+    }
     for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
         for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
             if (onlyDirty && !w->unsaved[cz * WORLD_CHUNKS_X + cx]) continue;
@@ -66,7 +82,7 @@ static void saveChunks(World* w, const char* absDir, bool onlyDirty) {
 
         if (g_saveShowProgress) g_terrainProgress = (cz + 1) * 100 / WORLD_CHUNKS_Z;
     }
-    delete[] payload;
+    free(payload);
 }
 
 static void saveOneChunk(World* w, RegionFile& rf, unsigned char* payload, int cx, int cz) {
@@ -80,11 +96,10 @@ static void saveOneChunk(World* w, RegionFile& rf, unsigned char* payload, int c
             memcpy(payload + dstBase, w->blocks + srcBase, 128);
             for (int y = 0; y < 128; y++) {
                 int idx = dstBase + y;
-                unsigned char lv = w->light[srcBase + y];
 
-                nibSet(payload + OFF_DATA, idx, nibGet(w->data, srcBase + y));
-                nibSet(payload + OFF_SKY,  idx, lv >> 4);
-                nibSet(payload + OFF_BLK,  idx, lv & 0x0F);
+                nibSet(payload + OFF_DATA, idx, worldData(w, gx, y, gz));
+                nibSet(payload + OFF_SKY,  idx, lightSkyGet(w, gx, y, gz));
+                nibSet(payload + OFF_BLK,  idx, lightBlockGet(w, gx, y, gz));
             }
         }
     }
@@ -116,17 +131,17 @@ static bool loadChunks(World* w, const char* absDir, bool* outGotLight) {
 
                     memcpy(w->blocks + srcBase, payload + dstBase, 128);
                     for (int y = 0; y < 128; y++) {
-                        nibSet(w->data, srcBase + y, nibGet(payload + OFF_DATA, dstBase + y));
-                        if (chunkHasLight)
-                            w->light[srcBase + y] = (unsigned char)
-                                ((nibGet(payload + OFF_SKY, dstBase + y) << 4) |
-                                  nibGet(payload + OFF_BLK, dstBase + y));
+
+                        worldDataPut(w, srcBase + y, nibGet(payload + OFF_DATA, dstBase + y));
 
                         if (w->blocks[srcBase + y] == BLOCK_ORE_REDSTONE_LIT)
                             worldScheduleTick(w, gx, y, gz, BLOCK_ORE_REDSTONE_LIT, 30);
                     }
                 }
             }
+
+            if (chunkHasLight)
+                lightLoadChunk(w, cx, cz, payload + OFF_SKY, payload + OFF_BLK);
             delete[] payload;
         }
         g_terrainProgress = (cz + 1) * 60 / WORLD_CHUNKS_Z;
@@ -499,6 +514,8 @@ static void loadEntities(World* w, const char* absDir) {
     fclose(f);
 }
 
+extern int g_lowMemPsp;
+
 namespace LevelStorage {
 
 bool hasSave(const char* absDir) {
@@ -507,6 +524,13 @@ bool hasSave(const char* absDir) {
 
 bool save(World* w, const char* absDir, long seed, int gameType, const char* levelName,
           bool fullSave) {
+
+    if (g_lowMemPsp) {
+        for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
+            chunkFreeMesh(&w->chunks[i]);
+            for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].dirty = true;
+        }
+    }
     saveChunks(w, absDir, !fullSave);
     bool ok = saveLevelDat(w, absDir, seed, gameType, levelName);
     saveEntities(w, absDir);
@@ -549,8 +573,13 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
 
     worldScheduleLoadedLiquids(w);
 
-    if (gotLight) worldRecalcHeightmap(w);
-    else          worldInitLight(w);
+    if (gotLight) {
+        worldRecalcHeightmap(w);
+
+        lightCompactAll(w);
+    } else {
+        worldInitLight(w);
+    }
     g_terrainProgress = 100;
     w->lightReady = true;
     g_level.removeAllEntities();

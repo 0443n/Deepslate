@@ -2,7 +2,13 @@
 
 #include <cstring>
 #include <cstdio>
+
+#define STORAGE_LOG 0
+#if STORAGE_LOG
 #define LOGI printf
+#else
+#define LOGI(...) ((void)0)
+#endif
 
 static const int SECTOR_BYTES = 4096;
 static const int SECTOR_INTS  = SECTOR_BYTES / 4;

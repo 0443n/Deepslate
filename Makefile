@@ -133,6 +133,7 @@ OBJS = \
 	src/world/level/raycast.o \
 	src/world/level/explosion.o \
 	src/world/level/light.o \
+	src/world/level/light_store.o \
 	src/client/renderer/level/worldrender.o \
 	src/world/level/liquid.o \
 	src/world/level/leafdecay.o \

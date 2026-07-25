@@ -118,6 +118,8 @@ int main(int argc, char* argv[]) {
     scePowerSetClockFrequency(333, 333, 166);
     setupCallbacks();
     pathInit(argc > 0 ? argv[0] : 0);
+
+    detectLowMemPsp();
     soundInit();
     optionsLoad();
 
@@ -155,8 +157,6 @@ int main(int argc, char* argv[]) {
         }
         textureFree(&mojangSplash);
     }
-
-    detectLowMemPsp();
 
     static MenuState s;
 
@@ -309,6 +309,27 @@ int main(int argc, char* argv[]) {
                     std::snprintf(fpsBuf, sizeof(fpsBuf), "FPS: %d", (int)(fps + 0.5f));
                     fontDrawTextShadow(&s.font, 10, ty, fpsBuf, 0xFFE0E0E0u, 1.0f);
                     ty += 12.0f;
+
+                    if (g_worldBuilt) {
+                        struct mallinfo mi = mallinfo();
+                        char memBuf[64];
+                        std::snprintf(memBuf, sizeof(memBuf),
+                                      "MEM used %.1fM  world %.1fM (data %.2fM light %.2fM)",
+                                      (unsigned int)mi.uordblks / 1048576.0f,
+                                      worldMemBytes(&g_world) / 1048576.0f,
+                                      worldDataBytes(&g_world) / 1048576.0f,
+                                      lightBytes(&g_world) / 1048576.0f);
+                        fontDrawTextShadow(&s.font, 10, ty, memBuf, 0xFFE0E0E0u, 1.0f);
+                        ty += 12.0f;
+
+                        if (g_world.lightOomDrops) {
+                            char oomBuf[48];
+                            std::snprintf(oomBuf, sizeof(oomBuf), "LIGHT OOM %u",
+                                          g_world.lightOomDrops);
+                            fontDrawTextShadow(&s.font, 10, ty, oomBuf, 0xFF4040FFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
                 }
 
                 if (g_showCoords && g_worldBuilt && g_level.player) {

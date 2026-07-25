@@ -8,12 +8,17 @@ extern int g_fancyGraphics;
 
 extern volatile int g_meshOOM;
 
+#define MESH_PROFILE 0
+#if MESH_PROFILE
 unsigned int g_tCount = 0, g_tAlloc = 0, g_tEmit = 0, g_tPack = 0;
+#endif
 
-#define SCRATCH_VERTS 65536
+extern int g_lowMemPsp;
+static int scratchVerts()   { return g_lowMemPsp ? 24576 : 65536; }
+static int scratchVertsWL() { return g_lowMemPsp ?  6144 : 16384; }
+#define SCRATCH_VERTS    scratchVerts()
+#define SCRATCH_VERTS_WL scratchVertsWL()
 static ChunkVertex* g_scratch = 0;
-
-#define SCRATCH_VERTS_WL 16384
 static ChunkVertex* g_scratchW = 0;
 static ChunkVertex* g_scratchL = 0;
 static ChunkVertex* g_scratchN = 0;
@@ -33,22 +38,32 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
         g_scratch = (ChunkVertex*)memalign(16, SCRATCH_VERTS * sizeof(ChunkVertex));
 
     if (g_scratch) {
+#if MESH_PROFILE
         unsigned int t0 = sceKernelGetSystemTimeLow();
+#endif
         int n = meshPass(w, ox, oz, y0, y1, g_scratch, layer, SCRATCH_VERTS, leavesOpaque, leavesCull);
+#if MESH_PROFILE
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
+#endif
         if (n >= 0) {
             if (n == 0) { *outMesh = 0; *outCount = 0; return; }
             DrawVertex* d = chunkPack(g_scratch, n, ox, y0, oz);
-            unsigned int t2 = sceKernelGetSystemTimeLow(); g_tPack += t2 - t1;
+#if MESH_PROFILE
+            g_tPack += sceKernelGetSystemTimeLow() - t1;
+#endif
             if (!d) { *outMesh = 0; *outCount = 0; *oom = true; return; }
             *outMesh = d; *outCount = n; return;
         }
 
     }
 
+#if MESH_PROFILE
     unsigned int s0 = sceKernelGetSystemTimeLow();
+#endif
     int count = meshPass(w, ox, oz, y0, y1, 0, layer, 0x7fffffff, leavesOpaque, leavesCull);
-    unsigned int s1 = sceKernelGetSystemTimeLow(); g_tCount += s1 - s0;
+#if MESH_PROFILE
+    g_tCount += sceKernelGetSystemTimeLow() - s0;
+#endif
     if (count == 0) { *outMesh = 0; *outCount = 0; return; }
     ChunkVertex* m = (ChunkVertex*)memalign(16, count * sizeof(ChunkVertex));
     if (!m) { *outMesh = 0; *outCount = 0; *oom = true; return; }
@@ -117,13 +132,18 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         int sy0 = y0 - 1, sy1 = y1;
         if (sy0 < 0) sy0 = 0;
         if (sy1 > WORLD_H - 1) sy1 = WORLD_H - 1;
+
+        for (int yy = sy0; yy <= sy1 && !s->skyLit; yy++)
+            if (!lightPlaneAllDark(w, 0, ox, yy, oz)) s->skyLit = true;
+
         for (int gx = ox - 1; gx <= ox + CHUNK_SX && !s->skyLit; gx++) {
             if (gx < 0 || gx >= WORLD_W) continue;
             for (int gz = oz - 1; gz <= oz + CHUNK_SZ && !s->skyLit; gz++) {
                 if (gz < 0 || gz >= WORLD_D) continue;
-                const unsigned char* col = w->light + worldIndex(gx, 0, gz);
+                if (gx >= ox && gx < ox + CHUNK_SX &&
+                    gz >= oz && gz < oz + CHUNK_SZ) continue;
                 for (int yy = sy0; yy <= sy1; yy++)
-                    if (col[yy] >> 4) { s->skyLit = true; break; }
+                    if (lightSkyGet(w, gx, yy, gz)) { s->skyLit = true; break; }
             }
         }
     }
@@ -145,11 +165,15 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     bool fast = g_scratch && g_scratchW && g_scratchL && g_scratchN;
     if (fast) {
         int n0, n1, n2, n3;
+#if MESH_PROFILE
         unsigned int t0 = sceKernelGetSystemTimeLow();
+#endif
         int rc = meshSection(w, ox, oz, y0, y1, g_scratch, g_scratchW, g_scratchL, g_scratchN,
                              SCRATCH_VERTS, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL,
                              &n0, &n1, &n2, &n3, leavesOpaque, leavesCull);
+#if MESH_PROFILE
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
+#endif
         if (rc == 0) {
             s->mesh   = n0 ? chunkPack(g_scratch,  n0, ox, y0, oz) : 0; s->vertexCount = s->mesh   ? n0 : 0;
             s->water  = n1 ? chunkPack(g_scratchW, n1, ox, y0, oz) : 0; s->waterCount  = s->water  ? n1 : 0;
@@ -157,7 +181,9 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
             s->noMip  = n3 ? chunkPack(g_scratchN, n3, ox, y0, oz) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
 
             oom = (n0 && !s->mesh) || (n1 && !s->water) || (n2 && !s->leaves) || (n3 && !s->noMip);
+#if MESH_PROFILE
             g_tPack += sceKernelGetSystemTimeLow() - t1;
+#endif
         } else {
             fast = false;
         }

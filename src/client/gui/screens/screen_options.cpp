@@ -86,8 +86,8 @@ extern bool  g_thirdPerson;
 #define ROW_MIPMAP      4
 
 static const float kRenderDist[3] = { 16.0f, 32.0f, 48.0f };
-
 extern int g_lowMemPsp;
+
 static int renderDistChoices() { return g_lowMemPsp ? 2 : 3; }
 
 #define CAT_CONTROLS     1
@@ -121,7 +121,8 @@ static void optionsApply() {
     g_viewBobbing = g_optionValueIdx[CAT_GRAPHICS][ROW_BOBBING];
     int rd = g_optionValueIdx[CAT_GRAPHICS][ROW_RENDERDIST];
     if (rd < 0) rd = 0; else if (rd > 2) rd = 2;
-    if (rd >= renderDistChoices()) rd = renderDistChoices() - 1;
+
+    if (rd >= renderDistChoices()) rd = 0;
     g_optionValueIdx[CAT_GRAPHICS][ROW_RENDERDIST] = rd;
     g_viewDist    = kRenderDist[rd];
     g_noMipmap    = (g_optionValueIdx[CAT_GRAPHICS][ROW_MIPMAP] == 1) ? 0 : 1;

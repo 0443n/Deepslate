@@ -8,8 +8,12 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+#define WORLDGEN_PROFILE 0
+#if WORLDGEN_PROFILE
 #include <stdio.h>
 #include <time.h>
+#endif
 #include <math.h>
 #include <pspkernel.h>
 
@@ -73,13 +77,18 @@ bool worldAllocArrays(World* w) {
 
     size_t vol = (size_t)WORLD_W * WORLD_H * WORLD_D;
     w->blocks = (unsigned char*)malloc(vol);
-    w->data = (unsigned char*)malloc(vol / 2);
-    w->light = (unsigned char*)malloc(vol);
+
+    w->dataCol = (unsigned char**)calloc((size_t)WORLD_W * WORLD_D, sizeof(unsigned char*));
+    w->dataPages = 0;
+
+    bool lightOk = lightAlloc(w);
     w->heightmap = (unsigned char*)malloc((size_t)WORLD_W * WORLD_D);
-    if (!w->blocks || !w->data || !w->light || !w->heightmap) return false;
+    if (!w->blocks || !w->dataCol || !lightOk || !w->heightmap) {
+
+        worldFree(w);
+        return false;
+    }
     memset(w->blocks, 0, vol);
-    memset(w->data, 0, vol / 2);
-    memset(w->light, 0, vol);
     memset(w->heightmap, 0, (size_t)WORLD_W * WORLD_D);
 
     w->time = 0;
@@ -103,7 +112,9 @@ bool worldInitTerrain(World* w, long seed) {
     if (!worldAllocArrays(w)) return false;
 
     g_worldSeed = seed;
+#if WORLDGEN_PROFILE
     clock_t t0 = clock();
+#endif
     worldGenerateMCPE(w, seed);
     worldSettleLiquids(w);
 
@@ -116,9 +127,9 @@ bool worldInitTerrain(World* w, long seed) {
     worldPlaceFlowers(w);
 
     g_terrainProgress = 100;
-    clock_t t1 = clock();
-
-    printf("[WORLDGEN] noise gen: %d ms\n", (int)((t1 - t0) * 1000 / CLOCKS_PER_SEC));
+#if WORLDGEN_PROFILE
+    printf("[WORLDGEN] noise gen: %d ms\n", (int)((clock() - t0) * 1000 / CLOCKS_PER_SEC));
+#endif
 
     g_meshBuildCursor = 0;
     return true;
@@ -190,8 +201,13 @@ void worldFree(World* w) {
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
         chunkFreeMesh(&w->chunks[i]);
     if (w->blocks) { free(w->blocks); w->blocks = 0; }
-    if (w->data) { free(w->data); w->data = 0; }
-    if (w->light) { free(w->light); w->light = 0; }
+    if (w->dataCol) {
+
+        for (int i = 0; i < WORLD_W * WORLD_D; i++)
+            if (w->dataCol[i]) free(w->dataCol[i]);
+        free(w->dataCol); w->dataCol = 0; w->dataPages = 0;
+    }
+    lightFree(w);
     if (w->heightmap) { free(w->heightmap); w->heightmap = 0; }
     w->tickNextTickList.clear();
     w->tickSet.clear();

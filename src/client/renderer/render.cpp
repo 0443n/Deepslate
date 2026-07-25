@@ -89,6 +89,8 @@ static bool loadTex16(Texture* out, const char* rel, int psm) {
 float g_camX = 0.0f, g_camY = 0.0f, g_camZ = 0.0f;
 
 enum WorldGenStage { GS_IDLE, GS_SHOW, GS_TERRAIN, GS_TERRAIN_WAIT, GS_MESHING };
+
+static volatile bool g_worldAllocFailed = false;
 static WorldGenStage g_genStage = GS_IDLE;
 #define MESH_CHUNKS_PER_FRAME 8
 
@@ -579,7 +581,7 @@ void gameRender(MenuState& s) {
         return;
     }
     if (!g_worldBuilt) {
-        if (g_genStage == GS_IDLE) g_genStage = GS_SHOW;
+        if (g_genStage == GS_IDLE) { g_genStage = GS_SHOW; g_worldAllocFailed = false; }
 
         if (g_genStage == GS_SHOW) {
 
@@ -615,10 +617,11 @@ void gameRender(MenuState& s) {
                 TerrainArgs* a = (TerrainArgs*)argp;
                 if (LevelStorage::hasSave(a->dir)) {
                     long s2; int gt;
-                    LevelStorage::load(a->w, a->dir, &s2, &gt);
+
+                    if (!LevelStorage::load(a->w, a->dir, &s2, &gt)) g_worldAllocFailed = true;
                     g_loadedFromDisk = true;
                 } else {
-                    worldInitTerrain(a->w, a->seed);
+                    if (!worldInitTerrain(a->w, a->seed)) g_worldAllocFailed = true;
 
                     { int sx, sz, feetY; worldFindSpawn(a->w, &sx, &sz, &feetY);
                       g_level.player->x = sx + 0.5f; g_level.player->z = sz + 0.5f;
@@ -641,10 +644,10 @@ void gameRender(MenuState& s) {
 
                 if (LevelStorage::hasSave(tArgs.dir)) {
                     long s2; int gt;
-                    LevelStorage::load(&g_world, tArgs.dir, &s2, &gt);
+                    if (!LevelStorage::load(&g_world, tArgs.dir, &s2, &gt)) g_worldAllocFailed = true;
                     g_loadedFromDisk = true;
                 } else {
-                    worldInitTerrain(&g_world, seedVal);
+                    if (!worldInitTerrain(&g_world, seedVal)) g_worldAllocFailed = true;
 
                     { int sx, sz, feetY; worldFindSpawn(&g_world, &sx, &sz, &feetY);
                       g_level.player->x = sx + 0.5f; g_level.player->z = sz + 0.5f;
@@ -665,6 +668,14 @@ void gameRender(MenuState& s) {
                                : (g_genPhase == 1 ? "Saving chunks" : "Building terrain");
 
             drawGeneratingScreen(s, g_terrainProgress * 90 / 100, status);
+            if (g_terrainThreadDone && g_worldAllocFailed) {
+
+                g_worldAllocFailed = false;
+                g_genStage = GS_IDLE;
+                g_worldBuilt = false;
+                s.screen = SCREEN_WORLDS;
+                return;
+            }
             if (g_terrainThreadDone) {
 
                 if (!g_haveTerrain) {
@@ -954,9 +965,6 @@ void gameRender(MenuState& s) {
     }
 
     loadWorldView(ex, ey, ez, ctrX, ctrY, ctrZ, roll, g_relBaseX, g_relBaseY, g_relBaseZ);
-
-    extern unsigned int g_tCount, g_tAlloc, g_tEmit, g_tPack;
-    g_tCount = g_tAlloc = g_tEmit = g_tPack = 0;
 
     animateWaterTexture();
 

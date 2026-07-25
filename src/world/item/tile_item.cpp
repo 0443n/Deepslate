@@ -111,6 +111,12 @@ static void doorPlace(World* w, int x, int y, int z, int dir, short tileId) {
 
     worldSetBlockAndData(w, x, y, z, (unsigned char)tileId, (unsigned char)dir);
     worldSetBlockAndData(w, x, y + 1, z, (unsigned char)tileId, (unsigned char)(8 | (flip ? 1 : 0)));
+
+    const SoundType& snd = g_tileSounds[Tile::tiles[tileId & 0xFF]->soundType];
+    if (snd.stepSound)
+        g_level.playSound(x + 0.5f, y + 0.5f, z + 0.5f, snd.stepSound,
+                          (snd.volume + 1.0f) / 2.0f, snd.pitch * 0.8f);
+
     worldNotifyNeighborsChanged(w, x, y, z);
     worldNotifyNeighborsChanged(w, x, y + 1, z);
     worldUpdateLights(w);

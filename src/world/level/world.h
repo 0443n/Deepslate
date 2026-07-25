@@ -3,6 +3,7 @@
 #define MCPSP_WORLD_WORLD_H
 
 #include "world/level/chunk/chunk.h"
+#include <stdlib.h>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
@@ -24,6 +25,13 @@ struct TickNextTickData {
 
 #define WORLD_VIEW_DIST 64.0f
 
+#define LP_PAGE       128
+#define LP_BLK_PAGES  256
+#define LP_MAX_BLKS   256
+#define LP_ALL0   0xFFFEu
+#define LP_ALL15  0xFFFFu
+#define LP_SENT   0xFFFEu
+
 struct LightUpdate {
     int layer;
     int x0, y0, z0, x1, y1, z1;
@@ -32,8 +40,16 @@ struct LightUpdate {
 struct World {
     unsigned char* blocks;
 
-    unsigned char* data;
-    unsigned char* light;
+    unsigned char** dataCol;
+    int dataPages;
+
+    unsigned short* lightIdx;
+    unsigned char*  lightPool[LP_MAX_BLKS];
+    int             lightBlocksUsed;
+    int             lightPagesUsed;
+    int             lightPagesAlloced;
+    unsigned short  lightFreeHead;
+    unsigned int    lightOomDrops;
     unsigned char* heightmap;
     ChunkMesh chunks[WORLD_CHUNKS_X * WORLD_CHUNKS_Z];
 
@@ -73,16 +89,45 @@ static inline unsigned char worldBlock(const World* w, int x, int y, int z) {
         return BLOCK_INVISIBLE_BEDROCK;
     return w->blocks[worldIndex(x, y, z)];
 }
+
+static inline int worldColumn(int x, int z) { return x * WORLD_D + z; }
+
+#define WORLD_DATA_PAGE (WORLD_H / 2)
+
+static inline unsigned int worldDataBytes(const World* w) {
+    return (unsigned int)(WORLD_W * WORLD_D) * sizeof(unsigned char*)
+         + (unsigned int)w->dataPages * WORLD_DATA_PAGE;
+}
+unsigned int lightBytes(const World* w);
+static inline unsigned int worldMemBytes(const World* w) {
+    return (unsigned int)WORLD_W * WORLD_H * WORLD_D
+         + (unsigned int)(WORLD_W * WORLD_D)
+         + worldDataBytes(w)
+         + lightBytes(w);
+}
+
 static inline unsigned char worldData(const World* w, int x, int y, int z) {
     if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
-    int i = worldIndex(x, y, z);
-    return (i & 1) ? (unsigned char)(w->data[i >> 1] >> 4)
-                   : (unsigned char)(w->data[i >> 1] & 0x0F);
+    const unsigned char* pg = w->dataCol[worldColumn(x, z)];
+    if (!pg) return 0;
+    return (y & 1) ? (unsigned char)(pg[y >> 1] >> 4)
+                   : (unsigned char)(pg[y >> 1] & 0x0F);
 }
 
 static inline void worldDataPut(World* w, int i, unsigned char v) {
-    unsigned char& b = w->data[i >> 1];
-    b = (i & 1) ? (unsigned char)((b & 0x0F) | (unsigned char)((v & 0x0F) << 4))
+    unsigned char* pg = w->dataCol[i / WORLD_H];
+    if (!pg) {
+
+        if (!(v & 0x0F)) return;
+        pg = (unsigned char*)calloc(1, WORLD_DATA_PAGE);
+        if (!pg) return;
+        w->dataPages++;
+
+        w->dataCol[i / WORLD_H] = pg;
+    }
+    int y = i % WORLD_H;
+    unsigned char& b = pg[y >> 1];
+    b = (y & 1) ? (unsigned char)((b & 0x0F) | (unsigned char)((v & 0x0F) << 4))
                 : (unsigned char)((b & 0xF0) | (v & 0x0F));
 }
 
@@ -106,24 +151,58 @@ void worldRecordRebuildUs(unsigned int us);
 
 void lightOnBlockChanged(World* w, int x, int y, int z);
 
+static inline int lightPlaneIdx(int layer, int x, int y, int z) {
+    return ((((((x >> 4) << 4) | (z >> 4)) << 7) | y) << 1) | layer;
+}
+static inline unsigned char* lightPage(const World* w, unsigned int id) {
+    return w->lightPool[id >> 8] + ((id & (LP_BLK_PAGES - 1)) << 7);
+}
+
+static inline int lightPi(int x, int z) { return ((x & 15) << 4) | (z & 15); }
+
+unsigned int lightPagePromote(World* w, int idxSlot, unsigned char prefill);
+
+static inline int lightLayerGet(const World* w, int layer, int x, int y, int z) {
+    unsigned int id = w->lightIdx[lightPlaneIdx(layer, x, y, z)];
+    if (id >= LP_SENT) return (int)(id & 1) * 15;
+    int pi = lightPi(x, z);
+    return (lightPage(w, id)[pi >> 1] >> ((pi & 1) * 4)) & 15;
+}
+static inline void lightLayerSet(World* w, int layer, int x, int y, int z, int v) {
+    int slot = lightPlaneIdx(layer, x, y, z);
+    unsigned int id = w->lightIdx[slot];
+    if (id >= LP_SENT) {
+        if (v == (int)(id & 1) * 15) return;
+        id = lightPagePromote(w, slot, (unsigned char)((id & 1) ? 0xFF : 0x00));
+        if (id >= LP_SENT) return;
+    }
+    unsigned char* p = lightPage(w, id);
+    int pi = lightPi(x, z);
+    unsigned char& b = p[pi >> 1];
+    b = (pi & 1) ? (unsigned char)((b & 0x0F) | (v << 4))
+                 : (unsigned char)((b & 0xF0) | v);
+}
+
+static inline bool lightPlaneAllDark(const World* w, int layer, int x, int y, int z) {
+    return w->lightIdx[lightPlaneIdx(layer, x, y, z)] == LP_ALL0;
+}
+
 static inline int lightSkyGet(const World* w, int x, int y, int z) {
     if (y >= WORLD_H) return 15;
     if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
-    return w->light[worldIndex(x, y, z)] >> 4;
+    return lightLayerGet(w, 0, x, y, z);
 }
 static inline int lightBlockGet(const World* w, int x, int y, int z) {
     if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
-    return w->light[worldIndex(x, y, z)] & 0x0F;
+    return lightLayerGet(w, 1, x, y, z);
 }
 static inline void lightSkySet(World* w, int x, int y, int z, int v) {
     if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
-    unsigned char* p = &w->light[worldIndex(x, y, z)];
-    *p = (unsigned char)((*p & 0x0F) | (v << 4));
+    lightLayerSet(w, 0, x, y, z, v);
 }
 static inline void lightBlockSet(World* w, int x, int y, int z, int v) {
     if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
-    unsigned char* p = &w->light[worldIndex(x, y, z)];
-    *p = (unsigned char)((*p & 0xF0) | v);
+    lightLayerSet(w, 1, x, y, z, v);
 }
 
 #define TICKS_PER_DAY 19200
@@ -146,8 +225,8 @@ static inline int lightRawAtNoProp(const World* w, int x, int y, int z) {
 
     if (y >= WORLD_H) { int s = 15 - g_skyDarken; return s < 0 ? 0 : s; }
     if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
-    unsigned char v = w->light[worldIndex(x, y, z)];
-    int s = (v >> 4) - g_skyDarken, b = v & 0x0F;
+
+    int s = lightLayerGet(w, 0, x, y, z) - g_skyDarken, b = lightLayerGet(w, 1, x, y, z);
     if (s < 0) s = 0;
     return s > b ? s : b;
 }
@@ -175,6 +254,19 @@ void worldInitLight(World* w);
 void worldRecalcHeightmap(World* w);
 void worldUpdateLights(World* w);
 void worldRemoveBlockLight(World* w, int x, int y, int z);
+
+bool         lightAlloc(World* w);
+void         lightFree(World* w);
+void         lightClearAll(World* w);
+unsigned int lightBytes(const World* w);
+
+void         lightCompactStep(World* w);
+void         lightCompactAll(World* w);
+
+void         lightInitSkyFromHeightmap(World* w);
+
+void         lightLoadChunk(World* w, int cx, int cz,
+                            const unsigned char* skyNib, const unsigned char* blockNib);
 
 void worldScheduleTick(World* w, int x, int y, int z, unsigned char id, int tickDelay);
 void worldTick(World* w);

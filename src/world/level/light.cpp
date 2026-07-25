@@ -56,17 +56,10 @@ void worldRecalcHeightmap(World* w) {
 }
 
 void worldInitLight(World* w) {
-    memset(w->light, 0, (size_t)WORLD_W * WORLD_H * WORLD_D);
+    lightClearAll(w);
 
     worldRecalcHeightmap(w);
-    for (int x = 0; x < WORLD_W; x++) {
-        if ((x & 31) == 0) sceKernelDelayThread(100);
-        for (int z = 0; z < WORLD_D; z++) {
-            int hy = w->heightmap[hmIdx(x, z)];
-            for (int y = 0; y < WORLD_H; y++)
-                w->light[worldIndex(x, y, z)] = (unsigned char)((y >= hy ? 15 : 0) << 4);
-        }
-    }
+    lightInitSkyFromHeightmap(w);
 
     g_lightBfs.clear();
     for (int x = 0; x < WORLD_W; x++) {
@@ -76,7 +69,7 @@ void worldInitLight(World* w) {
         }
         for (int z = 0; z < WORLD_D; z++)
         for (int y = 0; y < WORLD_H; y++) {
-            int s = w->light[worldIndex(x, y, z)] >> 4;
+            int s = lightSkyGet(w, x, y, z);
             if (s <= 1) continue;
             for (int d = 0; d < 6; d++) {
                 int nx = x + kLN[d][0], ny = y + kLN[d][1], nz = z + kLN[d][2];
@@ -102,6 +95,8 @@ void worldInitLight(World* w) {
         }
     }
     lightFlood(w, 1);
+
+    lightCompactAll(w);
 }
 
 static void lightEnqueue(World* w, int layer, int x, int y, int z) {

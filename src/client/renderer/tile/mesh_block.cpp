@@ -481,14 +481,16 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
 
     unsigned char lc[18 * 18 * 18];
     unsigned char llc[18 * 18 * 18];
+
     for (int dx = 0; dx < 18; dx++)
     for (int dz = 0; dz < 18; dz++)
-    for (int dy = 0; dy < 18; dy++) {
-        int i = (dx * 18 + dz) * 18 + dy;
-        int x = ox - 1 + dx, y = y0 - 1 + dy, z = oz - 1 + dz;
-        lc[i] = worldBlock(w, x, y, z);
-        llc[i] = (unsigned char)lightRawAt(w, x, y, z);
-    }
+    for (int dy = 0; dy < 18; dy++)
+        lc[(dx * 18 + dz) * 18 + dy] = worldBlock(w, ox - 1 + dx, y0 - 1 + dy, oz - 1 + dz);
+    for (int dy = 0; dy < 18; dy++)
+    for (int dx = 0; dx < 18; dx++)
+    for (int dz = 0; dz < 18; dz++)
+        llc[(dx * 18 + dz) * 18 + dy] =
+            (unsigned char)lightRawAt(w, ox - 1 + dx, y0 - 1 + dy, oz - 1 + dz);
     #define LCB(X, Y, Z) lc[((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1)]
     #define LLB(X, Y, Z) llc[((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1)]
 

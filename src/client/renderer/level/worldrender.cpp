@@ -52,6 +52,8 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     worldUpdateLights(w);
     worldDrainPlayerEdits(w, 6);
 
+    lightCompactStep(w);
+
     extern int g_diagMode;
     if (g_diagMode == 3) {
 

@@ -11,12 +11,11 @@
 #include "client/player/player.h"
 
 #define SAMPLE_RATE   44100
-#define SOURCE_RATE   22050
 #define SAMPLE_COUNT   1024
 #define MAX_VOICES       16
 
 #define NAME_LEN         24
-#define PACK_MAGIC 0x4653434DU
+#define PACK_MAGIC 0x4753434DU
 
 struct Entry {
     char         name[NAME_LEN];
@@ -25,7 +24,7 @@ struct Entry {
 };
 
 struct Voice {
-    const short* frames;
+    const signed char* frames;
     unsigned int frameCount;
     unsigned int pos;
     unsigned int step;
@@ -33,18 +32,19 @@ struct Voice {
     volatile int playing;
 };
 
-static Entry*       g_index;
-static int          g_count;
-static const short* g_pcm;
-static Voice        g_voices[MAX_VOICES];
-static int          g_channel = -1;
-static float        g_master  = 1.0f;
+static Entry*             g_index;
+static int                g_count;
+static const signed char* g_pcm;
+static unsigned int       g_srcRate = 22050;
+static Voice              g_voices[MAX_VOICES];
+static int                g_channel = -1;
+static float              g_master  = 1.0f;
 
 static bool loadPack(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) return false;
 
-    unsigned int header[3];
+    unsigned int header[4];
     if (fread(header, sizeof(header), 1, f) != 1 || header[0] != PACK_MAGIC) {
         fclose(f);
         return false;
@@ -52,8 +52,11 @@ static bool loadPack(const char* path) {
 
     int count = (int)header[1];
     unsigned int pcmBytes = header[2];
-    Entry* index = (Entry*)malloc(sizeof(Entry) * count);
-    short* pcm   = (short*)malloc(pcmBytes);
+    unsigned int rate     = header[3];
+    if (count <= 0 || !rate) { fclose(f); return false; }
+
+    Entry* index      = (Entry*)malloc(sizeof(Entry) * count);
+    signed char* pcm  = (signed char*)malloc(pcmBytes);
     if (!index || !pcm ||
         fread(index, sizeof(Entry), count, f) != (size_t)count ||
         fread(pcm, 1, pcmBytes, f) != pcmBytes) {
@@ -64,9 +67,10 @@ static bool loadPack(const char* path) {
     }
     fclose(f);
 
-    g_index = index;
-    g_count = count;
-    g_pcm   = pcm;
+    g_index   = index;
+    g_count   = count;
+    g_pcm     = pcm;
+    g_srcRate = rate;
     return true;
 }
 
@@ -105,8 +109,8 @@ void soundMixBlock(short* out) {
             unsigned int frame = pos >> 16;
             if (frame >= s->frameCount) { s->playing = 0; break; }
 
-            int sample1 = s->frames[frame];
-            int sample2 = (frame + 1 < s->frameCount) ? s->frames[frame + 1] : sample1;
+            int sample1 = s->frames[frame] << 8;
+            int sample2 = (frame + 1 < s->frameCount) ? (s->frames[frame + 1] << 8) : sample1;
             int frac = pos & 0xFFFF;
             int interp = sample1 + (((sample2 - sample1) * frac) >> 16);
 
@@ -138,8 +142,12 @@ static int mixerThread(SceSize , void* ) {
 }
 
 void soundInit(void) {
-    if (!loadPack(assetPath("data/sound/sounds.bin")) &&
-        !loadPack("data/sound/sounds.bin")) {
+
+    extern int g_lowMemPsp;
+    const char* want  = g_lowMemPsp ? "data/sound/sounds_lo.bin" : "data/sound/sounds.bin";
+    const char* other = g_lowMemPsp ? "data/sound/sounds.bin"    : "data/sound/sounds_lo.bin";
+    if (!loadPack(assetPath(want))  && !loadPack(want) &&
+        !loadPack(assetPath(other)) && !loadPack(other)) {
         return;
     }
 
@@ -192,10 +200,10 @@ void soundPlay(const char* name, float volume, float pitch) {
     if (pitch < 0.1f) pitch = 0.1f;
     if (pitch > 4.0f) pitch = 4.0f;
 
-    s->frames     = g_pcm + e->offset / 2;
+    s->frames     = g_pcm + e->offset;
     s->frameCount = e->frames;
     s->pos        = 0;
-    s->step       = (unsigned int)(((float)SOURCE_RATE / SAMPLE_RATE) * pitch * 65536.0f);
+    s->step       = (unsigned int)(((float)g_srcRate / SAMPLE_RATE) * pitch * 65536.0f);
     s->vol        = (int)(volume * 4096.0f);
     s->playing    = 1;
 }
