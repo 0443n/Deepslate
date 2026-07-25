@@ -112,6 +112,8 @@ int g_difficulty = Difficulty::NORMAL;
 
 #include "world/item/item.h"
 
+#define MEM_OVERLAY 0
+
 int main(int argc, char* argv[]) {
     Item::initItems();
     Tile::initTiles();
@@ -309,6 +311,7 @@ int main(int argc, char* argv[]) {
                     std::snprintf(fpsBuf, sizeof(fpsBuf), "FPS: %d", (int)(fps + 0.5f));
                     fontDrawTextShadow(&s.font, 10, ty, fpsBuf, 0xFFE0E0E0u, 1.0f);
                     ty += 12.0f;
+#if MEM_OVERLAY
 
                     if (g_worldBuilt) {
                         struct mallinfo mi = mallinfo();
@@ -321,6 +324,16 @@ int main(int argc, char* argv[]) {
                                       lightBytes(&g_world) / 1048576.0f);
                         fontDrawTextShadow(&s.font, 10, ty, memBuf, 0xFFE0E0E0u, 1.0f);
                         ty += 12.0f;
+                        {
+                            extern float g_viewDist, g_viewDistEff;
+                            if (g_viewDistEff > 0.0f && g_viewDistEff < g_viewDist) {
+                                char rdBuf[48];
+                                std::snprintf(rdBuf, sizeof(rdBuf), "RENDER DIST -> %d (low memory)",
+                                              (int)g_viewDistEff);
+                                fontDrawTextShadow(&s.font, 10, ty, rdBuf, 0xFF40C0FFu, 1.0f);
+                                ty += 12.0f;
+                            }
+                        }
 
                         if (g_world.lightOomDrops) {
                             char oomBuf[48];
@@ -330,6 +343,7 @@ int main(int argc, char* argv[]) {
                             ty += 12.0f;
                         }
                     }
+#endif
                 }
 
                 if (g_showCoords && g_worldBuilt && g_level.player) {

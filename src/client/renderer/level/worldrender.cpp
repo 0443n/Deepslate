@@ -32,6 +32,21 @@ extern float g_camX, g_camY, g_camZ;
 
 volatile int g_meshOOM = 0;
 int g_oomCount = 0;
+
+float g_viewDistEff = 0.0f;
+static float s_lastSlider = 0.0f;
+static int   s_oomFrames = 0;
+
+#define OOM_FRAMES_BEFORE_BACKOFF 60
+
+float worldViewDistEffective(float slider) {
+    if (slider != s_lastSlider) {
+        s_lastSlider = slider;
+        g_viewDistEff = slider;
+        s_oomFrames = 0;
+    }
+    return g_viewDistEff;
+}
 int g_residentSections = 0;
 
 int g_visibleSections = 0;
@@ -100,7 +115,18 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
 void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDist, const Texture* terrain) {
     World* w = (World*)cw;
 
-    if (g_meshOOM) { g_oomCount++; g_meshOOM = 0; }
+    if (g_meshOOM) {
+        g_oomCount++;
+        g_meshOOM = 0;
+        if (++s_oomFrames >= OOM_FRAMES_BEFORE_BACKOFF) {
+            s_oomFrames = 0;
+
+            float next = (g_viewDistEff > 32.0f) ? 32.0f : 16.0f;
+            if (next < g_viewDistEff) g_viewDistEff = next;
+        }
+    } else if (s_oomFrames > 0) {
+        s_oomFrames--;
+    }
 
     worldRebuildStep(w, camX, camY, camZ, viewDist);
 

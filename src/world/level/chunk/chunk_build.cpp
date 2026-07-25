@@ -24,7 +24,7 @@ static ChunkVertex* g_scratchL = 0;
 static ChunkVertex* g_scratchN = 0;
 
 static bool meshHeapReserveOk() {
-    static const unsigned MESH_HEAP_RESERVE = 3u * 1024 * 1024;
+    unsigned MESH_HEAP_RESERVE = g_lowMemPsp ? (1u * 1024 * 1024) : (3u * 1024 * 1024);
     void* p = malloc(MESH_HEAP_RESERVE);
     if (!p) return false;
     free(p);

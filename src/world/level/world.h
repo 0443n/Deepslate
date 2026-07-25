@@ -32,11 +32,6 @@ struct TickNextTickData {
 #define LP_ALL15  0xFFFFu
 #define LP_SENT   0xFFFEu
 
-struct LightUpdate {
-    int layer;
-    int x0, y0, z0, x1, y1, z1;
-};
-
 struct World {
     unsigned char* blocks;
 
@@ -61,7 +56,8 @@ struct World {
     std::vector<TickNextTickData> tickNextTickList;
 
     std::unordered_set<unsigned int> tickSet;
-    std::vector<LightUpdate> lightQueue;
+
+    std::vector<unsigned int> lightQueue;
     bool lightReady;
 
     std::vector<std::vector<unsigned char> > preservedTileEntities;
@@ -254,6 +250,8 @@ void worldInitLight(World* w);
 void worldRecalcHeightmap(World* w);
 void worldUpdateLights(World* w);
 void worldRemoveBlockLight(World* w, int x, int y, int z);
+
+void lightQueuesReserve(World* w);
 
 bool         lightAlloc(World* w);
 void         lightFree(World* w);

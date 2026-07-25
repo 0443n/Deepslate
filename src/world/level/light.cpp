@@ -18,6 +18,13 @@ static inline unsigned int lpack(int x, int y, int z) {
 }
 static std::vector<unsigned int> g_lightBfs;
 
+#define LIGHT_BFS_RESERVE   32768
+#define LIGHT_QUEUE_RESERVE 32768
+
+static inline unsigned int qpack(int layer, int x, int y, int z) {
+    return ((unsigned)layer << 23) | lpack(x, y, z);
+}
+
 static void lightFlood(World* w, int layer) {
     size_t head = 0;
     while (head < g_lightBfs.size()) {
@@ -53,6 +60,16 @@ void worldRecalcHeightmap(World* w) {
             w->heightmap[hmIdx(x, z)] = (unsigned char)hy;
         }
     }
+}
+
+void lightQueuesReserve(World* w) {
+    g_lightBfs.reserve(LIGHT_BFS_RESERVE);
+    w->lightQueue.reserve(LIGHT_QUEUE_RESERVE);
+}
+
+static void lightBfsShrink() {
+    std::vector<unsigned int>().swap(g_lightBfs);
+    g_lightBfs.reserve(LIGHT_BFS_RESERVE);
 }
 
 void worldInitLight(World* w) {
@@ -96,13 +113,14 @@ void worldInitLight(World* w) {
     }
     lightFlood(w, 1);
 
+    lightBfsShrink();
+
     lightCompactAll(w);
 }
 
 static void lightEnqueue(World* w, int layer, int x, int y, int z) {
 
-    LightUpdate lu = { layer, x, y, z, x, y, z };
-    w->lightQueue.push_back(lu);
+    w->lightQueue.push_back(qpack(layer, x, y, z));
 }
 
 static void lightUpdateIfOther(World* w, int layer, int x, int y, int z, int expected) {
@@ -148,9 +166,10 @@ void worldUpdateLights(World* w) {
     unsigned int tStart = sceKernelGetSystemTimeLow();
     int steps = 0;
     while (!w->lightQueue.empty()) {
-        LightUpdate lu = w->lightQueue.back();
+        unsigned int q = w->lightQueue.back();
         w->lightQueue.pop_back();
-        lightUpdateCell(w, lu.layer, lu.x0, lu.y0, lu.z0);
+        lightUpdateCell(w, (int)(q >> 23) & 1, (int)((q >> 15) & 0xFF),
+                        (int)(q & 0x7F), (int)((q >> 7) & 0xFF));
 
         if ((++steps & 63) == 0 && sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US) break;
     }

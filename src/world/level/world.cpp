@@ -99,6 +99,7 @@ bool worldAllocArrays(World* w) {
     w->tickNextTickList.clear();
     w->tickSet.clear();
     w->lightQueue.clear();
+    lightQueuesReserve(w);
     w->preservedTileEntities.clear();
     w->lightReady = false;
     chunkInitBrightRamp();

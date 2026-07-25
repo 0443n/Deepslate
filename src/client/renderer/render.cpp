@@ -980,6 +980,9 @@ void gameRender(MenuState& s) {
 
     sceGuDisable(GU_BLEND);
 
+    extern float worldViewDistEffective(float slider);
+    const float vdEff = worldViewDistEffective(g_viewDist);
+
     sceGuEnable(GU_FOG);
 
     extern float g_fogCullDist;
@@ -1002,11 +1005,11 @@ void gameRender(MenuState& s) {
         g_fogCullDist = 3.0f + 24.0f;
     }
     else {
-        sceGuFog(g_viewDist * 0.6f, g_viewDist, g_skyColorNow);
+        sceGuFog(vdEff * 0.6f, vdEff, g_skyColorNow);
     }
 
     sceGuFrontFace(GU_CCW);
-    worldDraw(&g_world, px0, py0, pz0, g_viewDist, g_haveTerrain ? &g_terrain : 0);
+    worldDraw(&g_world, px0, py0, pz0, vdEff, g_haveTerrain ? &g_terrain : 0);
 
     renderMiningCrack(px0, py0, pz0);
 
