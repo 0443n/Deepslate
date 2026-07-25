@@ -87,13 +87,12 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
 
     bool jumping = (btn & PSP_CTRL_START) != 0;
 
-    unsigned char body = bodyBlock();
     if (flying) {
         if (jumping)              yd += 0.05f;
         if (btn & PSP_CTRL_DOWN)  yd -= 0.05f;
     } else if (jumping) {
-        if (isLiquidId(body))  yd += 0.04f;
-        else if (onGround)     yd = 0.42f;
+        if (isInWater() || isInLava()) yd += 0.04f;
+        else if (onGround)             yd = 0.42f;
     }
 
     xs *= 0.98f; yf *= 0.98f;
@@ -111,7 +110,7 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     travel(xs, yf);
 
     extern int g_autoJump;
-    if (g_autoJump && onGround && horizontalCollision && !flying && !isLiquidId(body)) {
+    if (g_autoJump && onGround && horizontalCollision && !flying && !isInWater() && !isInLava()) {
         float sy = sinf(yRot * 3.14159265f / 180.0f), cy = cosf(yRot * 3.14159265f / 180.0f);
         float dirX = xs * cy + yf * sy, dirZ = yf * cy - xs * sy;
         float d = sqrtf(dirX * dirX + dirZ * dirZ);

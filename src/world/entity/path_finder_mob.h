@@ -10,6 +10,8 @@ public:
     PathfinderMob(Level* level);
 
     virtual void  updateAi();
+
+    void applySwimUrge();
     virtual float getWalkingSpeedModifier();
     virtual float getWalkTargetValue(int x, int y, int z) { return 0.0f; }
     virtual Entity* findAttackTarget() { return 0; }

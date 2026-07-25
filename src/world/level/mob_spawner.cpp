@@ -86,6 +86,8 @@ static void spawnCreatures(Level* level) {
             if (!m) continue;
             m->moveTo(sx + 0.5f, (float)sy, sz + 0.5f, s_rng.nextFloat() * 360.0f, 0.0f);
 
+            if (!m->canSpawn()) { delete m; continue; }
+
             if (s_rng.nextInt(2) == 0) ((Animal*)m)->setAge(-24000);
             level->addEntity(m);
         }
@@ -131,7 +133,7 @@ static void spawnMonsters(Level* level) {
             if (!m) continue;
             m->moveTo(sx + 0.5f, (float)sy, sz + 0.5f, s_rng.nextFloat() * 360.0f, 0.0f);
 
-            if (!((Monster*)m)->canSpawn()) { delete m; continue; }
+            if (!m->canSpawn()) { delete m; continue; }
             level->addEntity(m);
         }
     }
@@ -157,9 +159,13 @@ void populateInitial(Level* level) {
                         Mob* m = MobFactory::createMob(e.mobId, level);
                         if (!m) return;
                         m->moveTo(x + 0.5f, (float)y, z + 0.5f, s_rng.nextFloat() * 360.0f, 0.0f);
-                        if (s_rng.nextInt(2) == 0) ((Animal*)m)->setAge(-24000);
-                        level->addEntity(m);
-                        break;
+
+                        if (m->canSpawn()) {
+                            if (s_rng.nextInt(2) == 0) ((Animal*)m)->setAge(-24000);
+                            level->addEntity(m);
+                            break;
+                        }
+                        delete m;
                     }
                     x += s_rng.nextInt(5) - s_rng.nextInt(5);
                     z += s_rng.nextInt(5) - s_rng.nextInt(5);

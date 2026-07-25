@@ -264,12 +264,13 @@ bool Mob::onLadder() {
 }
 
 void Mob::travel(float xs, float yf) {
-    unsigned char body = bodyBlock();
+
+    bool inWater = isInWater(), inLava = inWater ? false : isInLava();
     if (flying) {
         mobMoveRelative(xs, yf, 0.05f);
         move(xd, yd, zd);
         xd *= 0.91f; yd *= 0.91f; zd *= 0.91f;
-    } else if (isWaterId(body)) {
+    } else if (inWater) {
         float yo = y;
         mobMoveRelative(xs, yf, 0.02f);
         move(xd, yd, zd);
@@ -277,7 +278,7 @@ void Mob::travel(float xs, float yf) {
         yd -= 0.02f;
         if (horizontalCollision && isFreeM(xd, yd + 0.6f - y + yo, zd))
             yd = 0.3f;
-    } else if (isLavaId(body)) {
+    } else if (inLava) {
         float yo = y;
         mobMoveRelative(xs, yf, 0.02f);
         move(xd, yd, zd);
@@ -436,8 +437,7 @@ void Mob::updateAi() {
     }
     xRot = defaultLookAngle;
 
-    unsigned char body = bodyBlock();
-    if (isWaterId(body) || isLavaId(body))
+    if (isInWater() || isInLava())
         jumping = sharedRandom.nextFloat() < 0.8f;
 }
 
@@ -455,8 +455,7 @@ void Mob::aiStep() {
         updateAi();
     }
 
-    unsigned char body = bodyBlock();
-    bool inWater = isWaterId(body), inLava = isLavaId(body);
+    bool inWater = isInWater(), inLava = inWater ? false : isInLava();
     if (jumping) {
         if (inWater || inLava) yd += 0.04f;
         else if (onGround)     jumpFromGround();
@@ -653,4 +652,10 @@ void Mob::readAdditionalSaveData(CompoundTag* tag) {
     hurtTime = tag->getShort("HurtTime");
     deathTime = tag->getShort("DeathTime");
     attackTime = tag->getShort("AttackTime");
+}
+
+bool Mob::canSpawn() {
+    return level->isUnobstructed(bb)
+        && level->getCubes(this, bb).empty()
+        && !level->containsAnyLiquid(bb);
 }

@@ -76,6 +76,10 @@ public:
     virtual void animateHurt();
     virtual bool isAlive();
 
+    virtual bool canSpawn();
+
+    virtual float getHeadHeight() { return bbHeight * 0.85f; }
+
     virtual const char* getHurtSound()  { return "random.hurt"; }
     virtual const char* getDeathSound() { return "random.hurt"; }
     virtual const char* getAmbientSound() { return 0; }

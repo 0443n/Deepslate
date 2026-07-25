@@ -112,6 +112,11 @@ static inline bool isWaterId(unsigned char id) { return id == BLOCK_WATER || id 
 static inline bool isLavaId(unsigned char id)  { return id == BLOCK_LAVA  || id == BLOCK_CALM_LAVA;  }
 static inline bool isLiquidId(unsigned char id){ return isWaterId(id) || isLavaId(id); }
 
+static inline float liquidTileHeight(int d) {
+    if (d >= 8) d = 0;
+    return (d + 1) / 9.0f;
+}
+
 static inline bool sameLiquid(unsigned char a, unsigned char b) {
     return (isWaterId(a) && isWaterId(b)) || (isLavaId(a) && isLavaId(b));
 }

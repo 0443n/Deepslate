@@ -60,11 +60,11 @@ public:
     void removeAllTileEntities();
 
     bool checkAndHandleWater(const AABB&, class Entity*) const { return false; }
-    bool containsAnyLiquid(const AABB&) const { return false; }
+    bool containsAnyLiquid(const AABB& box) const;
     bool containsFireTile(const AABB&) const { return false; }
 
-    bool isInWater(Entity*) const;
-    bool isInLava(Entity*) const;
+    bool isInWater(Entity*, const AABB& box) const;
+    bool isInLava(const AABB& box) const;
     void addParticle(int, float,float,float, float,float,float) const {}
 
     void playSound(Entity* e, const char* name, float volume, float pitch) const;

@@ -80,7 +80,7 @@ Entity* Monster::findAttackTarget() {
 }
 
 bool Monster::canSpawn() {
-    return isDarkEnoughToSpawn();
+    return isDarkEnoughToSpawn() && Mob::canSpawn();
 }
 
 bool Monster::isDarkEnoughToSpawn() {

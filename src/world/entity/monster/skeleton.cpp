@@ -24,20 +24,23 @@ int Skeleton::getEntityTypeId() const { return EntityTypes::IdSkeleton; }
 void Skeleton::checkHurtTarget(Entity* target, float d) {
     if (d >= 10.0f) return;
 
-    float myEyeY = (y - heightOffset) + bbHeight * 0.85f;
+    float myEyeY = y + getHeadHeight();
     float ex = target->x;
-    float ey = (target->y - target->heightOffset) + target->bbHeight * 0.5f;
+    float ey = target->y + target->getHeadHeight() - 0.7f;
     float ez = target->z;
     float dx = ex - x, dz = ez - z;
     float horiz = sqrtf(dx * dx + dz * dz);
-    float dy = (ey - myEyeY) + horiz * 0.2f;
+
+    float dy = (ey - (myEyeY - 0.1f)) + horiz * 0.2f;
     float yaw   = atan2f(dx, dz) * SK_RADDEG;
     float pitch = atan2f(dy, horiz) * SK_RADDEG;
 
     xRot = pitch;
 
     if (attackTime == 0) {
-        Arrow* a = new Arrow(level, x, myEyeY, z, yaw, pitch, 1.1f, false);
+
+        Arrow* a = new Arrow(level, x, myEyeY, z, yaw, pitch, 1.6f / 1.5f, false,
+                              false,  32.0f);
         a->ownerId = entityId;
         level->addEntity(a);
         attackTime = TicksPerSecond * 3;

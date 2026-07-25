@@ -17,6 +17,10 @@ float PathfinderMob::getWalkingSpeedModifier() {
     return speed;
 }
 
+void PathfinderMob::applySwimUrge() {
+    if (sharedRandom.nextFloat() < 0.8f && (isInWater() || isInLava())) jumping = true;
+}
+
 void PathfinderMob::updateAi() {
     if (fleeTime > 0) fleeTime--;
     holdGround = false;
@@ -48,6 +52,7 @@ void PathfinderMob::updateAi() {
             float dx = attackTarget->x - x, dz = attackTarget->z - z;
             yRot = atan2f(dx, dz) * 180.0f / PF_PI;
         }
+        applySwimUrge();
         return;
     }
 
@@ -64,6 +69,7 @@ void PathfinderMob::updateAi() {
             xxa = 0; yya = runSpeed; xRot = 0; jumping = false;
             if (horizontalCollision) jumping = true;
             if (!path.isEmpty()) path.destroy();
+            applySwimUrge();
             return;
         }
     }

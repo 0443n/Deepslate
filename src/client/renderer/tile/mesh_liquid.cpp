@@ -13,10 +13,7 @@ static inline bool isSolidRender(unsigned char id) {
     return isOpaque(id);
 }
 
-static float getLiquidHeightRaw(int d) {
-    if (d >= 8) d = 0;
-    return (d + 1) / 9.0f;
-}
+static inline float getLiquidHeightRaw(int d) { return liquidTileHeight(d); }
 
 static float getLiquidHeight(const World* w, int x, int y, int z, unsigned char liquidId) {
     int count = 0;

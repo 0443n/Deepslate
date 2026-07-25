@@ -43,8 +43,25 @@ bool Level::hasChunksAt(int x0, int y0, int z0, int x1, int y1, int z1) const {
     if (y1 < 0 || y0 >= WORLD_H) return false;
     return true;
 }
+
 bool Level::isSolidBlockingTile(int x, int y, int z) const {
     return isOpaque((unsigned char)worldBlock(w, x, y, z));
+}
+
+bool Level::containsAnyLiquid(const AABB& box) const {
+    int x0 = Mth::floor(box.x0), x1 = Mth::floor(box.x1 + 1);
+    int y0 = Mth::floor(box.y0), y1 = Mth::floor(box.y1 + 1);
+    int z0 = Mth::floor(box.z0), z1 = Mth::floor(box.z1 + 1);
+    if (box.x0 < 0) x0--;
+    if (box.y0 < 0) y0--;
+    if (box.z0 < 0) z0--;
+    for (int x = x0; x < x1; x++)
+        for (int y = y0; y < y1; y++)
+            for (int z = z0; z < z1; z++) {
+                unsigned char id = (unsigned char)worldBlock(w, x, y, z);
+                if (isWaterId(id) || isLavaId(id)) return true;
+            }
+    return false;
 }
 
 bool Level::isSolidTile(int x, int y, int z) const {
@@ -218,11 +235,11 @@ void furnaceSetLitBlock(Level* level, int x, int y, int z, bool lit) {
     worldRebuildAroundNow(level->w, x, y, z);
 }
 
-bool Level::isInWater(Entity* e) const {
-    const AABB& box = e->bb;
+bool Level::isInWater(Entity* e, const AABB& box) const {
     int x0 = Mth::floor(box.x0), x1 = Mth::floor(box.x1 + 1);
     int y0 = Mth::floor(box.y0), y1 = Mth::floor(box.y1 + 1);
     int z0 = Mth::floor(box.z0), z1 = Mth::floor(box.z1 + 1);
+    if (!hasChunksAt(x0, y0, z0, x1, y1, z1)) return false;
     bool ok = false;
     float cx = 0, cy = 0, cz = 0;
     for (int x = x0; x < x1; x++)
@@ -230,6 +247,9 @@ bool Level::isInWater(Entity* e) const {
             for (int z = z0; z < z1; z++) {
                 unsigned char id = worldBlock(w, x, y, z);
                 if (!isWaterId(id)) continue;
+
+                float yt0 = y + 1 - liquidTileHeight(worldData(w, x, y, z));
+                if (!((float)y1 >= yt0)) continue;
                 ok = true;
                 float fx, fy, fz;
                 liquidFlow(w, x, y, z, id, &fx, &fy, &fz);
@@ -243,8 +263,7 @@ bool Level::isInWater(Entity* e) const {
     return ok;
 }
 
-bool Level::isInLava(Entity* e) const {
-    const AABB& box = e->bb;
+bool Level::isInLava(const AABB& box) const {
     int x0 = Mth::floor(box.x0), x1 = Mth::floor(box.x1 + 1);
     int y0 = Mth::floor(box.y0), y1 = Mth::floor(box.y1 + 1);
     int z0 = Mth::floor(box.z0), z1 = Mth::floor(box.z1 + 1);

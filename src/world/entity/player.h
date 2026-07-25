@@ -12,6 +12,8 @@ public:
     Player(Level* level);
     virtual ~Player();
 
+    virtual float getHeadHeight() { return 0.12f; }
+
     Inventory* inventory;
 
     static const int NUM_ARMOR = 4;

@@ -72,6 +72,9 @@ void HumanoidRenderer::render(Entity* e, float x, float y, float z, float rot, f
     parts[P_LEG0].xRot = tcos0 * 1.4f; parts[P_LEG0].yRot = parts[P_LEG0].zRot = 0;
     parts[P_LEG1].xRot = tcos1 * 1.4f; parts[P_LEG1].yRot = parts[P_LEG1].zRot = 0;
 
+    parts[P_ARM0].px = -5.0f; parts[P_ARM0].pz = 0.0f;
+    parts[P_ARM1].px =  5.0f; parts[P_ARM1].pz = 0.0f;
+
     if (bow) {
 
         float hy = parts[P_HEAD].yRot, hx = parts[P_HEAD].xRot;
@@ -88,6 +91,10 @@ void HumanoidRenderer::render(Entity* e, float x, float y, float z, float rot, f
 
             float bodyYaw = sinf(sqrtf(aa) * PIF * 2.0f) * 0.2f;
             parts[P_BODY].yRot = bodyYaw;
+            parts[P_ARM0].pz =  sinf(bodyYaw) * 5.0f;
+            parts[P_ARM0].px = -cosf(bodyYaw) * 5.0f;
+            parts[P_ARM1].pz = -sinf(bodyYaw) * 5.0f;
+            parts[P_ARM1].px =  cosf(bodyYaw) * 5.0f;
             float f6 = 1.0f - aa; f6 *= f6; f6 *= f6; f6 = 1.0f - f6;
             float f7 = sinf(f6 * PIF);
             float f8 = sinf(aa * PIF) * -(parts[P_HEAD].xRot - 0.7f) * 0.75f;
@@ -99,6 +106,15 @@ void HumanoidRenderer::render(Entity* e, float x, float y, float z, float rot, f
     } else {
 
         float aa = mob->getAttackAnim(a);
+
+        if (aa > 0.001f) {
+            float bodyYaw = sinf(sqrtf(aa) * PIF * 2.0f) * 0.2f;
+            parts[P_BODY].yRot = bodyYaw;
+            parts[P_ARM0].pz =  sinf(bodyYaw) * 5.0f;
+            parts[P_ARM0].px = -cosf(bodyYaw) * 5.0f;
+            parts[P_ARM1].pz = -sinf(bodyYaw) * 5.0f;
+            parts[P_ARM1].px =  cosf(bodyYaw) * 5.0f;
+        }
         float attack2 = sinf(aa * PIF);
         float attack  = sinf((1.0f - (1.0f - aa) * (1.0f - aa)) * PIF);
         float armX = -PIF / 2.0f - (attack2 * 1.2f - attack * 0.4f);

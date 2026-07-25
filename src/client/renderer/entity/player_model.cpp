@@ -246,10 +246,18 @@ void playerModelRender(float a) {
 
     float diff = g_attackAnim - g_oAttackAnim; if (diff < 0.0f) diff += 1.0f;
     float atk = g_oAttackAnim + diff * a; if (atk > 1.0f) atk -= 1.0f;
+
+    parts[P_ARM0].px = -5.0f; parts[P_ARM0].pz = 0.0f;
+    parts[P_ARM1].px =  5.0f; parts[P_ARM1].pz = 0.0f;
     if (atk > 0.001f) {
         float f = 1.0f - atk; f *= f; f *= f; f = 1.0f - f;
         float s1 = sinf(f * PIF);
         parts[P_BODY].yRot  = sinf(sqrtf(atk) * PIF * 2.0f) * 0.2f;
+
+        parts[P_ARM0].pz =  sinf(parts[P_BODY].yRot) * 5.0f;
+        parts[P_ARM0].px = -cosf(parts[P_BODY].yRot) * 5.0f;
+        parts[P_ARM1].pz = -sinf(parts[P_BODY].yRot) * 5.0f;
+        parts[P_ARM1].px =  cosf(parts[P_BODY].yRot) * 5.0f;
         parts[P_ARM0].yRot += parts[P_BODY].yRot;
         parts[P_ARM1].yRot += parts[P_BODY].yRot;
         parts[P_ARM1].xRot += parts[P_BODY].yRot;

@@ -528,7 +528,10 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
 
                     if (pow >= 0.1f &&
                         g_level.player->inventory->removeResource(ItemInstance(ITEM_ARROW, 1, 0), true) == 0) {
-                        g_level.addEntity(new Arrow(&g_level, g_level.player->x, g_level.player->y, g_level.player->z,
+
+                        g_level.addEntity(new Arrow(&g_level, g_level.player->x,
+                                                    g_level.player->y + g_level.player->getHeadHeight(),
+                                                    g_level.player->z,
                                                     g_level.player->yRot, g_level.player->xRot, pow * 2.0f, pow >= 1.0f,
                                                      true));
 

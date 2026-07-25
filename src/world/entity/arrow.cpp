@@ -27,17 +27,27 @@ static inline bool solidAt(World* w, float x, float y, float z) {
     return isSolidPhys(worldBlock(w, Mth::floor(x), Mth::floor(y), Mth::floor(z)));
 }
 
+static const float ARROW_BASE_DAMAGE = 2.0f;
+int Arrow::damageForSpeed() {
+    float pow = Mth::sqrt(xd * xd + yd * yd + zd * zd);
+    int dmg = (int)ceilf(pow * ARROW_BASE_DAMAGE);
+    if (dmg < 1) dmg = 1;
+    if (critArrow) dmg += sharedRandom.nextInt(dmg / 2 + 2);
+    return dmg;
+}
+
 Arrow::Arrow(Level* level)
     : super(level), ownerId(0), inGround(false), life(0), shakeTime(0), critArrow(false),
-      playerArrow(false), xTile(-1), yTile(-1), zTile(-1), lastTile(0) {
+      playerArrow(false), xTile(-1), yTile(-1), zTile(-1), lastTile(0), lastData(0), flightTime(0) {
     setSize(0.25f, 0.25f);
     entityRendererId = ER_ARROW_RENDERER;
 }
 
 Arrow::Arrow(Level* level, float px, float py, float pz,
-             float yaw, float pitch, float speed, bool crit, bool fromPlayer)
+             float yaw, float pitch, float speed, bool crit, bool fromPlayer,
+             float uncertainty)
     : super(level), ownerId(0), inGround(false), life(0), shakeTime(0), critArrow(crit),
-      playerArrow(fromPlayer), xTile(-1), yTile(-1), zTile(-1), lastTile(0) {
+      playerArrow(fromPlayer), xTile(-1), yTile(-1), zTile(-1), lastTile(0), lastData(0), flightTime(0) {
     setSize(0.25f, 0.25f);
     entityRendererId = ER_ARROW_RENDERER;
 
@@ -45,14 +55,15 @@ Arrow::Arrow(Level* level, float px, float py, float pz,
     float cp = cosf(pitch * DEG), sp = sinf(pitch * DEG);
     float dx = cp * sy, dy = sp, dz = cp * cy;
 
-    setPos(px + dx * 0.2f, py + dy * 0.2f, pz + dz * 0.2f);
+    setPos(px - cy * 0.16f, py - 0.1f, pz + sy * 0.16f);
     xOld = x; yOld = y; zOld = z;
 
     speed *= 1.5f;
 
-    dx += sharedRandom.nextGaussian() * 0.0075f;
-    dy += sharedRandom.nextGaussian() * 0.0075f;
-    dz += sharedRandom.nextGaussian() * 0.0075f;
+    const float radius = 0.0075f * uncertainty;
+    dx += sharedRandom.nextGaussian() * radius;
+    dy += sharedRandom.nextGaussian() * radius;
+    dz += sharedRandom.nextGaussian() * radius;
 
     xd = dx * speed; yd = dy * speed; zd = dz * speed;
     yRot = yRotO = atan2f(xd, zd) * RAD;
@@ -88,15 +99,21 @@ void Arrow::tick() {
             }
         }
 
-        if (worldBlock(level->w, xTile, yTile, zTile) != lastTile) {
+        if (worldBlock(level->w, xTile, yTile, zTile) != lastTile ||
+            worldData(level->w, xTile, yTile, zTile) != lastData) {
             inGround = false;
-            xd *= 0.2f; yd *= 0.2f; zd *= 0.2f;
+
+            xd *= sharedRandom.nextFloat() * 0.2f;
+            yd *= sharedRandom.nextFloat() * 0.2f;
+            zd *= sharedRandom.nextFloat() * 0.2f;
             life = 0;
+            flightTime = 0;
             return;
         }
         if (++life >= 60 * TicksPerSecond) remove();
         return;
     }
+    flightTime++;
 
     float nx = x + xd, ny = y + yd, nz = z + zd;
     float dist = Mth::sqrt(xd * xd + yd * yd + zd * zd);
@@ -110,14 +127,21 @@ void Arrow::tick() {
         for (size_t ei = 0; ei < level->entities.size(); ei++) {
             Entity* e = level->entities[ei];
             if (!e || e->removed || e == this || !e->isPickable()) continue;
-            if (e->entityId == ownerId) continue;
+
+            if (e->entityId == ownerId && flightTime < 5) continue;
             if (sx > e->bb.x0 - 0.3f && sx < e->bb.x1 + 0.3f &&
                 sy > e->bb.y0 - 0.3f && sy < e->bb.y1 + 0.3f &&
                 sz > e->bb.z0 - 0.3f && sz < e->bb.z1 + 0.3f) {
 
-                e->hurt(this, critArrow ? 6 : 4);
-                level->playSound(this, "random.bowhit", 1.0f, arrowPitch());
-                remove();
+                if (e->hurt(this, damageForSpeed())) {
+                    level->playSound(this, "random.bowhit", 1.0f, arrowPitch());
+                    remove();
+                } else {
+
+                    xd *= -0.1f; yd *= -0.1f; zd *= -0.1f;
+                    yRot += 180.0f; yRotO += 180.0f;
+                    flightTime = 0;
+                }
                 return;
             }
         }
@@ -128,9 +152,14 @@ void Arrow::tick() {
             if (sx > p->x - PLAYER_W * 0.5f - 0.3f && sx < p->x + PLAYER_W * 0.5f + 0.3f &&
                 sy > pf - 0.3f                     && sy < pf + PLAYER_H + 0.3f &&
                 sz > p->z - PLAYER_W * 0.5f - 0.3f && sz < p->z + PLAYER_W * 0.5f + 0.3f) {
-                p->hurt(this, 4);
-                level->playSound(this, "random.bowhit", 1.0f, arrowPitch());
-                remove();
+                if (p->hurt(this, damageForSpeed())) {
+                    level->playSound(this, "random.bowhit", 1.0f, arrowPitch());
+                    remove();
+                } else {
+                    xd *= -0.1f; yd *= -0.1f; zd *= -0.1f;
+                    yRot += 180.0f; yRotO += 180.0f;
+                    flightTime = 0;
+                }
                 return;
             }
         }
@@ -147,6 +176,7 @@ void Arrow::tick() {
         yTile = Mth::floor(py + yd / dist * 0.1f);
         zTile = Mth::floor(pz + zd / dist * 0.1f);
         lastTile = worldBlock(level->w, xTile, yTile, zTile);
+        lastData = worldData(level->w, xTile, yTile, zTile);
         x = px; y = py; z = pz;
         xd = yd = zd = 0.0f;
         inGround = true;
@@ -167,6 +197,12 @@ void Arrow::tick() {
     float sd = Mth::sqrt(xd * xd + zd * zd);
     yRot = atan2f(xd, zd) * RAD;
     xRot = atan2f(yd, sd) * RAD;
+    while (xRot - xRotO < -180.0f) xRotO -= 360.0f;
+    while (xRot - xRotO >= 180.0f) xRotO += 360.0f;
+    while (yRot - yRotO < -180.0f) yRotO -= 360.0f;
+    while (yRot - yRotO >= 180.0f) yRotO += 360.0f;
+    xRot = xRotO + (xRot - xRotO) * 0.2f;
+    yRot = yRotO + (yRot - yRotO) * 0.2f;
 
     float inertia = 0.99f;
     if (isInWater()) {
@@ -188,18 +224,22 @@ void Arrow::addAdditonalSaveData(CompoundTag* tag) {
     tag->putShort("xTile", (short)xTile);
     tag->putShort("yTile", (short)yTile);
     tag->putShort("zTile", (short)zTile);
-    tag->putShort("inTile", (short)lastTile);
+
+    tag->putByte("inTile", (char)lastTile);
+    tag->putByte("inData", (char)lastData);
+    tag->putByte("shake", (char)shakeTime);
+    tag->putByte("inGround", (char)(inGround ? 1 : 0));
     tag->putBoolean("player", playerArrow);
-    tag->putBoolean("inGround", inGround);
-    tag->putShort("life", (short)life);
 }
 
 void Arrow::readAdditionalSaveData(CompoundTag* tag) {
     xTile = tag->getShort("xTile");
     yTile = tag->getShort("yTile");
     zTile = tag->getShort("zTile");
-    lastTile = tag->getShort("inTile");
+    lastTile = tag->getByte("inTile") & 0xff;
+    lastData = tag->getByte("inData") & 0xff;
+    shakeTime = tag->getByte("shake") & 0xff;
+    inGround = tag->getByte("inGround") == 1;
     playerArrow = tag->getBoolean("player");
-    inGround = tag->getBoolean("inGround");
-    life = tag->getShort("life");
+    life = 0;
 }

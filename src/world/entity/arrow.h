@@ -8,12 +8,15 @@ class Arrow : public Entity {
     typedef Entity super;
 public:
     Arrow(Level* level);
+
     Arrow(Level* level, float x, float y, float z,
           float yaw, float pitch, float speed, bool crit,
-          bool fromPlayer = false);
+          bool fromPlayer = false, float uncertainty = 1.0f);
 
     virtual void tick();
     virtual int  getEntityTypeId() const;
+
+    int  damageForSpeed();
 
     virtual void addAdditonalSaveData(CompoundTag* tag);
     virtual void readAdditionalSaveData(CompoundTag* tag);
@@ -27,6 +30,9 @@ public:
     bool playerArrow;
     int  xTile, yTile, zTile;
     int  lastTile;
+    int  lastData;
+
+    int  flightTime;
 };
 
 #endif
