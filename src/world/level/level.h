@@ -4,6 +4,7 @@
 
 #include <vector>
 #include "world/phys/aabb.h"
+#include "world/level/world.h"
 
 struct World;
 class Entity;
@@ -11,17 +12,21 @@ class TileEntity;
 class LocalPlayer;
 class Path;
 
+typedef std::vector<Entity*> EntityList;
+
 class Level {
 public:
     World* w;
-    Level();
-    std::vector<Entity*> entities;
+    EntityList entities;
     std::vector<TileEntity*> tileEntities;
+    std::vector<AABB> boxes;
+
+    Entity* chunkEntityHead[WORLD_CHUNKS_X * WORLD_CHUNKS_Z];
 
     LocalPlayer* player;
     bool isClientSide;
 
-    explicit Level(World* world) : w(world), player(0), isClientSide(false) {}
+    explicit Level(World* world);
 
     int   getTile(int x, int y, int z) const;
     int   getData(int x, int y, int z) const;
@@ -36,9 +41,16 @@ public:
     bool  isSolidBlockingTile(int x, int y, int z) const;
     bool  isSolidTile(int x, int y, int z) const;
 
-    std::vector<AABB> getCubes(Entity* except, const AABB& box) const;
+    std::vector<AABB>& getCubes(Entity* except, const AABB& box);
 
-    std::vector<Entity*> getEntities(Entity* except, const AABB& box) const;
+    void getEntities(Entity* except, const AABB& box, EntityList& out) const;
+
+    int getEntitiesOfType(int entityType, const AABB& box, EntityList& out) const;
+    int getEntitiesOfClass(int baseType, const AABB& box, EntityList& out) const;
+
+    void linkEntity(Entity* e);
+    void unlinkEntity(Entity* e);
+    void relinkIfMoved(Entity* e);
 
     bool isUnobstructed(const AABB& box) const;
 
@@ -48,6 +60,10 @@ public:
     void addEntity(Entity* e);
     void tickEntities();
     int  countInstanceOfBaseType(int baseType) const;
+
+    int  countInstanceOfType(int entityType) const;
+
+    Entity* getNearestPlayer(float x, float y, float z, float maxDist) const;
     Entity* getEntity(int id) const;
     int  getDifficulty() const;
     int  getTopSolidBlock(int x, int z) const;

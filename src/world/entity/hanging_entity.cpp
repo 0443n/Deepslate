@@ -107,7 +107,8 @@ bool HangingEntity::survives() {
                 }
                 if (!solid) return false;
             }
-            std::vector<Entity*> es = level->getEntities(this, bb);
+            static std::vector<Entity*> es;
+            level->getEntities(this, bb, es);
             for (size_t ei = 0; ei < es.size(); ++ei) {
                 if (es[ei]->isHangingEntity()) return false;
             }

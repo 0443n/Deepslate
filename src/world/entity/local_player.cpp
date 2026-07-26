@@ -131,7 +131,8 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     float distSq = wdx * wdx + wdz * wdz;
 
     {
-        std::vector<Entity*> nearby = level->getEntities(this, bb.grow(0.2f, 0.0f, 0.2f));
+        static std::vector<Entity*> nearby;
+        level->getEntities(this, bb.grow(0.2f, 0.0f, 0.2f), nearby);
         for (unsigned int i = 0; i < nearby.size(); i++)
             if (nearby[i] && nearby[i]->isPushable()) nearby[i]->push(this);
     }

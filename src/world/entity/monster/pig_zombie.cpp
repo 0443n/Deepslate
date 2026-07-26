@@ -70,7 +70,8 @@ bool PigZombie::hurt(Entity* source, int damage) {
     if (applied && attacker) {
 
         AABB box = bb.grow(12.0f, 12.0f, 12.0f);
-        std::vector<Entity*> nearby = level->getEntities(this, box);
+        static std::vector<Entity*> nearby;
+        level->getEntities(this, box, nearby);
         for (size_t i = 0; i < nearby.size(); i++) {
             if (nearby[i]->isEntityType(EntityTypes::IdPigZombie))
                 ((PigZombie*)nearby[i])->alert(attacker);

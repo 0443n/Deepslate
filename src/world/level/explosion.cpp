@@ -112,9 +112,12 @@ void worldExplode(World* w, float x, float y, float z, float r) {
     worldUpdateLights(w);
 
     const float r2 = r * 2.0f;
-    for (size_t i = 0; i < g_level.entities.size(); i++) {
-        Entity* e = g_level.entities[i];
-        if (!e || e->removed) continue;
+
+    static EntityList caught;
+    g_level.getEntities(0, AABB(x - r2, y - r2, z - r2, x + r2, y + r2, z + r2), caught);
+    for (size_t i = 0; i < caught.size(); i++) {
+        Entity* e = caught[i];
+        if (e->removed) continue;
         float dx = e->x - x, dy = e->y - y, dz = e->z - z;
         float dd = sqrtf(dx * dx + dy * dy + dz * dz);
         float dist = dd / r2;

@@ -25,6 +25,12 @@ bool Entity::hasFreeSlot() {
     return false;
 }
 
+int Entity::freeSlots() {
+    int n = 0;
+    for (int i = 0; i < ENTITY_POOL; i++) if (!s_slotUsed[i]) n++;
+    return n;
+}
+
 void* Entity::operator new(unsigned n) {
     if (n <= ENTITY_SLOT) {
         for (int i = 0; i < ENTITY_POOL; i++)
@@ -45,7 +51,7 @@ void Entity::operator delete(void* p) {
 
 Entity::Entity(Level* level)
 :   x(0), y(0), z(0),
-    xChunk(0), yChunk(0), zChunk(0),
+    xChunk(0), yChunk(0), zChunk(0), nextInChunk(0),
     viewScale(1.0f),
     level(level),
     xo(0), yo(0), zo(0), xd(0), yd(0), zd(0),
@@ -151,7 +157,7 @@ void Entity::move(float xa, float ya, float za) {
         }
     }
 
-    std::vector<AABB> aABBs = level->getCubes(this, bb.expand(xa, ya, za));
+    const std::vector<AABB>& aABBs = level->getCubes(this, bb.expand(xa, ya, za));
 
     for (unsigned int i = 0; i < aABBs.size(); i++) ya = aABBs[i].clipYCollide(bb, ya);
     bb.move(0, ya, 0);
@@ -171,14 +177,14 @@ void Entity::move(float xa, float ya, float za) {
         xa = xaOrg; ya = footSize; za = zaOrg;
         AABB normal = bb;
         bb.set(bbOrg);
-        aABBs = level->getCubes(this, bb.expand(xa, ya, za));
-        for (unsigned int i = 0; i < aABBs.size(); i++) ya = aABBs[i].clipYCollide(bb, ya);
+        const std::vector<AABB>& stepBoxes = level->getCubes(this, bb.expand(xa, ya, za));
+        for (unsigned int i = 0; i < stepBoxes.size(); i++) ya = stepBoxes[i].clipYCollide(bb, ya);
         bb.move(0, ya, 0);
         if (!slide && yaOrg != ya) { xa = ya = za = 0; }
-        for (unsigned int i = 0; i < aABBs.size(); i++) xa = aABBs[i].clipXCollide(bb, xa);
+        for (unsigned int i = 0; i < stepBoxes.size(); i++) xa = stepBoxes[i].clipXCollide(bb, xa);
         bb.move(xa, 0, 0);
         if (!slide && xaOrg != xa) { xa = ya = za = 0; }
-        for (unsigned int i = 0; i < aABBs.size(); i++) za = aABBs[i].clipZCollide(bb, za);
+        for (unsigned int i = 0; i < stepBoxes.size(); i++) za = stepBoxes[i].clipZCollide(bb, za);
         bb.move(0, 0, za);
         if (!slide && zaOrg != za) { xa = ya = za = 0; }
         if (xaN * xaN + zaN * zaN >= xa * xa + za * za) {

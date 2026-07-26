@@ -24,6 +24,7 @@ public:
     static const int ENTITY_POOL = 96;
     static const unsigned ENTITY_SLOT = 2560;
     static bool  hasFreeSlot();
+    static int   freeSlots();
     static void* operator new(unsigned n);
     static void  operator delete(void* p);
 
@@ -133,7 +134,9 @@ protected:
 
 public:
     float x, y, z;
+
     int xChunk, yChunk, zChunk;
+    Entity* nextInChunk;
     int entityId;
     float viewScale;
 

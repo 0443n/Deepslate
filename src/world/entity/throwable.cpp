@@ -83,13 +83,16 @@ void Throwable::tick() {
 
     float dist = Mth::sqrt(xd * xd + yd * yd + zd * zd);
     int steps = (int)(dist / 0.1f) + 1;
+
+    static EntityList candidates;
+    level->getEntities(this, bb.expand(xd, yd, zd).grow(0.3f, 0.3f, 0.3f), candidates);
     for (int i = 1; i <= steps; i++) {
         float t = (float)i / steps;
         float sx = x + xd * t, sy = y + yd * t, sz = z + zd * t;
 
-        for (size_t ei = 0; ei < level->entities.size(); ei++) {
-            Entity* e = level->entities[ei];
-            if (!e || e->removed || e == this || e == (Entity*)level->player || !e->isPickable()) continue;
+        for (size_t ei = 0; ei < candidates.size(); ei++) {
+            Entity* e = candidates[ei];
+            if (e->removed || e == (Entity*)level->player || !e->isPickable()) continue;
             if (sx > e->bb.x0 - 0.3f && sx < e->bb.x1 + 0.3f &&
                 sy > e->bb.y0 - 0.3f && sy < e->bb.y1 + 0.3f &&
                 sz > e->bb.z0 - 0.3f && sz < e->bb.z1 + 0.3f) {

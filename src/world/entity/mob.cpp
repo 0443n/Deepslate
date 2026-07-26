@@ -471,7 +471,9 @@ void Mob::aiStep() {
 
     if (!farAway) {
         AABB region = bb.grow(0.2f, 0.0f, 0.2f);
-        std::vector<Entity*> nearby = level->getEntities(this, region);
+
+        static std::vector<Entity*> nearby;
+        level->getEntities(this, region, nearby);
         for (unsigned int i = 0; i < nearby.size(); i++)
             if (nearby[i] && nearby[i]->isPushable()) nearby[i]->push(this);
 

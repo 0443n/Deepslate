@@ -13,7 +13,60 @@
 #include "platform/audio/sound.h"
 #include "util/mth.h"
 
-Level::Level() { entities.reserve(Entity::ENTITY_POOL + 16); }
+Level::Level(World* world) : w(world), player(0), isClientSide(false) {
+    entities.reserve(Entity::ENTITY_POOL + 16);
+    boxes.reserve(64);
+    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) chunkEntityHead[i] = 0;
+}
+
+static inline int colOf(float x, float z) {
+    int cx = (int)(x) >> 4, cz = (int)(z) >> 4;
+    if (cx < 0) cx = 0; else if (cx >= WORLD_CHUNKS_X) cx = WORLD_CHUNKS_X - 1;
+    if (cz < 0) cz = 0; else if (cz >= WORLD_CHUNKS_Z) cz = WORLD_CHUNKS_Z - 1;
+    return cz * WORLD_CHUNKS_X + cx;
+}
+
+void Level::linkEntity(Entity* e) {
+    if (!e || e->inChunk) return;
+    int col = colOf(e->x, e->z);
+    e->xChunk = col % WORLD_CHUNKS_X;
+    e->zChunk = col / WORLD_CHUNKS_X;
+    e->yChunk = (int)e->y >> 4;
+    e->nextInChunk = chunkEntityHead[col];
+    chunkEntityHead[col] = e;
+    e->inChunk = true;
+}
+
+void Level::unlinkEntity(Entity* e) {
+    if (!e || !e->inChunk) return;
+    int col = e->zChunk * WORLD_CHUNKS_X + e->xChunk;
+    Entity** p = &chunkEntityHead[col];
+    while (*p && *p != e) p = &(*p)->nextInChunk;
+    if (*p) *p = e->nextInChunk;
+    e->nextInChunk = 0;
+    e->inChunk = false;
+}
+
+void Level::relinkIfMoved(Entity* e) {
+    if (!e) return;
+    int col = colOf(e->x, e->z);
+    if (e->inChunk && col == e->zChunk * WORLD_CHUNKS_X + e->xChunk) {
+        e->yChunk = (int)e->y >> 4;
+        return;
+    }
+    unlinkEntity(e);
+    linkEntity(e);
+}
+
+static inline void colRange(const AABB& b, int* cx0, int* cx1, int* cz0, int* cz1) {
+    *cx0 = ((int)(b.x0 - 2.0f)) >> 4; *cx1 = ((int)(b.x1 + 2.0f)) >> 4;
+    *cz0 = ((int)(b.z0 - 2.0f)) >> 4; *cz1 = ((int)(b.z1 + 2.0f)) >> 4;
+
+    if (*cx0 < 0) *cx0 = 0; else if (*cx0 >= WORLD_CHUNKS_X) *cx0 = WORLD_CHUNKS_X - 1;
+    if (*cz0 < 0) *cz0 = 0; else if (*cz0 >= WORLD_CHUNKS_Z) *cz0 = WORLD_CHUNKS_Z - 1;
+    if (*cx1 >= WORLD_CHUNKS_X) *cx1 = WORLD_CHUNKS_X - 1; else if (*cx1 < 0) *cx1 = 0;
+    if (*cz1 >= WORLD_CHUNKS_Z) *cz1 = WORLD_CHUNKS_Z - 1; else if (*cz1 < 0) *cz1 = 0;
+}
 
 int Level::getTile(int x, int y, int z) const {
     return worldBlock(w, x, y, z);
@@ -69,8 +122,9 @@ bool Level::isSolidTile(int x, int y, int z) const {
     return isSolidMaterial((unsigned char)worldBlock(w, x, y, z));
 }
 
-std::vector<AABB> Level::getCubes(Entity* , const AABB& box) const {
-    std::vector<AABB> out;
+std::vector<AABB>& Level::getCubes(Entity* , const AABB& box) {
+    std::vector<AABB>& out = boxes;
+    out.clear();
     int x0 = Mth::floor(box.x0), x1 = Mth::floor(box.x1);
     int y0 = Mth::floor(box.y0), y1 = Mth::floor(box.y1);
     int z0 = Mth::floor(box.z0), z1 = Mth::floor(box.z1);
@@ -87,21 +141,44 @@ std::vector<AABB> Level::getCubes(Entity* , const AABB& box) const {
     return out;
 }
 
-std::vector<Entity*> Level::getEntities(Entity* except, const AABB& box) const {
-    std::vector<Entity*> out;
-    for (size_t i = 0; i < entities.size(); i++) {
-        Entity* e = entities[i];
-        if (e == except || e->removed) continue;
-        if (e->bb.intersects(box)) out.push_back(e);
-    }
-    return out;
+enum { FILTER_ANY = -0x7fffffff };
+static int gather(Entity* const* heads, const AABB& box, const Entity* except,
+                  int wantType, int wantClass, EntityList& out);
+
+void Level::getEntities(Entity* except, const AABB& box, EntityList& out) const {
+    gather(chunkEntityHead, box, except, FILTER_ANY, FILTER_ANY, out);
+}
+int Level::getEntitiesOfType(int entityType, const AABB& box, EntityList& out) const {
+    return gather(chunkEntityHead, box, 0, entityType, FILTER_ANY, out);
+}
+int Level::getEntitiesOfClass(int baseType, const AABB& box, EntityList& out) const {
+    return gather(chunkEntityHead, box, 0, FILTER_ANY, baseType, out);
+}
+
+static int gather(Entity* const* heads, const AABB& box, const Entity* except,
+                  int wantType, int wantClass, EntityList& out) {
+    out.clear();
+    int cx0, cx1, cz0, cz1;
+    colRange(box, &cx0, &cx1, &cz0, &cz1);
+    for (int cz = cz0; cz <= cz1; cz++)
+        for (int cx = cx0; cx <= cx1; cx++)
+            for (Entity* e = heads[cz * WORLD_CHUNKS_X + cx]; e; e = e->nextInChunk) {
+                if (e == except || e->removed) continue;
+                if (wantType  != FILTER_ANY && e->getEntityTypeId()     != wantType)  continue;
+                if (wantClass != FILTER_ANY && e->getCreatureBaseType() != wantClass) continue;
+                if (e->bb.intersects(box)) out.push_back(e);
+            }
+    return (int)out.size();
 }
 
 bool Level::isUnobstructed(const AABB& box) const {
-    for (size_t i = 0; i < entities.size(); i++) {
-        Entity* e = entities[i];
-        if (e && !e->removed && e->blocksBuilding && e->bb.intersects(box)) return false;
-    }
+
+    int cx0, cx1, cz0, cz1;
+    colRange(box, &cx0, &cx1, &cz0, &cz1);
+    for (int cz = cz0; cz <= cz1; cz++)
+        for (int cx = cx0; cx <= cx1; cx++)
+            for (Entity* e = chunkEntityHead[cz * WORLD_CHUNKS_X + cx]; e; e = e->nextInChunk)
+                if (!e->removed && e->blocksBuilding && e->bb.intersects(box)) return false;
 
     if (player && !player->removed && player->bb.intersects(box)) return false;
     return true;
@@ -129,6 +206,22 @@ int Level::countInstanceOfBaseType(int baseType) const {
     return n;
 }
 
+int Level::countInstanceOfType(int entityType) const {
+    int n = 0;
+    for (size_t i = 0; i < entities.size(); i++) {
+        Entity* e = entities[i];
+        if (e && !e->removed && e->getEntityTypeId() == entityType) n++;
+    }
+    return n;
+}
+
+Entity* Level::getNearestPlayer(float px, float py, float pz, float maxDist) const {
+    if (!player || player->removed) return 0;
+    float dx = player->x - px, dy = player->y - py, dz = player->z - pz;
+    if (dx * dx + dy * dy + dz * dz <= maxDist * maxDist) return (Entity*)player;
+    return 0;
+}
+
 Entity* Level::getEntity(int id) const {
     if (id == 0) return 0;
     if (player && player->entityId == id) return (Entity*)player;
@@ -148,9 +241,10 @@ int Level::getTopSolidBlock(int x, int z) const {
 
 void Level::addEntity(Entity* e) {
     entities.push_back(e);
+    linkEntity(e);
 }
 
-static const int SPAWN_INTERVAL = 20;
+static const int SPAWN_INTERVAL = 2;
 
 void Level::tickEntities() {
 
@@ -161,11 +255,16 @@ void Level::tickEntities() {
 
     for (size_t i = 0; i < entities.size(); i++) {
         Entity* e = entities[i];
-        if (!e->removed) e->tick();
+        if (!e->removed) {
+            e->tick();
+
+            relinkIfMoved(e);
+        }
     }
 
     for (size_t i = 0; i < entities.size(); ) {
         if (entities[i]->removed) {
+            unlinkEntity(entities[i]);
             delete entities[i];
             entities[i] = entities.back();
             entities.pop_back();
@@ -178,6 +277,7 @@ void Level::tickEntities() {
 void Level::removeAllEntities() {
     for (size_t i = 0; i < entities.size(); i++) delete entities[i];
     entities.clear();
+    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) chunkEntityHead[i] = 0;
 }
 
 TileEntity* Level::getTileEntity(int x, int y, int z) {

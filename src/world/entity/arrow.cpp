@@ -27,6 +27,12 @@ static inline bool solidAt(World* w, float x, float y, float z) {
     return isSolidPhys(worldBlock(w, Mth::floor(x), Mth::floor(y), Mth::floor(z)));
 }
 
+static unsigned char lodgedData(World* w, int x, int y, int z) {
+    unsigned char d = worldData(w, x, y, z);
+    if (isDoor(worldBlock(w, x, y, z)) && (d & 8)) return worldData(w, x, y - 1, z);
+    return d;
+}
+
 static const float ARROW_BASE_DAMAGE = 2.0f;
 int Arrow::damageForSpeed() {
     float pow = Mth::sqrt(xd * xd + yd * yd + zd * zd);
@@ -100,7 +106,7 @@ void Arrow::tick() {
         }
 
         if (worldBlock(level->w, xTile, yTile, zTile) != lastTile ||
-            worldData(level->w, xTile, yTile, zTile) != lastData) {
+            lodgedData(level->w, xTile, yTile, zTile) != lastData) {
             inGround = false;
 
             xd *= sharedRandom.nextFloat() * 0.2f;
@@ -120,13 +126,16 @@ void Arrow::tick() {
     int steps = (int)(dist / 0.1f) + 1;
     float px = x, py = y, pz = z;
     bool hit = false;
+
+    static EntityList candidates;
+    level->getEntities(this, bb.expand(xd, yd, zd).grow(0.3f, 0.3f, 0.3f), candidates);
     for (int i = 1; i <= steps; i++) {
         float t = (float)i / steps;
         float sx = x + xd * t, sy = y + yd * t, sz = z + zd * t;
 
-        for (size_t ei = 0; ei < level->entities.size(); ei++) {
-            Entity* e = level->entities[ei];
-            if (!e || e->removed || e == this || !e->isPickable()) continue;
+        for (size_t ei = 0; ei < candidates.size(); ei++) {
+            Entity* e = candidates[ei];
+            if (e->removed || !e->isPickable()) continue;
 
             if (e->entityId == ownerId && flightTime < 5) continue;
             if (sx > e->bb.x0 - 0.3f && sx < e->bb.x1 + 0.3f &&
@@ -176,7 +185,7 @@ void Arrow::tick() {
         yTile = Mth::floor(py + yd / dist * 0.1f);
         zTile = Mth::floor(pz + zd / dist * 0.1f);
         lastTile = worldBlock(level->w, xTile, yTile, zTile);
-        lastData = worldData(level->w, xTile, yTile, zTile);
+        lastData = lodgedData(level->w, xTile, yTile, zTile);
         x = px; y = py; z = pz;
         xd = yd = zd = 0.0f;
         inGround = true;

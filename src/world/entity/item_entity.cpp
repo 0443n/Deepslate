@@ -76,10 +76,12 @@ void ItemEntity::tick() {
 }
 
 void ItemEntity::tryMergeNearby() {
-    for (unsigned int i = 0; i < g_level.entities.size(); ++i) {
-        Entity* e = g_level.entities[i];
-        if (e == this || e->removed || !e->isItemEntity()) continue;
-        if (e->getEntityTypeId() != EntityTypes::IdItemEntity) continue;
+
+    static EntityList drops;
+    g_level.getEntitiesOfType(EntityTypes::IdItemEntity, bb.grow(0.75f, 0.75f, 0.75f), drops);
+    for (unsigned int i = 0; i < drops.size(); ++i) {
+        Entity* e = drops[i];
+        if (e == this) continue;
         ItemEntity* o = (ItemEntity*)e;
         if (o->throwTime > 0) continue;
         if (o->item.id != item.id || o->item.data != item.data) continue;
@@ -224,5 +226,7 @@ void ItemEntity::readAdditionalSaveData(CompoundTag* tag) {
 }
 
 bool ItemEntity::isItemEntity()        { return true; }
+
+bool ItemEntity::isInWater()           { return level->isInWater(this, bb); }
 int  ItemEntity::getEntityTypeId() const { return EntityTypes::IdItemEntity; }
 int  ItemEntity::getLifeTime() const   { return lifeTime; }

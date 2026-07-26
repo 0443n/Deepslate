@@ -78,13 +78,12 @@ int Player::startSleepInBed(int bx, int by, int bz) {
         Mth::abs(z - (bz + 0.5f)) > 3.0f) return BED_TOO_FAR_AWAY;
     if (worldIsDay()) return BED_NOT_POSSIBLE_NOW;
 
-    for (size_t i = 0; i < level->entities.size(); i++) {
-        Entity* e = level->entities[i];
-        if (!e || e->removed) continue;
-        if (e->getCreatureBaseType() != EntityTypes::BaseEnemy) continue;
-        if (Mth::abs(e->x - (bx + 0.5f)) <= 8.0f &&
-            Mth::abs(e->y - (by + 0.5f)) <= 5.0f &&
-            Mth::abs(e->z - (bz + 0.5f)) <= 8.0f) return BED_NOT_SAFE;
+    {
+        static EntityList monsters;
+        AABB region(bx + 0.5f - 8.0f, by + 0.5f - 5.0f, bz + 0.5f - 8.0f,
+                    bx + 0.5f + 8.0f, by + 0.5f + 5.0f, bz + 0.5f + 8.0f);
+        if (level->getEntitiesOfClass(EntityTypes::BaseEnemy, region, monsters))
+            return BED_NOT_SAFE;
     }
     int data = level->getData(bx, by, bz);
     int dir = data & 3;

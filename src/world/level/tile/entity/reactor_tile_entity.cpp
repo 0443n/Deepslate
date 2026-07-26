@@ -225,7 +225,8 @@ void ReactorTileEntity::finishReactorRun() {
 int ReactorTileEntity::numOfFreeEnemySlots() {
     int found = 0;
     AABB bb((float)x, (float)y, (float)z, x + 1.0f, y + 1.0f, z + 1.0f);
-    std::vector<Entity*> nearby = level->getEntities(0, bb.grow(7, 7, 7));
+    static std::vector<Entity*> nearby;
+    level->getEntities(0, bb.grow(7, 7, 7), nearby);
     for (size_t i = 0; i < nearby.size(); i++)
         if (nearby[i]->isEntityType(EntityTypes::IdPigZombie) && nearby[i]->isAlive())
             found++;
@@ -345,7 +346,8 @@ bool ReactorTileEntity::playersAreCloseBy() {
 
 void ReactorTileEntity::killPigZombies() {
     AABB bb((float)x, (float)y, (float)z, x + 1.0f, y + 1.0f, z + 1.0f);
-    std::vector<Entity*> nearby = level->getEntities(0, bb.grow(40, 40, 40));
+    static std::vector<Entity*> nearby;
+    level->getEntities(0, bb.grow(40, 40, 40), nearby);
     for (size_t i = 0; i < nearby.size(); i++)
         if (nearby[i]->isEntityType(EntityTypes::IdPigZombie))
             nearby[i]->remove();

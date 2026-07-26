@@ -9,7 +9,7 @@ class CompoundTag;
 class Animal : public PathfinderMob {
 public:
 
-    virtual bool removeWhenFarAway() { return !despawnProtected; }
+    virtual bool removeWhenFarAway() { return false; }
     Animal(Level* level);
 
     void setDespawnProtected();

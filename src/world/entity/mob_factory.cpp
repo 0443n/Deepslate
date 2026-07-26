@@ -15,9 +15,10 @@
 
 namespace MobFactory {
 
-Mob* createMob(int mobType, Level* level) {
+static const int MOB_SLOT_RESERVE = 24;
 
-    if (!Entity::hasFreeSlot()) return 0;
+Mob* createMob(int mobType, Level* level) {
+    if (Entity::freeSlots() <= MOB_SLOT_RESERVE) return 0;
     Mob* r = 0;
     switch (mobType) {
         case EntityTypes::IdPig:      r = new Pig(level); break;

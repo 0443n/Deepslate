@@ -14,6 +14,8 @@ public:
     virtual void tick();
     virtual bool hurt(Entity* source, int damage);
     virtual bool isItemEntity();
+
+    virtual bool isInWater();
     virtual int  getEntityTypeId() const;
     int getLifeTime() const;
 

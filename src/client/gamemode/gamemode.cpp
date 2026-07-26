@@ -28,9 +28,12 @@
 
 static Mob* nearbyTripodCamera() {
     if (!g_level.player) return 0;
-    for (size_t i = 0; i < g_level.entities.size(); i++) {
-        Entity* e = g_level.entities[i];
-        if (!e || e->removed || e->entityRendererId != ER_TRIPODCAMERA_RENDERER) continue;
+
+    static EntityList nearby;
+    g_level.getEntities(0, g_level.player->bb.grow(2.5f, 2.5f, 2.5f), nearby);
+    for (size_t i = 0; i < nearby.size(); i++) {
+        Entity* e = nearby[i];
+        if (e->entityRendererId != ER_TRIPODCAMERA_RENDERER) continue;
         float dx = e->x - g_level.player->x;
         float dy = e->y - g_level.player->y;
         float dz = e->z - g_level.player->z;
@@ -240,11 +243,33 @@ static bool rayHitsAABB(float px, float py, float pz, float dx, float dy, float 
     return true;
 }
 
-static bool breakHangingEntityUnderCrosshair() {
+static Entity* pickEntityOnViewRay(float range, float maxT, bool mobsOnly) {
+    if (!g_level.player) return 0;
     const float DEG2RAD = 3.14159265f / 180.0f;
     float cy = cosf(g_level.player->yRot * DEG2RAD), sy = sinf(g_level.player->yRot * DEG2RAD);
     float cp = cosf(g_level.player->xRot * DEG2RAD), sp = sinf(g_level.player->xRot * DEG2RAD);
     float dx = cp * sy, dy = sp, dz = cp * cy;
+
+    float px = g_level.player->x, py = g_level.player->y, pz = g_level.player->z;
+
+    static EntityList candidates;
+    g_level.getEntities(0, AABB(px - range, py - range, pz - range,
+                                px + range, py + range, pz + range), candidates);
+
+    Entity* best = 0;
+    float bestT = maxT;
+    for (size_t i = 0; i < candidates.size(); i++) {
+        Entity* e = candidates[i];
+        if (mobsOnly ? !e->isMob() : !e->isPickable()) continue;
+        float t;
+        if (rayHitsAABB(px, py, pz, dx, dy, dz, e->bb, range, t) && t < bestT) {
+            bestT = t; best = e;
+        }
+    }
+    return best;
+}
+
+static bool breakHangingEntityUnderCrosshair() {
     const float range = 5.0f;
 
     float blockT = range;
@@ -255,16 +280,7 @@ static bool breakHangingEntityUnderCrosshair() {
         blockT = sqrtf(ddx*ddx + ddy*ddy + ddz*ddz);
     }
 
-    Entity* best = 0;
-    float bestT = blockT;
-    for (size_t i = 0; i < g_level.entities.size(); i++) {
-        Entity* e = g_level.entities[i];
-        if (!e || e->removed || !e->isPickable()) continue;
-        float t;
-        if (rayHitsAABB(g_level.player->x, g_level.player->y, g_level.player->z, dx, dy, dz, e->bb, range, t) && t < bestT) {
-            bestT = t; best = e;
-        }
-    }
+    Entity* best = pickEntityOnViewRay(range, blockT, false);
     if (best) {
 
         int dmg = 1;
@@ -284,20 +300,8 @@ static bool breakHangingEntityUnderCrosshair() {
 }
 
 static bool interactMobUnderCrosshair() {
-    const float DEG2RAD = 3.14159265f / 180.0f;
-    float cy = cosf(g_level.player->yRot * DEG2RAD), sy = sinf(g_level.player->yRot * DEG2RAD);
-    float cp = cosf(g_level.player->xRot * DEG2RAD), sp = sinf(g_level.player->xRot * DEG2RAD);
-    float dx = cp * sy, dy = sp, dz = cp * cy;
     const float range = 3.0f;
-    Entity* best = 0; float bestT = range;
-    for (size_t i = 0; i < g_level.entities.size(); i++) {
-        Entity* e = g_level.entities[i];
-        if (!e || e->removed || !e->isMob()) continue;
-        float t;
-        if (rayHitsAABB(g_level.player->x, g_level.player->y, g_level.player->z, dx, dy, dz, e->bb, range, t) && t < bestT) {
-            bestT = t; best = e;
-        }
-    }
+    Entity* best = pickEntityOnViewRay(range, range, true);
     return best ? ((Mob*)best)->playerInteract() : false;
 }
 

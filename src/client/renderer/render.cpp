@@ -705,7 +705,8 @@ void gameRender(MenuState& s) {
                 g_worldBuilt = true; g_genStage = GS_IDLE;
                 extern int g_autosaveTick; g_autosaveTick = 0;
                 particlesReset();
-                if (g_loadedFromDisk && LevelStorage::loadedValidPlayerPos()) {
+                bool freshWorld = !(g_loadedFromDisk && LevelStorage::loadedValidPlayerPos());
+                if (!freshWorld) {
 
                     playerSpawnAt(g_level.player->y);
                 } else {
@@ -714,8 +715,6 @@ void gameRender(MenuState& s) {
                     worldFindSpawn(&g_world, &sx, &sz, &feetY);
                     g_level.player->x = sx + 0.5f; g_level.player->z = sz + 0.5f;
                     playerSpawnAt(feetY + PLAYER_EYE);
-
-                    MobSpawner::populateInitial(&g_level);
                 }
 
                 int gamemode = (s.worldSelected >= 0 && s.worldSelected < s.worlds.count)
@@ -723,6 +722,8 @@ void gameRender(MenuState& s) {
                 gameModeInit(gamemode);
 
                 if (g_loadedFromDisk) LevelStorage::applyLoadedHotbar();
+
+                if (freshWorld) MobSpawner::populateInitial(&g_level);
             }
             return;
 
