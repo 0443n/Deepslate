@@ -260,13 +260,8 @@ struct ChunkSection {
 
     bool         leavesCullBand;
 
-    unsigned char vis[6];
-    bool          reachable;
-
     bool          skyLit;
 };
-
-void computeSectionVis(const World* w, int ox, int y0, int oz, unsigned char vis[6]);
 
 struct ChunkMesh {
     ChunkSection sec[N_SECTIONS];

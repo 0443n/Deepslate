@@ -158,49 +158,6 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     g_residentSections = resident;
     g_visibleSections = vis;
 
-    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
-        for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].reachable = false;
-
-    int ccx = (int)floorf(camX / (float)CHUNK_SX); ccx = ccx < 0 ? 0 : (ccx >= WORLD_CHUNKS_X ? WORLD_CHUNKS_X - 1 : ccx);
-    int ccz = (int)floorf(camZ / (float)CHUNK_SZ); ccz = ccz < 0 ? 0 : (ccz >= WORLD_CHUNKS_Z ? WORLD_CHUNKS_Z - 1 : ccz);
-    int csi = (int)floorf(camY / (float)SECTION_SY); csi = csi < 0 ? 0 : (csi >= N_SECTIONS ? N_SECTIONS - 1 : csi);
-
-    struct VisNode { unsigned char col, si, entered, dirs; };
-    static VisNode bfs[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
-    int qt = 0, qh = 0;
-    int startCol = ccz * WORLD_CHUNKS_X + ccx;
-    w->chunks[startCol].sec[csi].reachable = true;
-    bfs[qt++] = { (unsigned char)startCol, (unsigned char)csi, 6, 0 };
-
-    while (qh < qt) {
-        VisNode n = bfs[qh++];
-        int ncx = n.col % WORLD_CHUNKS_X, ncz = n.col / WORLD_CHUNKS_X;
-        ChunkSection* cs = &w->chunks[n.col].sec[n.si];
-        for (int d = 0; d < 6; d++) {
-            if (n.entered != 6 && !(cs->vis[n.entered] & (1 << d))) continue;
-            if (n.dirs & (1 << (d ^ 1))) continue;
-            int tcx = ncx, tcz = ncz, tsi = n.si;
-            if (d == 0) tcx--; else if (d == 1) tcx++;
-            else if (d == 2) tsi--; else if (d == 3) tsi++;
-            else if (d == 4) tcz--; else tcz++;
-            if (tcx < 0 || tcx >= WORLD_CHUNKS_X || tcz < 0 || tcz >= WORLD_CHUNKS_Z) continue;
-            if (tsi < 0 || tsi >= N_SECTIONS) continue;
-            int tcol = tcz * WORLD_CHUNKS_X + tcx;
-            ChunkMesh* tc = &w->chunks[tcol];
-            float dx = tc->cx - camX, dz = tc->cz - camZ;
-            if (dx * dx + dz * dz > maxD2) continue;
-            ChunkSection* ts = &tc->sec[tsi];
-            if (ts->reachable) continue;
-            ts->reachable = true;
-            bfs[qt++] = { (unsigned char)tcol, (unsigned char)tsi,
-                          (unsigned char)(d ^ 1), (unsigned char)(n.dirs | (1 << d)) };
-        }
-    }
-
-    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
-        for (int si = 0; si < N_SECTIONS; si++)
-            if (!w->chunks[i].sec[si].reachable) w->chunks[i].sec[si].visible = false;
-
     int nOpaque = 0;
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
         const ChunkMesh* c = &w->chunks[i];

@@ -76,50 +76,6 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
     *outMesh = d; *outCount = count;
 }
 
-static unsigned short g_visGen = 0;
-static unsigned short g_visited[16 * 16 * 16];
-void computeSectionVis(const World* w, int ox, int y0, int oz, unsigned char vis[6]) {
-    static short stack[16 * 16 * 16];
-    #define VIDX(x, y, z) (((x) << 8) | ((y) << 4) | (z))
-    for (int i = 0; i < 6; i++) vis[i] = 0;
-    if (++g_visGen == 0) {
-        for (int i = 0; i < 16 * 16 * 16; i++) g_visited[i] = 0;
-        g_visGen = 1;
-    }
-
-    for (int sx = 0; sx < 16; sx++)
-    for (int sy = 0; sy < 16; sy++)
-    for (int sz = 0; sz < 16; sz++) {
-        int start = VIDX(sx, sy, sz);
-        if (g_visited[start] == g_visGen) continue;
-        g_visited[start] = g_visGen;
-        if (isOpaque(worldBlock(w, ox + sx, y0 + sy, oz + sz))) continue;
-
-        unsigned char faces = 0;
-        int sp = 0; stack[sp++] = start;
-        while (sp > 0) {
-            int cur = stack[--sp];
-            int cx = (cur >> 8) & 15, cy = (cur >> 4) & 15, cz = cur & 15;
-            if (cx == 0) faces |= 1 << 0; if (cx == 15) faces |= 1 << 1;
-            if (cy == 0) faces |= 1 << 2; if (cy == 15) faces |= 1 << 3;
-            if (cz == 0) faces |= 1 << 4; if (cz == 15) faces |= 1 << 5;
-            static const int nb[6][3] = {{-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}};
-            for (int d = 0; d < 6; d++) {
-                int nx = cx + nb[d][0], ny = cy + nb[d][1], nz = cz + nb[d][2];
-                if (nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15) continue;
-                int ni = VIDX(nx, ny, nz);
-                if (g_visited[ni] == g_visGen) continue;
-                g_visited[ni] = g_visGen;
-                if (isOpaque(worldBlock(w, ox + nx, y0 + ny, oz + nz))) continue;
-                stack[sp++] = ni;
-            }
-        }
-
-        for (int a = 0; a < 6; a++) if (faces & (1 << a)) vis[a] |= faces;
-    }
-    #undef VIDX
-}
-
 void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     ChunkSection* s = &c->sec[si];
 
@@ -206,14 +162,6 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         s->by0 = s->by1 = (float)y0;
         s->lby0 = s->lby1 = (float)y0;
         s->wby0 = s->wby1 = (float)y0;
-
-        bool anyOpaque = false;
-        for (int sx = 0; sx < 16 && !anyOpaque; sx++)
-            for (int sy = 0; sy < 16 && !anyOpaque; sy++)
-                for (int sz = 0; sz < 16; sz++)
-                    if (isOpaque(worldBlock(w, ox + sx, y0 + sy, oz + sz))) { anyOpaque = true; break; }
-        if (anyOpaque) computeSectionVis(w, ox, y0, oz, s->vis);
-        else for (int f = 0; f < 6; f++) s->vis[f] = 0x3F;
         if (oom) { g_meshOOM = 1; s->dirty = true; }
         else       s->dirty = false;
         return;
@@ -237,8 +185,6 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     if (wylo > wyhi) { wylo = (float)y0; wyhi = (float)y0; }
     s->wby0 = wylo; s->wby1 = wyhi;
 
-    computeSectionVis(w, ox, y0, oz, s->vis);
-
     if (oom) { g_meshOOM = 1; s->dirty = true; }
     else       s->dirty = false;
 }
@@ -261,8 +207,6 @@ void chunkInitLazy(ChunkMesh* c, int ox, int oz) {
         ChunkSection* s = &c->sec[si];
         s->by0 = s->lby0 = s->wby0 = (float)(si * SECTION_SY);
         s->by1 = s->lby1 = s->wby1 = s->by0;
-
-        for (int f = 0; f < 6; f++) s->vis[f] = 0x3F;
         s->dirty = true;
     }
 }
