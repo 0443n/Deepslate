@@ -161,8 +161,7 @@ static void lightUpdateCell(World* w, int layer, int x, int y, int z) {
     }
 }
 
-void worldUpdateLights(World* w) {
-    static const unsigned int TIME_BUDGET_US = 1500;
+static bool lightDrain(World* w, unsigned int budgetUs) {
     unsigned int tStart = sceKernelGetSystemTimeLow();
     int steps = 0;
     while (!w->lightQueue.empty()) {
@@ -171,8 +170,19 @@ void worldUpdateLights(World* w) {
         lightUpdateCell(w, (int)(q >> 23) & 1, (int)((q >> 15) & 0xFF),
                         (int)(q & 0x7F), (int)((q >> 7) & 0xFF));
 
-        if ((++steps & 63) == 0 && sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US) break;
+        if ((++steps & 63) == 0 && sceKernelGetSystemTimeLow() - tStart >= budgetUs) break;
     }
+    return w->lightQueue.empty();
+}
+
+void worldUpdateLights(World* w) {
+    static const unsigned int TIME_BUDGET_US = 1500;
+    lightDrain(w, TIME_BUDGET_US);
+}
+
+bool worldSettleLights(World* w) {
+    static const unsigned int SETTLE_BUDGET_US = 6000;
+    return lightDrain(w, SETTLE_BUDGET_US);
 }
 
 void worldRemoveBlockLight(World* w, int x, int y, int z) {

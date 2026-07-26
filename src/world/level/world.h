@@ -177,13 +177,6 @@ void worldDrainPlayerEdits(World* w, int maxSections);
 
 void worldRebuildAroundNow(World* w, int x, int y, int z);
 
-extern unsigned int g_editWorstUs, g_drainWorstUs;
-void worldRecordEditUs(unsigned int us);
-
-extern unsigned int g_lightWorstUs, g_rebuildWorstUs;
-void worldRecordLightUs(unsigned int us);
-void worldRecordRebuildUs(unsigned int us);
-
 void lightOnBlockChanged(World* w, int x, int y, int z);
 
 static inline int lightPlaneIdx(int layer, int x, int y, int z) {
@@ -279,6 +272,14 @@ static inline int lightRawAt(const World* w, int x, int y, int z) {
     return lightRawAtNoProp(w, x, y, z);
 }
 
+static inline int lightLazy(const World* w, unsigned char* cache, int i, int x, int y, int z) {
+    int v = cache[i];
+    if (v != 0xFF) return v;
+    v = lightRawAt(w, x, y, z);
+    cache[i] = (unsigned char)v;
+    return v;
+}
+
 static inline bool worldCanSeeSky(const World* w, int x, int y, int z) {
     if (y >= WORLD_H) return true;
     if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return false;
@@ -288,6 +289,8 @@ static inline bool worldCanSeeSky(const World* w, int x, int y, int z) {
 void worldInitLight(World* w);
 void worldRecalcHeightmap(World* w);
 void worldUpdateLights(World* w);
+
+bool worldSettleLights(World* w);
 void worldRemoveBlockLight(World* w, int x, int y, int z);
 
 void lightQueuesReserve(World* w);
@@ -319,6 +322,8 @@ void worldNotifyNeighborsChanged(World* w, int x, int y, int z);
 void worldExplode(World* w, float x, float y, float z, float r);
 
 void worldPrimeTnt(World* w, int x, int y, int z, int fuseTicks);
+
+void tntSpawnPrimed(World* w, int x, int y, int z, int fuseTicks);
 
 bool tileMayPlace(World* w, unsigned char id, int x, int y, int z, int face);
 void tileNeighborChanged(World* w, int x, int y, int z);

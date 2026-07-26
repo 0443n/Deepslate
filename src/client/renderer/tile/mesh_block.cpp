@@ -2,6 +2,7 @@
 #include "world/level/chunk/chunk.h"
 #include "world/level/world.h"
 #include "world/level/tile/fire.h"
+#include <string.h>
 
 static const unsigned char kFaceUV[6][4][2] = {
 
@@ -258,18 +259,17 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
     unsigned char lc[18 * 18 * 18];
     unsigned char llc[18 * 18 * 18];
     if (layer != 1) {
-        bool wantLight = (out != 0);
         for (int dx = 0; dx < 18; dx++)
         for (int dz = 0; dz < 18; dz++)
         for (int dy = 0; dy < 18; dy++) {
             int i = (dx * 18 + dz) * 18 + dy;
-            int x = ox - 1 + dx, y = y0 - 1 + dy, z = oz - 1 + dz;
-            lc[i] = worldBlock(w, x, y, z);
-            if (wantLight) llc[i] = (unsigned char)lightRawAt(w, x, y, z);
+            lc[i] = worldBlock(w, ox - 1 + dx, y0 - 1 + dy, oz - 1 + dz);
         }
+        memset(llc, 0xFF, sizeof llc);
     }
     #define LCB(X, Y, Z) lc[((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1)]
-    #define LLB(X, Y, Z) llc[((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1)]
+    #define LLB(X, Y, Z) lightLazy(w, llc, \
+        ((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1), (X), (Y), (Z))
 
     for (int lx = 0; lx < CHUNK_SX; lx++)
     for (int lz = 0; lz < CHUNK_SZ; lz++)
@@ -495,13 +495,10 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
     for (int dz = 0; dz < 18; dz++)
     for (int dy = 0; dy < 18; dy++)
         lc[(dx * 18 + dz) * 18 + dy] = worldBlock(w, ox - 1 + dx, y0 - 1 + dy, oz - 1 + dz);
-    for (int dy = 0; dy < 18; dy++)
-    for (int dx = 0; dx < 18; dx++)
-    for (int dz = 0; dz < 18; dz++)
-        llc[(dx * 18 + dz) * 18 + dy] =
-            (unsigned char)lightRawAt(w, ox - 1 + dx, y0 - 1 + dy, oz - 1 + dz);
+    memset(llc, 0xFF, sizeof llc);
     #define LCB(X, Y, Z) lc[((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1)]
-    #define LLB(X, Y, Z) llc[((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1)]
+    #define LLB(X, Y, Z) lightLazy(w, llc, \
+        ((((X) - ox + 1) * 18 + ((Z) - oz + 1)) * 18) + ((Y) - y0 + 1), (X), (Y), (Z))
 
     static const int kFaceStride[6] = { -324, 324, -1, 1, -18, 18 };
 
@@ -534,30 +531,30 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
         }
         if (id == BLOCK_MELON_STEM) {
             if (nn + 36 > cap3) return -1;
-            nn = emitMelonStem(w, out3, nn, gx, y, gz, worldData(w, gx, y, gz), g_brightColor[llc[base]]);
+            nn = emitMelonStem(w, out3, nn, gx, y, gz, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         }
         if (id == BLOCK_WHEAT) {
             if (nn + 48 > cap3) return -1;
-            nn = emitCropRows(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[llc[base]]);
+            nn = emitCropRows(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         }
         if (isCrossShaped(id)) {
             if (nn + 24 > cap3) return -1;
-            emitCross(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[llc[base]]);
+            emitCross(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             nn += 24;
             continue;
         }
 
         if (id == BLOCK_FIRE) {
             if (nn + 60 > cap3) return -1;
-            nn = emitFire(out3, nn, w, gx, y, gz, g_brightColor[llc[base]]);
+            nn = emitFire(out3, nn, w, gx, y, gz, g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         }
 
         if (isLadder(id)) {
             if (nn + 12 > cap3) return -1;
-            nn = emitLadder(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[llc[base]]);
+            nn = emitLadder(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         } else if (id == BLOCK_BED) {
             if (nn + 36 > cap3) return -1;
@@ -648,7 +645,9 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
             float u0 = col * TILE_UV, v0 = row * TILE_UV;
 
             unsigned int shade = kFaceShade[f];
-            int faceBr = llc[nbi];
+            int faceBr = lightLazy(w, llc, nbi, gx + kFaceNeighbor[f][0],
+                                                y  + kFaceNeighbor[f][1],
+                                                gz + kFaceNeighbor[f][2]);
             if (lightEmit(id) > faceBr) faceBr = lightEmit(id);
             unsigned int color = mulColor(mulColor(shade, tint), g_brightColor[faceBr]);
 

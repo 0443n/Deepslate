@@ -154,12 +154,17 @@ void worldExplode(World* w, float x, float y, float z, float r) {
     }
 }
 
+void tntSpawnPrimed(World* w, int x, int y, int z, int fuseTicks) {
+    (void)w;
+    g_level.addEntity(new PrimedTnt(&g_level, x + 0.5f, y + 0.5f, z + 0.5f, fuseTicks));
+    g_level.playSound(x + 0.5f, y + 0.5f, z + 0.5f, "random.fuse", 1.0f, 1.0f);
+}
+
 void worldPrimeTnt(World* w, int x, int y, int z, int fuseTicks) {
     if (worldBlock(w, x, y, z) != BLOCK_TNT) return;
     worldSetBlockAndData(w, x, y, z, BLOCK_AIR, 0);
     worldNotifyNeighborsChanged(w, x, y, z);
     worldUpdateLights(w);
     worldRebuildAroundNow(w, x, y, z);
-    g_level.addEntity(new PrimedTnt(&g_level, x + 0.5f, y + 0.5f, z + 0.5f, fuseTicks));
-    g_level.playSound(x + 0.5f, y + 0.5f, z + 0.5f, "random.fuse", 1.0f, 1.0f);
+    tntSpawnPrimed(w, x, y, z, fuseTicks);
 }

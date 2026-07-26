@@ -87,7 +87,8 @@ static void checkBurn(World* w, int x, int y, int z, int chance) {
         bool wasTnt = worldBlock(w, x, y, z) == BLOCK_TNT;
         if (rand() % 2 == 0) firePlace(w, x, y, z);
         else                 setTile(w, x, y, z, BLOCK_AIR);
-        if (wasTnt) worldPrimeTnt(w, x, y, z, 80);
+
+        if (wasTnt) tntSpawnPrimed(w, x, y, z, 80);
     }
 }
 

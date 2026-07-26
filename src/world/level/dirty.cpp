@@ -2,32 +2,6 @@
 #include "world/level/chunk/chunk.h"
 #include <pspkernel.h>
 
-unsigned int g_editWorstUs = 0, g_drainWorstUs = 0;
-static unsigned int g_editWindowStart = 0, g_drainWindowStart = 0;
-void worldRecordEditUs(unsigned int us) {
-    unsigned int now = sceKernelGetSystemTimeLow();
-    if (now - g_editWindowStart > 1000000) { g_editWorstUs = 0; g_editWindowStart = now; }
-    if (us > g_editWorstUs) g_editWorstUs = us;
-}
-static void recordDrainUs(unsigned int us) {
-    unsigned int now = sceKernelGetSystemTimeLow();
-    if (now - g_drainWindowStart > 1000000) { g_drainWorstUs = 0; g_drainWindowStart = now; }
-    if (us > g_drainWorstUs) g_drainWorstUs = us;
-}
-
-unsigned int g_lightWorstUs = 0, g_rebuildWorstUs = 0;
-static unsigned int g_lightWindowStart = 0, g_rebuildWindowStart = 0;
-void worldRecordLightUs(unsigned int us) {
-    unsigned int now = sceKernelGetSystemTimeLow();
-    if (now - g_lightWindowStart > 1000000) { g_lightWorstUs = 0; g_lightWindowStart = now; }
-    if (us > g_lightWorstUs) g_lightWorstUs = us;
-}
-void worldRecordRebuildUs(unsigned int us) {
-    unsigned int now = sceKernelGetSystemTimeLow();
-    if (now - g_rebuildWindowStart > 1000000) { g_rebuildWorstUs = 0; g_rebuildWindowStart = now; }
-    if (us > g_rebuildWorstUs) g_rebuildWorstUs = us;
-}
-
 #define PLAYER_EDIT_QUEUE_CAP 128
 static int g_editQueue[PLAYER_EDIT_QUEUE_CAP][2];
 static int g_editQueueN = 0;
@@ -84,6 +58,8 @@ bool worldSetBlockAndData(World* w, int x, int y, int z, unsigned char id, unsig
 
 void worldRebuildAroundNow(World* w, int x, int y, int z) {
 
+    if (w->lightReady && !worldSettleLights(w)) return;
+
     static const int FACE7[7][3] = { {0,0,0}, {-1,0,0},{1,0,0}, {0,-1,0},{0,1,0}, {0,0,-1},{0,0,1} };
     static const int MAX_SYNC_SECTIONS = 2;
     int done[7][2]; int nd = 0;
@@ -116,8 +92,6 @@ void worldDrainPlayerEdits(World* w, int maxSections) {
         if (c->sec[si].dirty) chunkBuildSection(c, w, si);
         if (sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US) break;
     }
-
-    recordDrainUs(sceKernelGetSystemTimeLow() - tStart);
 }
 
 void worldScheduleTick(World* w, int x, int y, int z, unsigned char id, int tickDelay) {

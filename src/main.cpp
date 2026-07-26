@@ -316,9 +316,11 @@ int main(int argc, char* argv[]) {
                     if (g_worldBuilt) {
                         struct mallinfo mi = mallinfo();
                         char memBuf[96];
+
                         std::snprintf(memBuf, sizeof(memBuf),
-                                      "MEM used %.1fM  world %.1fM (blk %.2fM data %.2fM light %.2fM)",
+                                      "MEM used %.1fM  mesh %.2fM  world %.1fM (blk %.2fM data %.2fM light %.2fM)",
                                       (unsigned int)mi.uordblks / 1048576.0f,
+                                      g_meshBytes / 1048576.0f,
                                       worldMemBytes(&g_world) / 1048576.0f,
                                       blockBytes(&g_world) / 1048576.0f,
                                       worldDataBytes(&g_world) / 1048576.0f,
@@ -340,16 +342,6 @@ int main(int argc, char* argv[]) {
                                           su, sp, sr, BS_SECTIONS);
                             fontDrawTextShadow(&s.font, 10, ty, secBuf, 0xFFE0E0E0u, 1.0f);
                             ty += 12.0f;
-                        }
-
-                        {
-                            extern unsigned int g_meshFallbacks;
-                            if (g_meshFallbacks) {
-                                char fbBuf[48];
-                                std::snprintf(fbBuf, sizeof(fbBuf), "MESH fallback x%u", g_meshFallbacks);
-                                fontDrawTextShadow(&s.font, 10, ty, fbBuf, 0xFF40C0FFu, 1.0f);
-                                ty += 12.0f;
-                            }
                         }
                         {
                             extern float g_viewDist, g_viewDistEff;

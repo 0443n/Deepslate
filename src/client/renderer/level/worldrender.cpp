@@ -13,11 +13,8 @@
 #include "client/renderer/level/frustum.h"
 
 static inline void streamFreeSection(ChunkSection* s) {
-    if (s->mesh)   { free(s->mesh);   s->mesh = 0; }
-    if (s->water)  { free(s->water);  s->water = 0; }
-    if (s->leaves) { free(s->leaves); s->leaves = 0; }
-    if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
-    s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
+    chunkFreeLayer(&s->op); chunkFreeLayer(&s->wa);
+    chunkFreeLayer(&s->le); chunkFreeLayer(&s->nm);
     s->dirty = true;
 }
 
@@ -31,7 +28,6 @@ static int cmpOpaqueAsc(const void* a, const void* b) {
 extern float g_camX, g_camY, g_camZ;
 
 volatile int g_meshOOM = 0;
-int g_oomCount = 0;
 
 float g_viewDistEff = 0.0f;
 static float s_lastSlider = 0.0f;
@@ -47,9 +43,6 @@ float worldViewDistEffective(float slider) {
     }
     return g_viewDistEff;
 }
-int g_residentSections = 0;
-
-int g_visibleSections = 0;
 
 static const float MIP_CRISP_RADIUS     = 16.0f;
 static const float MIP_BLOCKS_PER_LEVEL = 16.0f;
@@ -65,12 +58,18 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     World* w = (World*)cw;
 
     worldUpdateLights(w);
-    worldDrainPlayerEdits(w, 6);
+
+    static const int MAX_HELD_FRAMES = 12;
+    static int s_heldFrames = 0;
+    bool lightSettling = !w->lightQueue.empty() && s_heldFrames < MAX_HELD_FRAMES;
+    s_heldFrames = lightSettling ? s_heldFrames + 1 : 0;
+
+    if (!lightSettling)
+        worldDrainPlayerEdits(w, 6);
 
     lightCompactStep(w);
 
-    extern int g_diagMode;
-    if (g_diagMode == 3) {
+    if (lightSettling) {
 
     } else {
 
@@ -116,7 +115,6 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     World* w = (World*)cw;
 
     if (g_meshOOM) {
-        g_oomCount++;
         g_meshOOM = 0;
         if (++s_oomFrames >= OOM_FRAMES_BEFORE_BACKOFF) {
             s_oomFrames = 0;
@@ -137,26 +135,21 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         if (dx * dx + dz * dz <= keepD2) continue;
         for (int si = 0; si < N_SECTIONS; si++) {
             ChunkSection* s = &c->sec[si];
-            if (s->mesh || s->water || s->leaves || s->noMip) streamFreeSection(s);
+            if (s->op.v || s->wa.v || s->le.v || s->nm.v) streamFreeSection(s);
         }
     }
 
     float maxD2 = drawCull(viewDist) * drawCull(viewDist);
 
-    int resident = 0, vis = 0;
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
         ChunkMesh* c = &w->chunks[i];
         float dx = c->cx - camX, dz = c->cz - camZ;
         bool off = (dx * dx + dz * dz > maxD2 || !columnVisible(c));
         for (int si = 0; si < N_SECTIONS; si++) {
             ChunkSection* s = &c->sec[si];
-            if (s->mesh || s->water || s->leaves || s->noMip) resident++;
             s->visible = off ? false : sectionVisible(c, s);
-            if (s->visible) vis++;
         }
     }
-    g_residentSections = resident;
-    g_visibleSections = vis;
 
     int nOpaque = 0;
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
@@ -164,7 +157,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         float dx = c->cx - camX, dz = c->cz - camZ;
         for (int si = 0; si < N_SECTIONS; si++) {
             const ChunkSection* s = &c->sec[si];
-            if (s->vertexCount == 0 || !s->visible) continue;
+            if (s->op.count == 0 || !s->visible) continue;
             float dy = (float)(si * SECTION_SY + SECTION_SY / 2) - camY;
             g_opaqueList[nOpaque].d2 = dx * dx + dy * dy + dz * dz;
             g_opaqueList[nOpaque].s = s;
@@ -201,7 +194,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             float dx = c->cx - camX, dz = c->cz - camZ;
             for (int si = 0; si < N_SECTIONS; si++) {
                 const ChunkSection* s = &c->sec[si];
-                if (s->noMipCount == 0 || !s->visible) continue;
+                if (s->nm.count == 0 || !s->visible) continue;
                 if (!any) {
                     if (distMip) {
                         textureBind(terrain);
@@ -237,7 +230,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             ChunkMesh* c = &w->chunks[i];
             for (int si = 0; si < N_SECTIONS; si++) {
                 ChunkSection* s = &c->sec[si];
-                if (s->leavesCount || s->noMipCount) s->dirty = true;
+                if (s->le.count || s->nm.count) s->dirty = true;
             }
         }
     }
@@ -251,7 +244,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         float dx = c->cx - camX, dz = c->cz - camZ;
         for (int si = 0; si < N_SECTIONS; si++) {
             const ChunkSection* s = &c->sec[si];
-            if (s->leavesCount == 0 || !s->visible) continue;
+            if (s->le.count == 0 || !s->visible) continue;
             if (distMip) {
                 float dy = (float)(si * SECTION_SY + SECTION_SY / 2) - camY;
                 float lvl = (sqrtf(dx * dx + dy * dy + dz * dz) - MIP_CRISP_RADIUS) * (1.0f / MIP_BLOCKS_PER_LEVEL);
@@ -287,7 +280,7 @@ void worldDrawWater(const World* w, float camX, float camY, float camZ, float vi
         if (dx * dx + dz * dz > maxD2) continue;
         for (int si = 0; si < N_SECTIONS; si++) {
             const ChunkSection* s = &c->sec[si];
-            if (s->waterCount == 0 || !s->visible) continue;
+            if (s->wa.count == 0 || !s->visible) continue;
             float scy = (float)(si * SECTION_SY + SECTION_SY / 2);
             float dy = scy - camY;
             g_waterList[cnt].d2 = dx * dx + dy * dy + dz * dz;

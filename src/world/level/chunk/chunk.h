@@ -238,16 +238,22 @@ struct DrawVertex {
     short x, y, z, w;
 };
 
-struct ChunkSection {
-    DrawVertex*  mesh;
-    int          vertexCount;
-    DrawVertex*  water;
-    int          waterCount;
-    DrawVertex*  leaves;
-    int          leavesCount;
+struct MeshLayer {
+    DrawVertex*     v;
+    unsigned short* idx;
+    int             count;
+    int             unique;
+    int             bytes;
+};
 
-    DrawVertex*  noMip;
-    int          noMipCount;
+extern unsigned int g_meshBytes;
+
+struct ChunkSection {
+    MeshLayer    op;
+    MeshLayer    wa;
+    MeshLayer    le;
+
+    MeshLayer    nm;
 
     int          ox, oy, oz;
     float        by0, by1;
@@ -276,7 +282,8 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 int cap0, int cap1, int cap2, int cap3, int* n0, int* n1, int* n2, int* n3,
                 bool leavesOpaque, bool leavesCull);
 
-DrawVertex* chunkPack(const ChunkVertex* src, int n, int ox, int oy, int oz);
+bool chunkPack(MeshLayer* out, const ChunkVertex* src, int n, int ox, int oy, int oz);
+void chunkFreeLayer(MeshLayer* l);
 
 void chunkBuildMesh(ChunkMesh* c, const World* w, int ox, int oz);
 

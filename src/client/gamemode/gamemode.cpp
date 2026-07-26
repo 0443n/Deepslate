@@ -392,16 +392,8 @@ static void breakTargetedBlock(const BlockHit& hit) {
         if (isLiquidId(leaves)) worldScheduleTick(&g_world, hit.x, hit.y, hit.z, leaves, 5);
         worldNotifyNeighborsChanged(&g_world, hit.x, hit.y, hit.z);
 
-        unsigned int editT0 = sceKernelGetSystemTimeLow();
-        unsigned int lightT0 = editT0;
-
         worldUpdateLights(&g_world);
-        unsigned int rebuildT0 = sceKernelGetSystemTimeLow();
-        worldRecordLightUs(rebuildT0 - lightT0);
         worldRebuildAroundNow(&g_world, hit.x, hit.y, hit.z);
-        unsigned int editT1 = sceKernelGetSystemTimeLow();
-        worldRecordRebuildUs(editT1 - rebuildT0);
-        worldRecordEditUs(editT1 - editT0);
     }
 }
 

@@ -40,7 +40,6 @@ extern float g_timerAlpha;
 extern int   g_viewBobbing;
 #define PLAYER_EYE 1.62f
 
-int   g_diagMode = 0;
 int   g_noMipmap = 0;
 int   g_showFps  = 0;
 int   g_showCoords = 0;
@@ -738,7 +737,6 @@ void gameRender(MenuState& s) {
         return;
     }
 
-    if (g_diagMode == 1) sceGuScissor(0, 0, 240, 136);
     else                 sceGuScissor(0, 0, 480, 272);
 
     float a = g_timerAlpha;
