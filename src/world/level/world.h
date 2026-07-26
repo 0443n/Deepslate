@@ -32,8 +32,23 @@ struct TickNextTickData {
 #define LP_ALL15  0xFFFFu
 #define LP_SENT   0xFFFEu
 
+#define BS_SECTIONS   (WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS)
+#define BS_CELLS      (16 * 16 * SECTION_SY)
+#define BS_PAL_PAGE   (BS_CELLS / 2)
+#define BS_PAL_MAX    16
+
+struct BlockSection {
+    unsigned char* page;
+    unsigned char  pal[BS_PAL_MAX];
+    unsigned char  palN;
+    unsigned char  uniform;
+};
+
 struct World {
-    unsigned char* blocks;
+
+    BlockSection bsec[BS_SECTIONS];
+    int blockPages;
+    unsigned int blockPageBytes;
 
     unsigned char** dataCol;
     int dataPages;
@@ -79,12 +94,36 @@ void worldFree(World* w);
 static inline int worldIndex(int x, int y, int z) {
     return (x * WORLD_D + z) * WORLD_H + y;
 }
+
+static inline int bsSection(int x, int y, int z) {
+    return (((x >> 4) * WORLD_CHUNKS_Z + (z >> 4)) * N_SECTIONS) + (y >> 4);
+}
+static inline int bsOffset(int x, int y, int z) {
+    return (((x & 15) * 16 + (z & 15)) * SECTION_SY) + (y & (SECTION_SY - 1));
+}
 static inline unsigned char worldBlock(const World* w, int x, int y, int z) {
     if (y < 0 || y >= WORLD_H) return BLOCK_AIR;
     if (x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D)
         return BLOCK_INVISIBLE_BEDROCK;
-    return w->blocks[worldIndex(x, y, z)];
+    const BlockSection* s = &w->bsec[bsSection(x, y, z)];
+    if (!s->page) return s->uniform;
+    int off = bsOffset(x, y, z);
+    if (!s->palN) return s->page[off];
+    return s->pal[(s->page[off >> 1] >> ((off & 1) << 2)) & 0x0F];
 }
+
+void blockAlloc(World* w);
+void blockFree(World* w);
+
+bool blockPut(World* w, int x, int y, int z, unsigned char id);
+
+void blockColumnGet(const World* w, int x, int z, unsigned char* out128);
+void blockColumnPut(World* w, int x, int z, const unsigned char* in128);
+unsigned int blockBytes(const World* w);
+
+void blockStats(const World* w, int* uniform, int* paletted, int* raw);
+
+extern unsigned int g_blockOomDrops;
 
 static inline int worldColumn(int x, int z) { return x * WORLD_D + z; }
 
@@ -96,7 +135,7 @@ static inline unsigned int worldDataBytes(const World* w) {
 }
 unsigned int lightBytes(const World* w);
 static inline unsigned int worldMemBytes(const World* w) {
-    return (unsigned int)WORLD_W * WORLD_H * WORLD_D
+    return blockBytes(w)
          + (unsigned int)(WORLD_W * WORLD_D)
          + worldDataBytes(w)
          + lightBytes(w);

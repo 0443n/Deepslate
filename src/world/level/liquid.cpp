@@ -158,14 +158,14 @@ static bool canSpreadTo(const World* w, int x, int y, int z, unsigned char liqui
 
 static void setStatic(World* w, int x, int y, int z, unsigned char id) {
     if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
-    w->blocks[worldIndex(x, y, z)] = calmOf(id);
+    blockPut(w, x, y, z, calmOf(id));
 }
 
 static void wakeLiquid(World* w, int x, int y, int z, unsigned char liquidId) {
     unsigned char nb = worldBlock(w, x, y, z);
     if (!sameLiquid(nb, liquidId)) return;
     unsigned char dyn = dynOf(nb);
-    if (nb != dyn) w->blocks[worldIndex(x, y, z)] = dyn;
+    if (nb != dyn) blockPut(w, x, y, z, dyn);
     worldScheduleTick(w, x, y, z, dyn, isWaterId(dyn) ? 5 : 30);
 }
 
@@ -394,7 +394,7 @@ void worldScheduleLoadedLiquids(World* w) {
         if (!isLiquidId(id)) continue;
         if (worldData(w, x, y, z) == 0) continue;
         unsigned char dyn = dynOf(id);
-        if (id != dyn) w->blocks[worldIndex(x, y, z)] = dyn;
+        if (id != dyn) blockPut(w, x, y, z, dyn);
         worldScheduleTick(w, x, y, z, dyn, isWaterId(dyn) ? 5 : 30);
     }
 }

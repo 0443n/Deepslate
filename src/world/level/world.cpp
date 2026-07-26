@@ -75,20 +75,18 @@ bool worldAllocArrays(World* w) {
 
     memset(w->unsaved, 0, sizeof(w->unsaved));
 
-    size_t vol = (size_t)WORLD_W * WORLD_H * WORLD_D;
-    w->blocks = (unsigned char*)malloc(vol);
+    blockAlloc(w);
 
     w->dataCol = (unsigned char**)calloc((size_t)WORLD_W * WORLD_D, sizeof(unsigned char*));
     w->dataPages = 0;
 
     bool lightOk = lightAlloc(w);
     w->heightmap = (unsigned char*)malloc((size_t)WORLD_W * WORLD_D);
-    if (!w->blocks || !w->dataCol || !lightOk || !w->heightmap) {
+    if (!w->dataCol || !lightOk || !w->heightmap) {
 
         worldFree(w);
         return false;
     }
-    memset(w->blocks, 0, vol);
     memset(w->heightmap, 0, (size_t)WORLD_W * WORLD_D);
 
     w->time = 0;
@@ -159,7 +157,7 @@ int worldBuildMeshesStep(World* w, int maxChunks) {
 
 static unsigned char columnTop(World* w, int x, int z, int* outY) {
     for (int y = WORLD_H - 1; y >= 0; y--) {
-        unsigned char id = w->blocks[worldIndex(x, y, z)];
+        unsigned char id = worldBlock(w, x, y, z);
         if (id != BLOCK_AIR) { *outY = y; return id; }
     }
     *outY = 0; return BLOCK_AIR;
@@ -201,7 +199,7 @@ void worldFindSpawn(World* w, int* outX, int* outZ, int* outFeetY) {
 void worldFree(World* w) {
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
         chunkFreeMesh(&w->chunks[i]);
-    if (w->blocks) { free(w->blocks); w->blocks = 0; }
+    blockFree(w);
     if (w->dataCol) {
 
         for (int i = 0; i < WORLD_W * WORLD_D; i++)

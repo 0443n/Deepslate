@@ -112,7 +112,7 @@ int g_difficulty = Difficulty::NORMAL;
 
 #include "world/item/item.h"
 
-#define MEM_OVERLAY 0
+#define MEM_OVERLAY 1
 
 int main(int argc, char* argv[]) {
     Item::initItems();
@@ -315,15 +315,32 @@ int main(int argc, char* argv[]) {
 
                     if (g_worldBuilt) {
                         struct mallinfo mi = mallinfo();
-                        char memBuf[64];
+                        char memBuf[96];
                         std::snprintf(memBuf, sizeof(memBuf),
-                                      "MEM used %.1fM  world %.1fM (data %.2fM light %.2fM)",
+                                      "MEM used %.1fM  world %.1fM (blk %.2fM data %.2fM light %.2fM)",
                                       (unsigned int)mi.uordblks / 1048576.0f,
                                       worldMemBytes(&g_world) / 1048576.0f,
+                                      blockBytes(&g_world) / 1048576.0f,
                                       worldDataBytes(&g_world) / 1048576.0f,
                                       lightBytes(&g_world) / 1048576.0f);
                         fontDrawTextShadow(&s.font, 10, ty, memBuf, 0xFFE0E0E0u, 1.0f);
                         ty += 12.0f;
+
+                        {
+                            static int su = 0, sp = 0, sr = 0;
+                            static unsigned int lastTick = 0;
+                            unsigned int now = sceKernelGetSystemTimeLow();
+                            if (!lastTick || now - lastTick > 1000000u) {
+                                blockStats(&g_world, &su, &sp, &sr);
+                                lastTick = now;
+                            }
+                            char secBuf[64];
+                            std::snprintf(secBuf, sizeof(secBuf),
+                                          "SEC free %d  pal %d  raw %d  (of %d)",
+                                          su, sp, sr, BS_SECTIONS);
+                            fontDrawTextShadow(&s.font, 10, ty, secBuf, 0xFFE0E0E0u, 1.0f);
+                            ty += 12.0f;
+                        }
 
                         {
                             extern unsigned int g_meshFallbacks;
@@ -349,6 +366,13 @@ int main(int argc, char* argv[]) {
                             char oomBuf[48];
                             std::snprintf(oomBuf, sizeof(oomBuf), "LIGHT OOM %u",
                                           g_world.lightOomDrops);
+                            fontDrawTextShadow(&s.font, 10, ty, oomBuf, 0xFF4040FFu, 1.0f);
+                            ty += 12.0f;
+                        }
+
+                        if (g_blockOomDrops) {
+                            char oomBuf[48];
+                            std::snprintf(oomBuf, sizeof(oomBuf), "BLOCK OOM %u", g_blockOomDrops);
                             fontDrawTextShadow(&s.font, 10, ty, oomBuf, 0xFF4040FFu, 1.0f);
                             ty += 12.0f;
                         }

@@ -162,7 +162,8 @@ void McpeGen::prepareChunk(World* w, int chunkX, int chunkZ) {
                             if (val > 0)        id = BLOCK_STONE;
                             else if (gy < 64)   id = (temp < 0.5f && gy >= 63) ? BLOCK_ICE : BLOCK_CALM_WATER;
                             else                id = BLOCK_AIR;
-                            w->blocks[(gx * WORLD_D + gz) * WORLD_H + gy] = id;
+
+                            blockPut(w, gx, gy, gz, id);
 
                             val += vala;
                         }
@@ -203,8 +204,11 @@ void McpeGen::buildSurfacesChunk(World* w, int chunkX, int chunkZ) {
             unsigned char material = bMat;
 
             int gx = chunkX * 16 + x, gz = chunkZ * 16 + z;
+
+            unsigned char col[WORLD_H];
+            blockColumnGet(w, gx, gz, col);
             for (int y = 127; y >= 0; y--) {
-                unsigned char* cell = &w->blocks[(gx * WORLD_D + gz) * WORLD_H + y];
+                unsigned char* cell = &col[y];
 
                 if (y <= random.nextInt(5)) {
                     *cell = BLOCK_BEDROCK;
@@ -238,6 +242,7 @@ void McpeGen::buildSurfacesChunk(World* w, int chunkX, int chunkZ) {
                     }
                 }
             }
+            blockColumnPut(w, gx, gz, col);
         }
     }
 }

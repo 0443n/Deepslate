@@ -69,10 +69,10 @@ void worldSetDataNoUpdate(World* w, int x, int y, int z, unsigned char data) {
 
 bool worldSetBlockAndData(World* w, int x, int y, int z, unsigned char id, unsigned char data) {
     if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return false;
-    int idx = worldIndex(x, y, z);
-    unsigned char was = w->blocks[idx];
-    w->blocks[idx] = id;
-    worldDataPut(w, idx, data);
+    unsigned char was = worldBlock(w, x, y, z);
+
+    if (!blockPut(w, x, y, z, id)) return false;
+    worldDataPut(w, worldIndex(x, y, z), data);
     worldMarkDirty(w, x, y, z);
     if (w->lightReady) {
         lightOnBlockChanged(w, x, y, z);

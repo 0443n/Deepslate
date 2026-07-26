@@ -90,10 +90,9 @@ static void saveOneChunk(World* w, RegionFile& rf, unsigned char* payload, int c
     for (int lx = 0; lx < 16; lx++) {
         for (int lz = 0; lz < 16; lz++) {
             int gx = cx * 16 + lx, gz = cz * 16 + lz;
-            int srcBase = worldIndex(gx, 0, gz);
             int dstBase = chunkIdx(lx, lz, 0);
 
-            memcpy(payload + dstBase, w->blocks + srcBase, 128);
+            blockColumnGet(w, gx, gz, payload + dstBase);
             for (int y = 0; y < 128; y++) {
                 int idx = dstBase + y;
 
@@ -129,12 +128,12 @@ static bool loadChunks(World* w, const char* absDir, bool* outGotLight) {
                     int srcBase = worldIndex(gx, 0, gz);
                     int dstBase = chunkIdx(lx, lz, 0);
 
-                    memcpy(w->blocks + srcBase, payload + dstBase, 128);
+                    blockColumnPut(w, gx, gz, payload + dstBase);
                     for (int y = 0; y < 128; y++) {
 
                         worldDataPut(w, srcBase + y, nibGet(payload + OFF_DATA, dstBase + y));
 
-                        if (w->blocks[srcBase + y] == BLOCK_ORE_REDSTONE_LIT)
+                        if (payload[dstBase + y] == BLOCK_ORE_REDSTONE_LIT)
                             worldScheduleTick(w, gx, y, gz, BLOCK_ORE_REDSTONE_LIT, 30);
                     }
                 }

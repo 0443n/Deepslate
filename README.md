@@ -22,18 +22,28 @@ needs it to be.
 The biggest difference is how the map is kept in memory. MCPE holds the world
 as a cache of separate chunk objects, each carrying its own block, data and
 light arrays. Here the whole fixed 256×128×256 world is resident at once, so
-the three arrays it needs had to get much smaller than a byte per block:
+all three had to get much smaller than a byte per block. None of them is a flat
+array any more — each one pages in only the parts of the world that carry
+information:
 
-- `blocks` — one flat 8 MB array of block IDs. Read on every mesh, light,
-  physics and raycast step, so it stays uncompressed on purpose.
+- `blocks` — block IDs in **16×16×16 sections**, the scheme Minecraft's console
+  edition uses. A section that is a single ID (all air above the surface, solid
+  stone below) is just that ID and costs nothing. Anything else gets a page:
+  **4 bits per block** indexing a 16-entry palette, or a full byte per block if
+  that section really does hold more than 16 block types — so there is no limit
+  on what you can build in one place, it just costs more there. Measured across
+  real saved worlds, 8 MB becomes 2.3–2.9 MB.
 - `data` — block metadata at **4 bits per block**, stored sparsely: one 64-byte
   page per column, allocated on the first non-zero write. Measured on real
   worlds, ~95% of columns never hold any metadata at all, so 4 MB becomes
   about 0.6 MB.
 - `light` — sky and block light as **16×16 horizontal planes** with a sentinel
-  index, the scheme Minecraft's console edition uses. About 95% of sky planes
-  and 80% of block-light planes are uniform (all dark or all lit) and cost one
-  index entry instead of a page, so 8 MB becomes under 1 MB.
+  index, also from the console edition. About 95% of sky planes and 80% of
+  block-light planes are uniform (all dark or all lit) and cost one index entry
+  instead of a page, so 8 MB becomes under 1 MB.
+
+Together that is roughly 20 MB of world down to about 4 MB, which is what makes
+the whole map fit on a 32 MB PSP alongside the meshes.
 
 The world is generated once at load around the spawn point, and the rest builds
 lazily as you walk toward it. Only the mesh columns near the camera are drawn.
@@ -54,8 +64,8 @@ This produces `EBOOT.PBP`. To get a ready-to-copy folder instead:
 make dist
 ```
 
-> The Makefile does not track header dependencies — after editing any `.h`, run
-> `make clean && make`, or a stale object file will crash on hardware.
+Header dependencies are tracked, so editing a `.h` rebuilds everything that
+includes it — a plain `make` is enough after the first build.
 
 ## Running
 
@@ -77,8 +87,9 @@ next to the EBOOT.
 ## Hardware
 
 Every PSP model runs it, but the 32 MB machines (PSP-1000, the original "Phat")
-have half the memory of everything later, and the world alone is about 10 MB.
-So the port detects the model at boot and makes two things smaller there:
+have half the memory of everything later, and the world plus its meshes still
+take most of the heap. So the port detects the model at boot and makes two
+things smaller there:
 
 - **Render distance** — Tiny and Short, no Normal, and it starts on Tiny. Short
   is fine on most worlds; heavy caves and lava run the heap to the edge, where

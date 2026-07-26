@@ -134,6 +134,7 @@ OBJS = \
 	src/world/level/explosion.o \
 	src/world/level/light.o \
 	src/world/level/light_store.o \
+	src/world/level/block_store.o \
 	src/client/renderer/level/worldrender.o \
 	src/world/level/liquid.o \
 	src/world/level/leafdecay.o \
@@ -167,7 +168,14 @@ OBJS = \
 	src/world/level/levelgen/caves.o
 
 INCDIR = src
-CFLAGS = -O2 -G0 -Wall
+# -MMD -MP: gcc writes a .d file next to every .o listing the headers that
+# object was built from, and they are pulled in at the bottom of this file.
+# Without them a change to a .h rebuilt NOTHING -- the stale .o files kept the
+# old struct layouts and linked into a binary that was quietly wrong (World
+# grew by 64KB once and every object that wasn't touched still had the old
+# offsets). -MP adds a dummy rule per header so a DELETED header doesn't wedge
+# make with "no rule to make target".
+CFLAGS = -O2 -G0 -Wall -MMD -MP
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 
@@ -188,10 +196,19 @@ PSP_EBOOT_SND0  = $(if $(wildcard $(PRESENT)/SND0.AT3),$(PRESENT)/SND0.AT3,NULL)
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
 
+# The header dependencies -MMD generated. After build.mak, so its own rules are
+# already in place; '-include' because they don't exist on the first build.
+-include $(OBJS:.o=.d)
+
 EBOOT_ASSETS := $(filter-out NULL,$(PSP_EBOOT_ICON) $(PSP_EBOOT_ICON1) \
                                   $(PSP_EBOOT_PIC0) $(PSP_EBOOT_PIC1) \
                                   $(PSP_EBOOT_SND0))
 EBOOT.PBP: $(EBOOT_ASSETS)
+
+# build.mak's clean only knows about $(OBJS) and the targets.
+clean: clean-deps
+clean-deps:
+	@rm -f $(OBJS:.o=.d)
 
 dist: EBOOT.PBP
 	@rm -rf build && mkdir -p build/data
