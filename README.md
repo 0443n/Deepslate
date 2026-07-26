@@ -8,6 +8,10 @@ It has everything MCPE 0.6.1 has — world generation, survival and creative,
 mobs, crafting, furnaces, chests, armor, TNT, the Nether Reactor, day/night,
 saving — with the same look and behaviour. There are probably still some bugs.
 
+> [!Important]
+> Join the Discord for build help, bug reports and updates on the port:
+> **https://discord.gg/uQddmU7Vra**
+
 ## About the port
 
 This is a **source-based port, not the source code itself.** The gameplay and
