@@ -5,14 +5,15 @@ bool supportCanSurvive(World* w, unsigned char id, int x, int y, int z, int data
     switch (id) {
         case BLOCK_TOPSNOW:
             return isSolidPhys(worldBlock(w, x, y - 1, z));
+
         case BLOCK_SIGN:
-            return isSolidPhys(worldBlock(w, x, y - 1, z));
+            return isSolidMaterial(worldBlock(w, x, y - 1, z));
         case BLOCK_WALL_SIGN: {
             unsigned char d = (data == -1) ? worldData(w, x, y, z) : data;
-            if (d == 2) return isSolidPhys(worldBlock(w, x, y, z + 1));
-            if (d == 3) return isSolidPhys(worldBlock(w, x, y, z - 1));
-            if (d == 4) return isSolidPhys(worldBlock(w, x + 1, y, z));
-            if (d == 5) return isSolidPhys(worldBlock(w, x - 1, y, z));
+            if (d == 2) return isSolidMaterial(worldBlock(w, x, y, z + 1));
+            if (d == 3) return isSolidMaterial(worldBlock(w, x, y, z - 1));
+            if (d == 4) return isSolidMaterial(worldBlock(w, x + 1, y, z));
+            if (d == 5) return isSolidMaterial(worldBlock(w, x - 1, y, z));
             return false;
         }
         case BLOCK_DOOR_WOOD: case BLOCK_DOOR_IRON: {
