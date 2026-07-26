@@ -34,7 +34,7 @@ Mob::Mob(Level* level)
     walkAnimPos(0), walkAnimPosO(0),
     run(0), oRun(0), animStep(0), animStepO(0), lookTime(0),
     attackAnim(0), oAttackAnim(0), swingTime(-1), swinging(false),
-    ambientSoundTime(0), airSupply(300)
+    ambientSoundTime(0)
 {
     blocksBuilding = true;
     health = getMaxHealth();
@@ -341,6 +341,26 @@ void Mob::baseTick() {
     }
 
     if (isAlive() && isInWall()) hurt(0, 1);
+
+    if (isAlive() &&
+        isWaterId(worldBlock(&g_world, (int)floorf(x),
+                             (int)floorf(y + bbHeight * 0.85f), (int)floorf(z)))) {
+
+        if (--airSupply == -20) {
+            airSupply = 0;
+            for (int i = 0; i < 8; i++) {
+                float ox = sharedRandom.nextFloat() - sharedRandom.nextFloat();
+                float oy = sharedRandom.nextFloat() - sharedRandom.nextFloat();
+                float oz = sharedRandom.nextFloat() - sharedRandom.nextFloat();
+                particlesBubble(x + ox, y + oy, z + oz, xd, yd, zd);
+            }
+            hurt(0, 2);
+        }
+        onFire = 0;
+    } else {
+        airSupply = TOTAL_AIR_SUPPLY;
+    }
+
     if (attackTime > 0) attackTime--;
     if (hurtTime > 0) hurtTime--;
     if (invulnerableTime > 0) invulnerableTime--;
@@ -437,8 +457,11 @@ void Mob::updateAi() {
     }
     xRot = defaultLookAngle;
 
-    if (isInWater() || isInLava())
-        jumping = sharedRandom.nextFloat() < 0.8f;
+    applySwimUrge();
+}
+
+void Mob::applySwimUrge() {
+    if (sharedRandom.nextFloat() < 0.8f && (isInWater() || isInLava())) jumping = true;
 }
 
 void Mob::aiStep() {
@@ -451,6 +474,8 @@ void Mob::aiStep() {
 
     if (isImmobile() || farAway) {
         jumping = false; xxa = 0; yya = 0; yRotA = 0;
+
+        applySwimUrge();
     } else if (!level->isClientSide) {
         updateAi();
     }

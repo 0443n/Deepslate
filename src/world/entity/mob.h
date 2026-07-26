@@ -23,7 +23,6 @@ public:
     int   dmgSpill;
     float hurtDir;
     int   noActionTime;
-    int   airSupply;
 
     float yBodyRot, yBodyRotO;
     float walkAnimSpeed, walkAnimSpeedO;
@@ -57,6 +56,8 @@ public:
     virtual void baseTick();
     virtual void aiStep();
     virtual void updateAi();
+
+    void applySwimUrge();
     void updateWalkAnim();
     virtual void jumpFromGround();
     virtual float getWalkingSpeedModifier() { return 1.0f; }

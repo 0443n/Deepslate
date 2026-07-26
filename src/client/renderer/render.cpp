@@ -590,6 +590,21 @@ void gameRender(MenuState& s) {
         }
         if (g_genStage == GS_TERRAIN) {
 
+            if (!g_haveTerrain) {
+                g_haveTerrain = loadTex(&g_terrain, "data/images/terrain.png");
+                if (g_haveTerrain) {
+                    bool m1 = loadTexMip(&g_terrain, 0, "data/images/terrainMipMapLevel2.png");
+                    bool m2 = loadTexMip(&g_terrain, 1, "data/images/terrainMipMapLevel3.png");
+                    if (!m1 || !m2) textureGenMips(&g_terrain, 16);
+                }
+            }
+            if (!g_haveGuiBlocks)
+                g_haveGuiBlocks = loadTex16(&g_guiBlocks, "data/images/gui/gui_blocks.png", GU_PSM_5551);
+            if (!g_haveClouds)
+                g_haveClouds = loadTex16(&g_clouds, "data/images/environment/clouds.png", GU_PSM_5551);
+            if (!g_haveParticles)
+                g_haveParticles = loadTex(&g_particles, "data/images/particles.png");
+
             bool sel = (s.worldSelected >= 0 && s.worldSelected < s.worlds.count);
             long seedVal = sel ? s.worlds.seeds[s.worldSelected] : 0;
 
@@ -677,20 +692,6 @@ void gameRender(MenuState& s) {
             }
             if (g_terrainThreadDone) {
 
-                if (!g_haveTerrain) {
-                    g_haveTerrain = loadTex(&g_terrain, "data/images/terrain.png");
-                    if (g_haveTerrain) {
-                        bool m1 = loadTexMip(&g_terrain, 0, "data/images/terrainMipMapLevel2.png");
-                        bool m2 = loadTexMip(&g_terrain, 1, "data/images/terrainMipMapLevel3.png");
-                        if (!m1 || !m2) textureGenMips(&g_terrain, 16);
-                    }
-                }
-                if (!g_haveGuiBlocks)
-                    g_haveGuiBlocks = loadTex16(&g_guiBlocks, "data/images/gui/gui_blocks.png", GU_PSM_5551);
-                if (!g_haveClouds)
-                    g_haveClouds = loadTex16(&g_clouds, "data/images/environment/clouds.png", GU_PSM_5551);
-                if (!g_haveParticles)
-                    g_haveParticles = loadTex(&g_particles, "data/images/particles.png");
                 g_genStage = GS_MESHING;
             }
             return;

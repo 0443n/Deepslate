@@ -17,10 +17,6 @@ float PathfinderMob::getWalkingSpeedModifier() {
     return speed;
 }
 
-void PathfinderMob::applySwimUrge() {
-    if (sharedRandom.nextFloat() < 0.8f && (isInWater() || isInLava())) jumping = true;
-}
-
 void PathfinderMob::updateAi() {
     if (fleeTime > 0) fleeTime--;
     holdGround = false;
@@ -88,7 +84,6 @@ void PathfinderMob::updateAi() {
     if (doStroll && noActionTime < TicksPerSecond * 5) findRandomStrollLocation();
 
     int yFloor = Mth::floor(bb.y0 + 0.5f);
-    bool inWater = isInWater(), inLava = isInLava();
     xRot = 0;
     if (path.isEmpty() || sharedRandom.nextInt(100) == 0) {
         Mob::updateAi();
@@ -120,7 +115,7 @@ void PathfinderMob::updateAi() {
     }
 
     if (horizontalCollision && (!isPathFinding() || attackTarget != 0)) jumping = true;
-    if (sharedRandom.nextFloat() < 0.8f && (inWater || inLava)) jumping = true;
+    applySwimUrge();
 }
 
 void PathfinderMob::checkCantSeeTarget(Entity* target, float d) {

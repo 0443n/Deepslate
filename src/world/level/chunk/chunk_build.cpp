@@ -15,6 +15,7 @@ unsigned int g_tCount = 0, g_tAlloc = 0, g_tEmit = 0, g_tPack = 0;
 
 extern int g_lowMemPsp;
 
+unsigned int g_meshFallbacks = 0;
 static int scratchVerts()   { return g_lowMemPsp ? 24576 : 65536; }
 static int scratchVertsWL() { return g_lowMemPsp ?  6144 : 16384; }
 #define SCRATCH_VERTS    scratchVerts()
@@ -33,9 +34,8 @@ static bool meshHeapReserveOk() {
 }
 
 static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer,
-                       MeshLayer* dst, bool leavesOpaque, bool leavesCull, bool* oom) {
-    chunkFreeLayer(dst);
-    if (!meshHeapReserveOk()) { *oom = true; return; }
+                       DrawVertex** outMesh, int* outCount, bool leavesOpaque, bool leavesCull, bool* oom) {
+    if (!meshHeapReserveOk()) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     if (!g_scratch)
         g_scratch = (ChunkVertex*)memalign(16, SCRATCH_VERTS * sizeof(ChunkVertex));
 
@@ -48,13 +48,13 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
 #endif
         if (n >= 0) {
-            if (n == 0) return;
-            bool ok = chunkPack(dst, g_scratch, n, ox, y0, oz);
+            if (n == 0) { *outMesh = 0; *outCount = 0; return; }
+            DrawVertex* d = chunkPack(g_scratch, n, ox, y0, oz);
 #if MESH_PROFILE
             g_tPack += sceKernelGetSystemTimeLow() - t1;
 #endif
-            if (!ok) *oom = true;
-            return;
+            if (!d) { *outMesh = 0; *outCount = 0; *oom = true; return; }
+            *outMesh = d; *outCount = n; return;
         }
 
     }
@@ -66,13 +66,14 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
 #if MESH_PROFILE
     g_tCount += sceKernelGetSystemTimeLow() - s0;
 #endif
-    if (count == 0) return;
+    if (count == 0) { *outMesh = 0; *outCount = 0; return; }
     ChunkVertex* m = (ChunkVertex*)memalign(16, count * sizeof(ChunkVertex));
-    if (!m) { *oom = true; return; }
+    if (!m) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     meshPass(w, ox, oz, y0, y1, m, layer, 0x7fffffff, leavesOpaque, leavesCull);
-    bool ok = chunkPack(dst, m, count, ox, y0, oz);
+    DrawVertex* d = chunkPack(m, count, ox, y0, oz);
     free(m);
-    if (!ok) *oom = true;
+    if (!d) { *outMesh = 0; *outCount = 0; *oom = true; return; }
+    *outMesh = d; *outCount = count;
 }
 
 void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
@@ -105,8 +106,10 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         }
     }
 
-    chunkFreeLayer(&s->op); chunkFreeLayer(&s->wa);
-    chunkFreeLayer(&s->le); chunkFreeLayer(&s->nm);
+    if (s->mesh)   { free(s->mesh);   s->mesh = 0; }
+    if (s->water)  { free(s->water);  s->water = 0; }
+    if (s->leaves) { free(s->leaves); s->leaves = 0; }
+    if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
 
     bool leavesOpaque = leafOpaqueBand(c, y0, y1, g_camX, g_camY, g_camZ, g_fancyGraphics != 0);
     bool leavesCull   = leafCullBand(c, y0, y1, g_camX, g_camY, g_camZ, g_fancyGraphics != 0);
@@ -130,29 +133,31 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
 #endif
         if (rc == 0) {
+            s->mesh   = n0 ? chunkPack(g_scratch,  n0, ox, y0, oz) : 0; s->vertexCount = s->mesh   ? n0 : 0;
+            s->water  = n1 ? chunkPack(g_scratchW, n1, ox, y0, oz) : 0; s->waterCount  = s->water  ? n1 : 0;
+            s->leaves = n2 ? chunkPack(g_scratchL, n2, ox, y0, oz) : 0; s->leavesCount = s->leaves ? n2 : 0;
+            s->noMip  = n3 ? chunkPack(g_scratchN, n3, ox, y0, oz) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
 
-            if (n0 && !chunkPack(&s->op, g_scratch,  n0, ox, y0, oz)) oom = true;
-            if (n1 && !chunkPack(&s->wa, g_scratchW, n1, ox, y0, oz)) oom = true;
-            if (n2 && !chunkPack(&s->le, g_scratchL, n2, ox, y0, oz)) oom = true;
-            if (n3 && !chunkPack(&s->nm, g_scratchN, n3, ox, y0, oz)) oom = true;
+            oom = (n0 && !s->mesh) || (n1 && !s->water) || (n2 && !s->leaves) || (n3 && !s->noMip);
 #if MESH_PROFILE
             g_tPack += sceKernelGetSystemTimeLow() - t1;
 #endif
         } else {
             fast = false;
+            g_meshFallbacks++;
         }
     }
     if (!fast) {
-        buildLayer(w, ox, oz, y0, y1, 0, &s->op, leavesOpaque, leavesCull, &oom);
-        buildLayer(w, ox, oz, y0, y1, 1, &s->wa, leavesOpaque, leavesCull, &oom);
-        buildLayer(w, ox, oz, y0, y1, 2, &s->le, leavesOpaque, leavesCull, &oom);
+        buildLayer(w, ox, oz, y0, y1, 0, &s->mesh,   &s->vertexCount, leavesOpaque, leavesCull, &oom);
+        buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  leavesOpaque, leavesCull, &oom);
+        buildLayer(w, ox, oz, y0, y1, 2, &s->leaves, &s->leavesCount, leavesOpaque, leavesCull, &oom);
 
-        buildLayer(w, ox, oz, y0, y1, 3, &s->nm, leavesOpaque, leavesCull, &oom);
+        buildLayer(w, ox, oz, y0, y1, 3, &s->noMip,  &s->noMipCount,  leavesOpaque, leavesCull, &oom);
     }
     s->leavesOpaqueBand = leavesOpaque;
     s->leavesCullBand = leavesCull;
 
-    int totalVerts = s->op.count + s->wa.count + s->le.count + s->nm.count;
+    int totalVerts = s->vertexCount + s->waterCount + s->leavesCount + s->noMipCount;
     if (totalVerts == 0) {
         s->by0 = s->by1 = (float)y0;
         s->lby0 = s->lby1 = (float)y0;
@@ -162,27 +167,23 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         return;
     }
 
-    #define SCAN_Y(L, LO, HI) \
-        for (int i = 0; i < (L).unique; i++) { \
-            float y = (L).v[i].y / (float)POS_ENC + y0; \
-            if (y < (LO)) (LO) = y; if (y > (HI)) (HI) = y; }
-
     float ylo = 1e9f, yhi = -1e9f;
-    SCAN_Y(s->op, ylo, yhi); SCAN_Y(s->wa, ylo, yhi);
-    SCAN_Y(s->le, ylo, yhi); SCAN_Y(s->nm, ylo, yhi);
+    for (int i = 0; i < s->vertexCount; i++) { float y = s->mesh[i].y   / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
+    for (int i = 0; i < s->waterCount;  i++) { float y = s->water[i].y  / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
+    for (int i = 0; i < s->leavesCount; i++) { float y = s->leaves[i].y / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
+    for (int i = 0; i < s->noMipCount;  i++) { float y = s->noMip[i].y  / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
     if (ylo > yhi) { ylo = (float)y0; yhi = (float)y0; }
     s->by0 = ylo; s->by1 = yhi;
 
     float lylo = 1e9f, lyhi = -1e9f;
-    SCAN_Y(s->le, lylo, lyhi);
+    for (int i = 0; i < s->leavesCount; i++) { float y = s->leaves[i].y / (float)POS_ENC + y0; if (y <lylo) lylo = y; if (y > lyhi) lyhi = y; }
     if (lylo > lyhi) { lylo = (float)y0; lyhi = (float)y0; }
     s->lby0 = lylo; s->lby1 = lyhi;
 
     float wylo = 1e9f, wyhi = -1e9f;
-    SCAN_Y(s->wa, wylo, wyhi);
+    for (int i = 0; i < s->waterCount; i++) { float y = s->water[i].y / (float)POS_ENC + y0; if (y <wylo) wylo = y; if (y > wyhi) wyhi = y; }
     if (wylo > wyhi) { wylo = (float)y0; wyhi = (float)y0; }
     s->wby0 = wylo; s->wby1 = wyhi;
-    #undef SCAN_Y
 
     if (oom) { g_meshOOM = 1; s->dirty = true; }
     else       s->dirty = false;

@@ -318,9 +318,8 @@ int main(int argc, char* argv[]) {
                         char memBuf[96];
 
                         std::snprintf(memBuf, sizeof(memBuf),
-                                      "MEM used %.1fM  mesh %.2fM  world %.1fM (blk %.2fM data %.2fM light %.2fM)",
+                                      "MEM used %.1fM  world %.1fM (blk %.2fM data %.2fM light %.2fM)",
                                       (unsigned int)mi.uordblks / 1048576.0f,
-                                      g_meshBytes / 1048576.0f,
                                       worldMemBytes(&g_world) / 1048576.0f,
                                       blockBytes(&g_world) / 1048576.0f,
                                       worldDataBytes(&g_world) / 1048576.0f,
