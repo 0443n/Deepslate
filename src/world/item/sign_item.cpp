@@ -7,6 +7,7 @@
 #include "world/item/item_instance.h"
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
+#include "world/level/tile/material.h"
 #include "world/level/level.h"
 #include "world/level/tile/entity/sign_tile_entity.h"
 #include "client/player/player_state.h"

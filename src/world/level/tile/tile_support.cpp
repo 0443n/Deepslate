@@ -1,5 +1,6 @@
 
 #include "world/level/tile/tile_behavior.h"
+#include "world/level/tile/material.h"
 
 bool supportCanSurvive(World* w, unsigned char id, int x, int y, int z, int data) {
     switch (id) {

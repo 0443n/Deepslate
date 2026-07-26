@@ -134,8 +134,6 @@ static inline bool isReplaceable(unsigned char id) { return Tile::tiles[id]->rep
 
 static inline bool isSolidPhys(unsigned char id) { return Tile::tiles[id]->solidPhys; }
 
-static inline bool isSolidMaterial(unsigned char id) { return isSolidPhys(id) || isSign(id); }
-
 static inline bool isCubeShaped(unsigned char id) { return Tile::tiles[id]->cube; }
 
 static inline bool isSolidBlocking(unsigned char id) { return Tile::tiles[id]->solidPhys; }

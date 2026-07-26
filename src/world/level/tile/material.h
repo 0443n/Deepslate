@@ -27,6 +27,7 @@ enum TileMaterial {
     MAT_CLAY,
     MAT_VEGETABLE,
     MAT_WEB,
+    MAT_FIRE,
 };
 
 inline TileMaterial tileMaterial(unsigned char id) {
@@ -80,7 +81,22 @@ inline TileMaterial tileMaterial(unsigned char id) {
         case BLOCK_COBWEB:
             return MAT_WEB;
 
+        case BLOCK_FIRE:
+            return MAT_FIRE;
+
         default: return MAT_STONE;
+    }
+}
+
+inline bool isSolidMaterial(unsigned char id) {
+    switch (tileMaterial(id)) {
+        case MAT_AIR: case MAT_FIRE:
+        case MAT_WATER: case MAT_LAVA:
+        case MAT_PLANT: case MAT_REPLACEABLE_PLANT:
+        case MAT_DECORATION: case MAT_TOPSNOW:
+            return false;
+        default:
+            return true;
     }
 }
 

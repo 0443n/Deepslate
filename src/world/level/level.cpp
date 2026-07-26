@@ -1,6 +1,7 @@
 #include "world/level/level.h"
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
+#include "world/level/tile/material.h"
 #include "world/entity/entity.h"
 #include "world/entity/local_player.h"
 #include "world/difficulty.h"

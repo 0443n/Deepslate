@@ -378,7 +378,14 @@ static void breakTargetedBlock(const BlockHit& hit) {
             particlesDestroyBlock(&g_world, hit.x, hit.y, hit.z, brokenId, brokenData);
             playTileBreakSound(brokenId, hit.x, hit.y, hit.z);
         }
-        worldSetBlockAndData(&g_world, hit.x, hit.y, hit.z, BLOCK_AIR, 0);
+
+        unsigned char leaves = BLOCK_AIR;
+        if (brokenId == BLOCK_ICE) {
+            unsigned char below = worldBlock(&g_world, hit.x, hit.y - 1, hit.z);
+            if (isSolidPhys(below) || isLiquidId(below)) leaves = BLOCK_WATER;
+        }
+        worldSetBlockAndData(&g_world, hit.x, hit.y, hit.z, leaves, 0);
+        if (isLiquidId(leaves)) worldScheduleTick(&g_world, hit.x, hit.y, hit.z, leaves, 5);
         worldNotifyNeighborsChanged(&g_world, hit.x, hit.y, hit.z);
 
         unsigned int editT0 = sceKernelGetSystemTimeLow();

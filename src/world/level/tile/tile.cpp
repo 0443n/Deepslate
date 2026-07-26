@@ -984,6 +984,29 @@ struct CactusTile : GrowerTile { CactusTile(unsigned char i) : GrowerTile(i) {}
 
     void entityInside(World*, int, int, int, Entity* e) { if (e) e->hurt(nullptr, 1); } };
 
+static void meltTick(World* w, int x, int y, int z, unsigned char id, int lightBlock,
+                     unsigned char becomes) {
+
+    if (lightBlockGet(w, x, y, z) <= 11 - lightBlock) return;
+    worldSpawnResources(w, x, y, z, id, worldData(w, x, y, z));
+    worldSetBlockAndData(w, x, y, z, becomes, 0);
+
+    if (isLiquidId(becomes)) worldScheduleTick(w, x, y, z, becomes, 5);
+    worldNotifyNeighborsChanged(w, x, y, z);
+}
+
+struct IceTile : Tile { IceTile(unsigned char i) : Tile(i) { randomTicks = true; }
+    void randomTick(World* w, int x, int y, int z) {
+        meltTick(w, x, y, z, id, lightBlock, BLOCK_WATER); } };
+
+struct SnowLayerTile : SupportTile { SnowLayerTile(unsigned char i) : SupportTile(i) { randomTicks = true; }
+    void randomTick(World* w, int x, int y, int z) {
+        meltTick(w, x, y, z, id, 0, BLOCK_AIR); } };
+
+struct SnowBlockTile : Tile { SnowBlockTile(unsigned char i) : Tile(i) { randomTicks = true; }
+    void randomTick(World* w, int x, int y, int z) {
+        meltTick(w, x, y, z, id, 0, BLOCK_AIR); } };
+
 struct LavaTile : Tile { LavaTile(unsigned char i) : Tile(i) { randomTicks = true; }
     void randomTick(World* w, int x, int y, int z) {
         int h = rand() % 3;
@@ -1153,7 +1176,11 @@ static Tile* makeTile(unsigned char id) {
         case BLOCK_MUSHROOM_BROWN: case BLOCK_MUSHROOM_RED:
             return new BushTile(id);
         case BLOCK_TOPSNOW:
-            return new SupportTile(id);
+            return new SnowLayerTile(id);
+        case BLOCK_SNOW_BLOCK:
+            return new SnowBlockTile(id);
+        case BLOCK_ICE:
+            return new IceTile(id);
         case BLOCK_SIGN: case BLOCK_WALL_SIGN:
             return new SignTile(id);
         case BLOCK_TORCH:
