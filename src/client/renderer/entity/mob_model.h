@@ -6,6 +6,9 @@ class Mob;
 struct Texture;
 
 struct SkinVertex { float u, v; unsigned int color; float x, y, z; };
+
+#define MOB_MAX_PARTS 16
+
 struct MobPart { SkinVertex base[36]; SkinVertex mesh[36]; float px, py, pz; float xRot, yRot, zRot; bool head; };
 
 void mobBuildBox(SkinVertex* out, float x0, float y0, float z0,

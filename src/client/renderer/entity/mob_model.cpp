@@ -5,6 +5,7 @@
 #include "client/renderer/item_model.h"
 #include "world/item/item.h"
 #include "gpu/texture.h"
+#include "gpu/gu.h"
 #include <pspgu.h>
 #include <pspgum.h>
 #include <pspkernel.h>
@@ -67,9 +68,12 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         brCol = (brCol & 0xFF000000u) | (b << 16) | (g << 8) | r;
     }
 
+    void* meshes[MOB_MAX_PARTS];
+    if (count > MOB_MAX_PARTS) count = MOB_MAX_PARTS;
     for (int i = 0; i < count; i++) {
-        for (int k = 0; k < 36; k++) { parts[i].mesh[k] = parts[i].base[k]; parts[i].mesh[k].color = brCol; }
-        sceKernelDcacheWritebackInvalidateRange(parts[i].mesh, sizeof(parts[i].mesh));
+        SkinVertex tmp[36];
+        for (int k = 0; k < 36; k++) { tmp[k] = parts[i].base[k]; tmp[k].color = brCol; }
+        meshes[i] = guFrameCopy(tmp, sizeof(tmp));
     }
 
     textureBind(tex);
@@ -113,7 +117,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         if (parts[i].xRot != 0.0f) sceGumRotateX(parts[i].xRot);
         sceGumDrawArray(GU_TRIANGLES,
                         GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                        36, 0, parts[i].mesh);
+                        36, 0, meshes[i]);
         sceGumPopMatrix();
     }
 
@@ -150,9 +154,12 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
     if (overlayWhite > 0.01f) {
         unsigned int wa = (unsigned int)(overlayWhite * 255.0f); if (wa > 255) wa = 255;
         const unsigned int WHITE = (wa << 24) | 0x00FFFFFFu;
+
+        void* ovMeshes[MOB_MAX_PARTS];
         for (int i = 0; i < count; i++) {
-            for (int k = 0; k < 36; k++) parts[i].mesh[k].color = WHITE;
-            sceKernelDcacheWritebackInvalidateRange(parts[i].mesh, sizeof(parts[i].mesh));
+            SkinVertex tmp[36];
+            for (int k = 0; k < 36; k++) { tmp[k] = parts[i].base[k]; tmp[k].color = WHITE; }
+            ovMeshes[i] = guFrameCopy(tmp, sizeof(tmp));
         }
         sceGuEnable(GU_BLEND);
         sceGuTexFunc(GU_TFX_ADD, GU_TCC_RGBA);
@@ -169,7 +176,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
             if (parts[i].xRot != 0.0f) sceGumRotateX(parts[i].xRot);
             sceGumDrawArray(GU_TRIANGLES,
                             GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                            36, 0, parts[i].mesh);
+                            36, 0, ovMeshes[i]);
             sceGumPopMatrix();
         }
         sceGuDisable(GU_CULL_FACE);
