@@ -378,7 +378,7 @@ static void renderMiningCrack(float ex, float ey, float ez) {
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     total, 0, mesh);
     sceGumPopMatrix();
-    if (g_terrain.mipCount && !g_noMipmap) sceGuTexLevelMode(GU_TEXTURE_AUTO, 0.0f);
+    if (g_terrain.mipCount && !g_noMipmap) textureMipAuto();
     sceGuDepthOffset(0);
 
     sceGuDepthMask(GU_FALSE);

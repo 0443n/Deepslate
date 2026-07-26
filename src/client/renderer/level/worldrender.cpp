@@ -234,7 +234,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         }
         chunkDrawSection(g_opaqueList[i].s);
     }
-    if (distMip) sceGuTexLevelMode(GU_TEXTURE_AUTO, 0.0f);
+    if (distMip) textureMipAuto();
     sceGuEnable(GU_ALPHA_TEST);
 
     if (terrain) {
@@ -263,7 +263,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
                 chunkDrawNoMipSection(s);
             }
         }
-        if (distMip) sceGuTexLevelMode(GU_TEXTURE_AUTO, 0.0f);
+        if (distMip) textureMipAuto();
         if (any) {
             extern int g_noMipmap;
             if (g_noMipmap) textureBindNoMip(terrain);
@@ -307,7 +307,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
     if (distMip) {
         sceGuTexFilter(GU_NEAREST_MIPMAP_LINEAR, GU_NEAREST);
-        sceGuTexLevelMode(GU_TEXTURE_AUTO, 0.0f);
+        textureMipAuto();
     }
 }
 
@@ -352,5 +352,5 @@ void worldDrawWater(const World* w, float camX, float camY, float camZ, float vi
         }
         chunkDrawWaterSection(g_waterList[i].s);
     }
-    if (distMip) sceGuTexLevelMode(GU_TEXTURE_AUTO, 0.0f);
+    if (distMip) textureMipAuto();
 }

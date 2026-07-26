@@ -3,6 +3,10 @@
 
 #include <pspkernel.h>
 
+static inline bool timeReached(unsigned int nowUs, unsigned int deadlineUs) {
+    return (int)(nowUs - deadlineUs) >= 0;
+}
+
 extern SceInt64 g_timeBootUs;
 
 static inline float nowSeconds() {

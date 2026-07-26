@@ -24,6 +24,7 @@
 #include "world/level/tile/entity/reactor_tile_entity.h"
 #include "world/level/tile/fire.h"
 #include "world/entity/item_entity.h"
+#include "platform/time.h"
 
 static Mob* nearbyTripodCamera() {
     if (!g_level.player) return 0;
@@ -434,7 +435,7 @@ static bool continueMining(const BlockHit& hit) {
     float ticks = (now - s_lastUs) / 50000.0f;
     s_lastUs = now;
 
-    if (now < s_breakCooldownUs) return false;
+    if (!timeReached(now, s_breakCooldownUs)) return false;
     g_mining.progress += perTick * ticks;
 
     s_digTicks += ticks;
