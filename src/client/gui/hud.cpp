@@ -740,10 +740,14 @@ void drawGuiItem(Font& font, const ItemInstance& item, float x, float y, float s
 
 void hotbarDraw(MenuState& s) {
     if (!s.haveGui) return;
+
+    const bool sleeping = g_level.player && g_level.player->isSleeping();
+    const bool hideBar  = sleeping;
     const float barW = 20.0f * HUD_N * HB_S;
     const float barX = (480.0f - barW) * 0.5f;
     const float barY = HUD_HOTBAR_TOP;
 
+    if (!hideBar) {
     textureBind(&s.guiAtlas);
     spriteDraw(&s.guiAtlas, barX, barY, 20.0f * HUD_N * HB_S, 22.0f * HB_S,
                GA_HOTBAR_X, GA_HOTBAR_Y, 20.0f * HUD_N, 22.0f, HUD_WHITE);
@@ -800,9 +804,11 @@ void hotbarDraw(MenuState& s) {
             drawGuiItem(s.font, *it, slotX, slotY, 16.0f * HB_S, 0xFFFFFFFFu,
                         !g_level.player->inventory->isCreative());
     }
+    }
 
     bool overlayUp = g_invOpen || g_chestOpen || g_furnaceOpen ||
-                     g_craftOpen || g_armorOpen || g_paused;
+                     g_craftOpen || g_armorOpen || g_paused ||
+                     (sleeping && g_barOnTop);
     extern int g_cloudTicks;
     if (!overlayUp && !g_level.player->inventory->isCreative() && s.haveGui && g_level.player) {
         int hp = g_level.player->health; if (hp < 0) hp = 0;
@@ -928,7 +934,7 @@ void hotbarDraw(MenuState& s) {
         nameDisplayStartTime = (curId > 0) ? gameSeconds() : -1.0f;
     }
 
-    if (nameDisplayStartTime >= 0.0f) {
+    if (nameDisplayStartTime >= 0.0f && !hideBar) {
         float now = gameSeconds();
         float since = now - nameDisplayStartTime;
         if (since > 2.0f) {

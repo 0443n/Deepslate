@@ -1,6 +1,7 @@
 
 #include "world/level/chunk/chunk.h"
 #include "world/level/world.h"
+#include "client/renderer/tile/mesh_light.h"
 
 static const float kFaceCornerF[6][4][3] = {
      { {0,0,1},{0,1,1},{0,1,0},{0,0,0} },
@@ -62,30 +63,29 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
             int faceBr;
             unsigned int shade;
 
+            int sx = gx, sy = y, sz = gz;
+
             if (isPane(id)) {
                 shade = 0xFFFFFFFFu;
                 faceBr = lightRawAt(w, gx, y, gz);
-            }
-
-            else if (f == F_DOWN) {
-                shade = kFaceShade[F_DOWN];
-                faceBr = (y0 > 0.0f) ? lightRawAt(w, gx, y, gz)
-                                     : lightRawAt(w, gx, y - 1, gz);
-            }
-            else if (boundaryMask & (1 << f)) {
-                int nx = gx + kFaceNeighbor[f][0];
-                int ny = y  + kFaceNeighbor[f][1];
-                int nz = gz + kFaceNeighbor[f][2];
-                shade = kFaceShade[f];
-                faceBr = lightRawAt(w, nx, ny, nz);
             } else {
+
+                sx = gx + kFaceNeighbor[f][0];
+                sy = y  + kFaceNeighbor[f][1];
+                sz = gz + kFaceNeighbor[f][2];
                 shade = kFaceShade[f];
-                faceBr = lightRawAt(w, gx, y, gz);
+                faceBr = lightRawAt(w, sx, sy, sz);
             }
             if (lightEmit(id) > faceBr) faceBr = lightEmit(id);
             if (lightEmit(id) > 0) shade = 0xFFFFFFFFu;
 
             unsigned int color = mulColor(mulColor(shade, tint), g_brightColor[faceBr]);
+
+            unsigned int cc[2][2];
+            const bool smooth = !isPane(id) && lightEmit(id) == 0;
+            if (smooth)
+                faceCornerColors(w, 0, 0, 0, sx, sy, sz, f, id, tint, shade, cc);
+            const int ca = f >> 1, ca1 = (ca + 1) % 3, ca2 = (ca + 2) % 3;
 
             static const int tri[6] = { 0, 1, 2, 2, 3, 0 };
             for (int t = 0; t < 6; t++) {
@@ -140,7 +140,9 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
                     out[n + t].u = u0 + uv_u * TILE_UV;
                     out[n + t].v = v0 + uv_v * TILE_UV;
                 }
-                out[n + t].color = color;
+
+                const float uc[3] = { cx, cy, cz };
+                out[n + t].color = smooth ? cc[uc[ca1] > 0.5f][uc[ca2] > 0.5f] : color;
                 out[n + t].x = gx + bx;
                 out[n + t].y = y + by;
                 out[n + t].z = gz + bz;

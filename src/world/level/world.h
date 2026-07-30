@@ -278,6 +278,9 @@ static inline int lightRawAt(const World* w, int x, int y, int z) {
     return lightRawAtNoProp(w, x, y, z);
 }
 
+static inline int lightSample(const World* w, unsigned char* cache, int i, int x, int y, int z);
+static inline bool opaqueSample(const World* w, const unsigned char* cache, int i, int x, int y, int z);
+
 static inline int lightLazy(const World* w, unsigned char* cache, int i, int x, int y, int z) {
     int v = cache[i];
     if (v != 0xFF) return v;
@@ -297,7 +300,7 @@ static inline void smoothFaceLight(const World* w, const unsigned char* lc,
     const int a1 = (a + 1) % 3, a2 = (a + 2) % 3;
     const int s1 = kAxisStride[a1], s2 = kAxisStride[a2];
     const int p0[3] = { nx, ny, nz };
-    const float mid = g_brightRamp[lightLazy(w, llc, nbi, nx, ny, nz)];
+    const float mid = g_brightRamp[lightSample(w, llc, nbi, nx, ny, nz)];
     if (!g_smoothLighting) {
         br[0][0] = br[0][1] = br[1][0] = br[1][1] = mid;
         return;
@@ -306,18 +309,30 @@ static inline void smoothFaceLight(const World* w, const unsigned char* lc,
     for (int j = 0; j < 2; j++) {
         const int d1 = i ? 1 : -1, d2 = j ? 1 : -1;
         const int i1 = nbi + d1 * s1, i2 = nbi + d2 * s2;
-        int p[3] = { p0[0], p0[1], p0[2] };
-        p[a1] += d1;
-        const float b1 = g_brightRamp[lightLazy(w, llc, i1, p[0], p[1], p[2])];
-        p[a1] -= d1; p[a2] += d2;
-        const float b2 = g_brightRamp[lightLazy(w, llc, i2, p[0], p[1], p[2])];
+        int p1[3] = { p0[0], p0[1], p0[2] }; p1[a1] += d1;
+        int p2[3] = { p0[0], p0[1], p0[2] }; p2[a2] += d2;
+        const float b1 = g_brightRamp[lightSample(w, llc, i1, p1[0], p1[1], p1[2])];
+        const float b2 = g_brightRamp[lightSample(w, llc, i2, p2[0], p2[1], p2[2])];
         float bc = b1;
-        if (!isOpaque(lc[i1]) || !isOpaque(lc[i2])) {
-            p[a1] += d1;
-            bc = g_brightRamp[lightLazy(w, llc, i1 + d2 * s2, p[0], p[1], p[2])];
+        if (!opaqueSample(w, lc, i1, p1[0], p1[1], p1[2]) ||
+            !opaqueSample(w, lc, i2, p2[0], p2[1], p2[2])) {
+            int pd[3] = { p1[0], p1[1], p1[2] }; pd[a2] += d2;
+            bc = g_brightRamp[lightSample(w, llc, i1 + d2 * s2, pd[0], pd[1], pd[2])];
         }
         br[i][j] = (mid + b1 + b2 + bc) * 0.25f;
     }
+}
+
+static inline int lightSample(const World* w, unsigned char* cache, int i, int x, int y, int z) {
+    return cache ? lightLazy(w, cache, i, x, y, z) : lightRawAt(w, x, y, z);
+}
+static inline bool opaqueSample(const World* w, const unsigned char* cache, int i, int x, int y, int z) {
+    return isOpaque(cache ? cache[i] : worldBlock(w, x, y, z));
+}
+
+static inline void smoothFaceLightAt(const World* w, int nx, int ny, int nz,
+                                     int f, float br[2][2]) {
+    smoothFaceLight(w, 0, 0, 0, nx, ny, nz, f, br);
 }
 
 static inline unsigned int brightColorF(float b) {
