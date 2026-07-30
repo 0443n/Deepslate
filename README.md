@@ -1,12 +1,15 @@
 # Minecraft PE for PSP
 
-This repository contains a port of **Minecraft Pocket Edition 0.6.1** to the
-Sony PlayStation Portable. It runs on **every PSP model, including the 32 MB
+This repository contains a port of **Minecraft Pocket Edition** to the Sony
+PlayStation Portable. It runs on **every PSP model, including the 32 MB
 PSP-1000** — see [Hardware](#hardware) for what the 1000 gives up.
 
-It has everything MCPE 0.6.1 has — world generation, survival and creative,
-mobs, crafting, furnaces, chests, armor, TNT, the Nether Reactor, day/night,
-saving — with the same look and behaviour. There are probably still some bugs.
+The base is MCPE **0.6.1** — that is where the world logic, the save format and
+most of the code come from — but the feature set has since grown past it, piece
+by piece, and now sits at roughly **MCPE 0.7.6**: world generation, survival and
+creative, mobs, crafting, furnaces, chests, armor, TNT, the Nether Reactor,
+buckets, fire and flint & steel, signs, paintings, beds and day/night, the
+tripod camera, sounds and saving. There are probably still some bugs.
 
 > [!Important]
 > Join the Discord for build help, bug reports and updates on the port:
@@ -15,9 +18,10 @@ saving — with the same look and behaviour. There are probably still some bugs.
 ## About the port
 
 This is a **source-based port, not the source code itself.** The gameplay and
-world logic are ported piece by piece from the original MCPE 0.6.1 sources and
-adapted for the PSP, but the engine underneath is different where the hardware
-needs it to be.
+world logic are ported piece by piece from the original MCPE sources — 0.6.1
+first, then later versions for the features 0.6.1 never had — and adapted for
+the PSP, but the engine underneath is different where the hardware needs it to
+be.
 
 The biggest difference is how the map is kept in memory. MCPE holds the world
 as a cache of separate chunk objects, each carrying its own block, data and
@@ -109,8 +113,10 @@ off a phone opens on the PSP.
 
 ## Credits
 
-- Gameplay and world logic ported from the Minecraft Pocket Edition 0.6.1
-  sources.
+- Gameplay and world logic ported from the Minecraft Pocket Edition sources
+  (0.6.1 as the base, later versions for the newer features).
+- [**MCPE-0.8.1**](https://github.com/oldminecraftcommunity/MCPE-0.8.1) — the
+  0.8.1 decompilation, used as a source for the features 0.6.1 never had.
 - [**Oreo**](https://github.com/Oreo80) — helped with the porting.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
