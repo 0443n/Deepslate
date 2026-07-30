@@ -13,6 +13,7 @@
 #include "platform/path.h"
 #include "gpu/gui_atlas.h"
 #include "world/level/world.h"
+#include "client/renderer/particle.h"
 
 struct OptionRowDef {
 
@@ -27,7 +28,7 @@ struct OptionRowDef {
 };
 
 #define OPT_CATEGORIES 4
-#define OPT_MAX_ROWS   9
+#define OPT_MAX_ROWS   10
 
 static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     {
@@ -43,6 +44,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
 
         { "Input", "Sensitivity",  {0, 0, 0, 0}, 21, 10, true, 0, 10 },
 
+        { 0,       "Dead Zone",     {0, 0, 0, 0}, 11, 4, true, 0, 5 },
         { 0,       "Invert Y-axis", {"Off", "On", 0, 0}, 2, 0 },
         { 0,       "Auto Jump",     {"Off", "On", 0, 0}, 2, 1 },
         { 0,       "Block Outline", {"Off", "On", 0, 0}, 2, 1 },
@@ -58,6 +60,8 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
 
         { 0,          "Beautiful Skies", {"Off", "On", 0, 0}, 2, 1 },
         { 0,          "Animate Textures",{"Off", "On", 0, 0}, 2, 1 },
+
+        { 0,          "Particles",       {"Off", "On", 0, 0}, 2, 1 },
         { 0,          "Smooth Lighting", {"Off", "On", 0, 0}, 2, 1 },
         { "Experimental", "Mipmapping",  {"Off", "On", 0, 0}, 2, 1 },
         { 0,              "Hide GUI",    {"Off", "On", 0, 0}, 2, 0 },
@@ -68,7 +72,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { "Audio", "Sound Volume", {0, 0, 0, 0}, 11, 10, true, 0, 10 },
     },
 };
-static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 5, 9, 1 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 6, 10, 1 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
@@ -90,6 +94,8 @@ extern int   g_invertY;
 extern int   g_beautifulSkies;
 extern int   g_animateTextures;
 extern int   g_hideGui;
+extern int   g_particles;
+extern float g_analogDeadzone;
 extern bool  g_worldBuilt;
 extern bool  g_paused;
 extern bool  g_optionsOpen;
@@ -102,9 +108,10 @@ extern World g_world;
 #define ROW_BOBBING     3
 #define ROW_SKIES       4
 #define ROW_ANIMTEX     5
-#define ROW_SMOOTHLIGHT 6
-#define ROW_MIPMAP      7
-#define ROW_HIDEGUI     8
+#define ROW_PARTICLES   6
+#define ROW_SMOOTHLIGHT 7
+#define ROW_MIPMAP      8
+#define ROW_HIDEGUI     9
 
 static const float kRenderDist[4] = { 16.0f, 32.0f, 48.0f, 64.0f };
 extern int g_lowMemPsp;
@@ -113,10 +120,11 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 
 #define CAT_CONTROLS     1
 #define ROW_SENS         0
-#define ROW_INVERTY      1
-#define ROW_AUTOJUMP     2
-#define ROW_BLOCKOUTLINE 3
-#define ROW_SHOWCOORDS   4
+#define ROW_DEADZONE     1
+#define ROW_INVERTY      2
+#define ROW_AUTOJUMP     3
+#define ROW_BLOCKOUTLINE 4
+#define ROW_SHOWCOORDS   5
 
 #define CAT_GAME        0
 #define ROW_DIFFICULTY  0
@@ -160,11 +168,17 @@ static void optionsApply() {
     soundSetVolume(g_optionValueIdx[CAT_AUDIO][ROW_SOUNDVOL] / 10.0f);
 
     g_sensitivity = g_optionValueIdx[CAT_CONTROLS][ROW_SENS] / 10.0f;
+
+    g_analogDeadzone = g_optionValueIdx[CAT_CONTROLS][ROW_DEADZONE] * 0.05f;
     g_thirdPerson = g_optionValueIdx[CAT_GAME][ROW_THIRDPERSON] != 0;
     g_invertY        = g_optionValueIdx[CAT_CONTROLS][ROW_INVERTY];
     g_beautifulSkies = g_optionValueIdx[CAT_GRAPHICS][ROW_SKIES];
     g_animateTextures= g_optionValueIdx[CAT_GRAPHICS][ROW_ANIMTEX];
     g_hideGui        = g_optionValueIdx[CAT_GRAPHICS][ROW_HIDEGUI];
+
+    int wantParticles = g_optionValueIdx[CAT_GRAPHICS][ROW_PARTICLES];
+    if (!wantParticles && g_particles) particlesReset();
+    g_particles = wantParticles;
 
     bool wantSmooth = g_optionValueIdx[CAT_GRAPHICS][ROW_SMOOTHLIGHT] != 0;
     if (wantSmooth != g_smoothLighting) {

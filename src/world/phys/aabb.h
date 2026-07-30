@@ -75,6 +75,28 @@ struct AABB {
     }
 
     float getSize() const { return ((x1-x0) + (y1-y0) + (z1-z0)) / 3.0f; }
+
+    bool clip(float px, float py, float pz, float dx, float dy, float dz,
+              float len, float& t) const {
+        if (len <= 0.0f) return false;
+        float tmin = 0.0f, tmax = len;
+        const float eps = 1e-6f;
+        const float p[3] = { px, py, pz }, d[3] = { dx, dy, dz };
+        const float lo3[3] = { x0, y0, z0 }, hi3[3] = { x1, y1, z1 };
+        for (int a = 0; a < 3; a++) {
+            if (d[a] > -eps && d[a] < eps) {
+                if (p[a] < lo3[a] || p[a] > hi3[a]) return false;
+                continue;
+            }
+            float lo = (lo3[a] - p[a]) / d[a], hi = (hi3[a] - p[a]) / d[a];
+            if (lo > hi) { float s = lo; lo = hi; hi = s; }
+            if (lo > tmin) tmin = lo;
+            if (hi < tmax) tmax = hi;
+            if (tmin > tmax) return false;
+        }
+        t = tmin;
+        return true;
+    }
 };
 
 #endif

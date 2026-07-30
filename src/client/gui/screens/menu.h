@@ -72,6 +72,8 @@ void drawDirtBackground(MenuState& s, float y = 0.0f, float h = -1.0f,
 
 void drawWindowFrame(MenuState& s);
 
+void drawHeaderBar(MenuState& s, bool shadow = false);
+
 static const float MENU_PX       = 0.75f;
 static const float MENU_BAR_H    = 26.0f * MENU_PX;
 static const float MENU_BAR_BTNH = 18.0f * MENU_PX;

@@ -241,6 +241,12 @@ void worldNotifyNeighborsChanged(World* w, int x, int y, int z) {
     checkHarden(w, x, y, z);
 }
 
+bool worldSetTileUpdate(World* w, int x, int y, int z, unsigned char id, unsigned char data) {
+    if (!worldSetBlockAndData(w, x, y, z, id, data)) return false;
+    worldNotifyNeighborsChanged(w, x, y, z);
+    return true;
+}
+
 static void trySpreadTo(World* w, int x, int y, int z, int neighbor, unsigned char liquidId) {
     if (canSpreadTo(w, x, y, z, liquidId)) {
 

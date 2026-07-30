@@ -32,12 +32,12 @@ bool bushFamilyCanSurvive(World* w, unsigned char id, int x, int y, int z) {
 void saplingGrow(World* w, int x, int y, int z) {
     unsigned char data = worldData(w, x, y, z);
     Random rnd(rand());
-    worldSetBlockAndData(w, x, y, z, BLOCK_AIR, 0);
+    worldSetTileUpdate(w, x, y, z, BLOCK_AIR, 0);
     if ((data & 3) == 1)      treeSpruce(w, rnd, x, y, z);
     else if ((data & 3) == 2) treeBirch(w, rnd, x, y, z);
     else                      treeOak(w, rnd, x, y, z);
     if (worldBlock(w, x, y, z) == BLOCK_AIR)
-        worldSetBlockAndData(w, x, y, z, BLOCK_SAPLING, data);
+        worldSetTileUpdate(w, x, y, z, BLOCK_SAPLING, data);
 }
 
 void saplingTick(World* w, int x, int y, int z) {

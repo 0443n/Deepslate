@@ -39,6 +39,8 @@
 #include <pspgum.h>
 
 SceInt64 g_timeBootUs = 0;
+float    g_gameSeconds = 0.0f;
+bool     g_gameFrozen  = true;
 
 PSP_MODULE_INFO("MinecraftPSP", 0, 0, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);

@@ -20,7 +20,7 @@ static void bonemealGrass(World* w, int x, int y, int z) {
         }
         if (blocked) continue;
         if (worldBlock(w, xx, yy, zz) == BLOCK_AIR)
-            worldSetBlockAndData(w, xx, yy, zz, (rand() % 3 != 0) ? BLOCK_FLOWER : BLOCK_ROSE, 0);
+            worldSetTileUpdate(w, xx, yy, zz, (rand() % 3 != 0) ? BLOCK_FLOWER : BLOCK_ROSE, 0);
     }
 }
 
@@ -29,7 +29,7 @@ static bool bonemealReed(World* w, int x, int y, int z) {
     int height = 1;
     while (worldBlock(w, x, y - height, z) == BLOCK_REEDS) height++;
     if (height >= 3 || worldBlock(w, x, y + 1, z) != BLOCK_AIR) return false;
-    worldSetBlockAndData(w, x, y + 1, z, BLOCK_REEDS, 0);
+    worldSetTileUpdate(w, x, y + 1, z, BLOCK_REEDS, 0);
     return true;
 }
 

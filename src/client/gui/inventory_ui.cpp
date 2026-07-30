@@ -52,10 +52,45 @@ static void drawItemFrame(float x, float y, float w, float h) {
     guiFill(x + o + b1, y + o + b1, w - 2 * (o + b1), b1, SHADOW);
 }
 
+static const float INV_BTN_H = 15.0f;
+static const float INV_BTN_Y = (HEADER_H - INV_BTN_H) / 2.0f;
+
+static const char* invHeaderLabel(int i) {
+    return i == INV_BTN_BACK ? "Back" : i == INV_BTN_CRAFT ? "Craft" : "Armor";
+}
+
+bool invHeaderButton(MenuState& s, int i, float* x, float* w) {
+    if (i < 0 || i >= INV_BTN_COUNT) return false;
+
+    if (i != INV_BTN_BACK && g_level.player->inventory->isCreative()) return false;
+    if (!x) return true;
+
+    float bw[INV_BTN_COUNT];
+    for (int k = 0; k < INV_BTN_COUNT; k++) {
+        float tw = s.haveFont ? fontTextWidth(&s.font, invHeaderLabel(k)) + 8.0f : 30.0f;
+        bw[k] = tw < 30.0f ? 30.0f : tw;
+    }
+    float armorX = VW - bw[INV_BTN_ARMOR] - 4.0f;
+    *x = i == INV_BTN_BACK  ? 4.0f
+       : i == INV_BTN_ARMOR ? armorX
+                            : armorX - bw[INV_BTN_CRAFT] - 4.0f;
+    if (w) *w = bw[i];
+    return true;
+}
+
+static void invHeaderTitleGap(MenuState& s, float* gx, float* gw) {
+    float x, w, left = 0.0f, right = VW;
+    if (invHeaderButton(s, INV_BTN_BACK, &x, &w)) left = x + w;
+    if (invHeaderButton(s, INV_BTN_CRAFT, &x, &w) ||
+        invHeaderButton(s, INV_BTN_ARMOR, &x, &w)) right = x;
+    *gx = left + 2.0f;
+    *gw = right - left - 4.0f;
+}
+
 void inventoryDraw(MenuState& s) {
 
     const int   cols   = INV_COLS;
-    const int   Bx = 10, By = 6, ItemSize = 32, BlockBorder = 4, clipBottom = 0;
+    const int   By = 6, ItemSize = 32, BlockBorder = 4, clipBottom = 0;
     const int   rows   = 1 + (g_level.player->inventory->gridSize() - 1) / cols;
     const float realW  = (float)(cols * ItemSize);
     const float realBx = (240.0f - realW) * 0.5f;
@@ -78,14 +113,7 @@ void inventoryDraw(MenuState& s) {
     guiFill(G(paneX - realBx - 1), G(paneY - 4), G(paneW + 2 * realBx + 2),
             G(paneH + 8), 0xFF333333u);
 
-    if (s.haveGui) {
-        const float hH = 24.0f;
-        textureBind(&s.guiAtlas);
-        spriteDraw(&s.guiAtlas, 0,          0,         G(2),       G(hH - 1), GA_HDR_LEFT, 0xFFFFFFFFu);
-        spriteDraw(&s.guiAtlas, G(2),       0,         G(240 - 4), G(hH - 1), GA_HDR_BODY, 0xFFFFFFFFu);
-        spriteDraw(&s.guiAtlas, G(240 - 2), 0,         G(2),       G(hH - 1), GA_HDR_RIGHT, 0xFFFFFFFFu);
-        spriteDraw(&s.guiAtlas, 0,          G(hH - 1), 480,        G(3),      GA_HDR_SHADOW,  0xFFFFFFFFu);
-    } else guiFill(0, 0, 480, G(24), 0xFF5B535Fu);
+    drawHeaderBar(s, true);
 
     sceGuScissor((int)G(paneX), (int)G(paneY), (int)G(paneW), (int)G(paneH - clipBottom) + 1);
 
@@ -116,7 +144,7 @@ void inventoryDraw(MenuState& s) {
     }
     sceGuScissor(0, 0, 480, 272);
 
-    if (s.haveGui) {
+    if (s.haveGui && g_invHeaderSel < 0) {
         float cx = paneX + (g_invCursor % cols) * ItemSize;
         float cy = paneY + (g_invCursor / cols) * ItemSize - scrollY;
         textureBind(&s.guiAtlas);
@@ -154,13 +182,15 @@ void inventoryDraw(MenuState& s) {
 
     drawItemFrame(0, G(paneY - By), 480, G(paneH + 2 * By));
 
-    if (s.haveFont) {
-        const float ts = 2.0f;
-        const char* title = "Select blocks";
-        float tw = fontTextWidth(&s.font, title) * ts;
-        float cx = 480.0f * 0.5f;
-        fontDrawTextShadow(&s.font, cx - tw * 0.5f, (G(24) - 8.0f * ts) * 0.5f,
-                           title, 0xFFFFFFFFu, ts);
-    }
+    float gapX, gapW;
+    invHeaderTitleGap(s, &gapX, &gapW);
+    drawHeaderTitle(s, "Select blocks", 0xFFFFFFFFu, gapX, gapW);
 
+    for (int i = 0; i < INV_BTN_COUNT; i++) {
+        float bx, bw;
+        if (!invHeaderButton(s, i, &bx, &bw)) continue;
+        bool sel = (g_invHeaderSel == i);
+        guiTButton(s, bx, INV_BTN_Y, bw, INV_BTN_H, sel, MENU_BEVEL);
+        guiTButtonLabel(s, bx, INV_BTN_Y, bw, INV_BTN_H, invHeaderLabel(i), sel, true);
+    }
 }

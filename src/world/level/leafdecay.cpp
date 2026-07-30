@@ -65,7 +65,7 @@ void leafDecayTick(World* w, int x, int y, int z) {
     } else {
 
         worldSpawnResources(w, x, y, z, worldBlock(w, x, y, z), data);
-        worldSetBlockAndData(w, x, y, z, BLOCK_AIR, 0);
+        worldSetTileUpdate(w, x, y, z, BLOCK_AIR, 0);
         leafFlagNeighbors(w, x, y, z);
     }
 }

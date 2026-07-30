@@ -17,6 +17,7 @@
 #include "world/level/tile/redstone_ore.h"
 #include "world/item/crafting/recipe.h"
 #include "client/gui/hud.h"
+#include "client/gui/inventory_ui.h"
 #include "util/prof.h"
 
 #include <cmath>
@@ -44,6 +45,7 @@ bool  g_invOpen   = false;
 
 float g_dropCharge = -1.0f;
 int   g_invCursor = 0;
+int   g_invHeaderSel = -1;
 float g_flashSlotStartTime = -1.0f;
 int   g_invFlashCursor = -1;
 int   g_invFlashTicks = 0;
@@ -120,6 +122,9 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
     g_timerLast = now;
     if (passed < 0.0f) passed = 0.0f;
     if (passed > 1.0f) passed = 1.0f;
+
+    g_gameSeconds += passed;
+    g_gameFrozen = false;
     g_timerPassed += passed * TICKS_PER_SECOND;
     int ticks = (int)g_timerPassed;
     g_timerPassed -= ticks;
@@ -164,6 +169,8 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
 }
 
 void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
+
+    g_gameFrozen = true;
 
     if (g_signEditing) {
         signScreen().handleInput(s, pressed, pad.Buttons);
@@ -229,27 +236,15 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
 
     if (g_invOpen) {
 
-        if (pressed & PSP_CTRL_LEFT)  { if (g_invCursor > 0) g_invCursor--; }
-        if (pressed & PSP_CTRL_RIGHT) { if (g_invCursor < g_level.player->inventory->gridSize() - 1) g_invCursor++; }
-        if (pressed & PSP_CTRL_UP) { if (g_invCursor >= INV_COLS) g_invCursor -= INV_COLS; }
-        if (pressed & PSP_CTRL_DOWN)  { if (g_invCursor + INV_COLS < g_level.player->inventory->gridSize()) g_invCursor += INV_COLS; }
+        Inventory* inv = g_level.player->inventory;
 
-        if (!g_level.player->inventory->isCreative()) {
-            if (pressed & PSP_CTRL_SQUARE) {
-                g_invOpen = false;
-                craftOpen(Recipe::SIZE_2X2, CRAFT_WORKBENCH);
-                runTicks(s, 0, 128, 128);
-                return;
-            }
-            if (pressed & PSP_CTRL_TRIANGLE) {
-                g_invOpen = false;
-                armorOpen();
-                runTicks(s, 0, 128, 128);
-                return;
-            }
-        }
-
+        int mvx = 0, mvy = 0;
+        if (pressed & PSP_CTRL_LEFT)  mvx = -1;
+        if (pressed & PSP_CTRL_RIGHT) mvx =  1;
+        if (pressed & PSP_CTRL_UP)    mvy = -1;
+        if (pressed & PSP_CTRL_DOWN)  mvy =  1;
         {
+
             int adx = (int)pad.Lx - 128, ady = (int)pad.Ly - 128;
             int aadx = adx < 0 ? -adx : adx, aady = ady < 0 ? -ady : ady;
             int dx = 0, dy = 0;
@@ -257,27 +252,53 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
             else              { if (adx < -50) dx = -1; else if (adx > 50) dx = 1; }
             static float lastMove = 0.0f;
             if (dx || dy) {
+
                 float nowA = nowSeconds();
                 if (nowA - lastMove > 0.14f) {
                     lastMove = nowA;
-                    if (dx < 0 && g_invCursor > 0) g_invCursor--;
-                    if (dx > 0 && g_invCursor < g_level.player->inventory->gridSize() - 1) g_invCursor++;
-                    if (dy < 0 && g_invCursor >= INV_COLS) g_invCursor -= INV_COLS;
-                    if (dy > 0 && g_invCursor + INV_COLS < g_level.player->inventory->gridSize()) g_invCursor += INV_COLS;
+                    if (!mvx) mvx = dx;
+                    if (!mvy) mvy = dy;
                 }
             } else lastMove = 0.0f;
         }
-        if (pressed & PSP_CTRL_CROSS) {
 
-            g_level.player->inventory->pickToHotbar(g_invCursor);
-            soundPlay("random.pop2", 1.0f, 0.3f);
-            g_flashSlotStartTime = nowSeconds();
-            g_invFlashCursor = g_invCursor;
-            g_invFlashTicks = 7;
+        int act = -1;
+        if (g_invHeaderSel >= 0) {
+
+            if (mvx)
+                for (int i = g_invHeaderSel + mvx; i >= 0 && i < INV_BTN_COUNT; i += mvx)
+                    if (invHeaderButton(s, i)) { g_invHeaderSel = i; break; }
+            if (mvy > 0) g_invHeaderSel = -1;
+            if (pressed & PSP_CTRL_CROSS) act = g_invHeaderSel;
+        } else {
+            if (mvx < 0 && g_invCursor > 0) g_invCursor--;
+            if (mvx > 0 && g_invCursor < inv->gridSize() - 1) g_invCursor++;
+            if (mvy < 0) {
+                if (g_invCursor >= INV_COLS) g_invCursor -= INV_COLS;
+                else g_invHeaderSel = INV_BTN_BACK;
+            }
+            if (mvy > 0 && g_invCursor + INV_COLS < inv->gridSize()) g_invCursor += INV_COLS;
+            if (pressed & PSP_CTRL_CROSS) {
+
+                inv->pickToHotbar(g_invCursor);
+                soundPlay("random.pop2", 1.0f, 0.3f);
+                g_flashSlotStartTime = gameSeconds();
+                g_invFlashCursor = g_invCursor;
+                g_invFlashTicks = 7;
+            }
         }
-        if (pressed & PSP_CTRL_CIRCLE) {
+
+        if (pressed & PSP_CTRL_SQUARE)   act = INV_BTN_CRAFT;
+        if (pressed & PSP_CTRL_TRIANGLE) act = INV_BTN_ARMOR;
+        if (pressed & PSP_CTRL_CIRCLE)   act = INV_BTN_BACK;
+        if (act >= 0 && invHeaderButton(s, act)) {
             g_invOpen = false;
-            soundPlay("random.click", 1.0f, 1.0f);
+
+            if (act == INV_BTN_CRAFT)      craftOpen(Recipe::SIZE_2X2, CRAFT_WORKBENCH);
+            else if (act == INV_BTN_ARMOR) armorOpen();
+            else soundPlay("random.click", 1.0f, 1.0f);
+            runTicks(s, 0, 128, 128);
+            return;
         }
 
         runTicks(s, 0, 128, 128);
@@ -342,6 +363,7 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
     if ((pressed & PSP_CTRL_LTRIGGER) && g_level.player->inventory->selected == HOTBAR_SLOTS) {
         g_invOpen = true;
         soundPlay("random.click", 1.0f, 1.0f);
+        g_invHeaderSel = -1;
         int tgt = (g_level.player->inventory->selected < HOTBAR_SLOTS) ? g_level.player->inventory->selected : 0;
         g_invCursor = 0;
         ItemInstance* sel = g_level.player->inventory->getLinked(tgt);

@@ -469,7 +469,7 @@ struct CakeTile : Tile { CakeTile(unsigned char i) : Tile(i) {}
                           (rand() / (float)RAND_MAX) * 0.1f + 0.9f);
         int d = (worldData(w, x, y, z) & 7) + 1;
         if (d <= 5) worldSetData(w, x, y, z, (unsigned char)d);
-        else        worldSetBlockAndData(w, x, y, z, BLOCK_AIR, 0);
+        else        worldSetTileUpdate(w, x, y, z, BLOCK_AIR, 0);
         worldRebuildAroundNow(w, x, y, z);
         return true;
     } };

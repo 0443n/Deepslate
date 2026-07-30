@@ -43,7 +43,10 @@ P g_pool[MAX_PARTICLES];
 
 inline float frand() { return (float)rand() / (float)RAND_MAX; }
 
+int g_particles = 1;
+
 P* alloc() {
+    if (!g_particles) return 0;
     for (int i = 0; i < MAX_PARTICLES; i++)
         if (!g_pool[i].active) { g_pool[i] = P(); g_pool[i].active = true; return &g_pool[i]; }
     return 0;

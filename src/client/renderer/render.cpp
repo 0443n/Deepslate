@@ -21,6 +21,7 @@
 #include "world/level/storage/level_storage.h"
 #include "world/entity/tripod_camera.h"
 #include "util/prof.h"
+#include "platform/time.h"
 #include <cstring>
 
 #include <stdio.h>
@@ -978,7 +979,7 @@ void gameRender(MenuState& s) {
     {
         static float s_down = 0.0f;
         float tgt = g_level.player->isSleeping() ? 1.0f : 0.0f;
-        s_down += (tgt - s_down) * 0.15f;
+        if (!gameFrozen()) s_down += (tgt - s_down) * 0.15f;
         if (s_down > 0.002f)
             iy += (g_level.player->bedY + 1.0f - iy) * s_down;
         if (g_level.player->isSleeping()) {
@@ -1102,7 +1103,9 @@ void gameRender(MenuState& s) {
     }
 
     static float s_nearZ = 0.25f;
-    if (s_targetNearZ < s_nearZ) {
+    if (gameFrozen()) {
+
+    } else if (s_targetNearZ < s_nearZ) {
         s_nearZ = s_targetNearZ;
     } else {
         s_nearZ += (s_targetNearZ - s_nearZ) * 0.05f;

@@ -237,7 +237,7 @@ void playerModelRender(float a) {
 
     if (holding) parts[P_ARM0].xRot = parts[P_ARM0].xRot * 0.5f - PIF / 2.0f * 0.2f;
 
-    float ageT = nowSeconds() * 20.0f;
+    float ageT = gameSeconds() * 20.0f;
 
     float bcos = cosf(ageT * 0.09f) * 0.05f + 0.05f;
     float bsin = sinf(ageT * 0.067f) * 0.05f;

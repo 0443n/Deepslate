@@ -20,7 +20,7 @@ bool HoeItem::useOn(ItemInstance* item, Player* player, World* world, int x, int
             g_level.playSound(x + 0.5f, y + 0.5f, z + 0.5f, s.stepSound,
                               (s.volume + 1.0f) / 2.0f, s.pitch * 0.8f);
         }
-        worldSetBlockAndData(world, x, y, z, BLOCK_FARMLAND, 0);
+        worldSetTileUpdate(world, x, y, z, BLOCK_FARMLAND, 0);
         worldUpdateLights(world);
         worldRebuildAroundNow(world, x, y, z);
 

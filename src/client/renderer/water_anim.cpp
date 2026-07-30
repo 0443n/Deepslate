@@ -35,7 +35,8 @@ static float mthRandom() {
 
 void animateWaterTexture() {
     static float timer = 0.0f;
-    float now = nowSeconds();
+
+    float now = gameSeconds();
     if (now - timer < 0.05f) return;
     timer = now;
 

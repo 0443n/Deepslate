@@ -31,7 +31,7 @@ void hudChatMessage(const char* msg) {
     }
     strncpy(s_chat[CHAT_LINES - 1], msg, sizeof(s_chat[0]) - 1);
     s_chat[CHAT_LINES - 1][sizeof(s_chat[0]) - 1] = '\0';
-    s_chatTime[CHAT_LINES - 1] = nowSeconds();
+    s_chatTime[CHAT_LINES - 1] = gameSeconds();
 }
 
 extern Texture g_terrain;
@@ -781,7 +781,7 @@ void hotbarDraw(MenuState& s) {
         float slotY = barY + 3.0f * HB_S;
 
         if (i == 0 && g_flashSlotStartTime >= 0.0f) {
-            float now = nowSeconds();
+            float now = gameSeconds();
             float since = now - g_flashSlotStartTime;
             if (since > 0.2f) {
                 g_flashSlotStartTime = -1.0f;
@@ -879,7 +879,7 @@ void hotbarDraw(MenuState& s) {
     }
 
     if (!overlayUp && s.haveFont) {
-        float now = nowSeconds();
+        float now = gameSeconds();
         float ly = HUD_HOTBAR_TOP - 14.0f;
         for (int i = CHAT_LINES - 1; i >= 0; i--) {
             if (s_chatTime[i] <= 0.0f) continue;
@@ -925,11 +925,11 @@ void hotbarDraw(MenuState& s) {
         lastId = curId;
         lastData = curData;
 
-        nameDisplayStartTime = (curId > 0) ? nowSeconds() : -1.0f;
+        nameDisplayStartTime = (curId > 0) ? gameSeconds() : -1.0f;
     }
 
     if (nameDisplayStartTime >= 0.0f) {
-        float now = nowSeconds();
+        float now = gameSeconds();
         float since = now - nameDisplayStartTime;
         if (since > 2.0f) {
             nameDisplayStartTime = -1.0f;
@@ -1051,7 +1051,8 @@ void gameHintsDraw(MenuState& s) {
             h[n++] = (ButtonHint){ BTN_ICON_R, PSP_CTRL_RTRIGGER, "Change Group" };
         }
     } else if (g_invOpen) {
-        h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Take" };
+        h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,
+                               g_invHeaderSel >= 0 ? "Press" : "Take" };
         h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Exit" };
 
         if (!g_level.player->inventory->isCreative()) {

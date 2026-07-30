@@ -23,7 +23,7 @@ void reedCactusGrow(World* w, int x, int y, int z, unsigned char id, int ageThre
     if (height >= 3) return;
     int age = worldData(w, x, y, z);
     if (age >= ageThreshold) {
-        worldSetBlockAndData(w, x, y + 1, z, id, 0);
+        worldSetTileUpdate(w, x, y + 1, z, id, 0);
         worldSetDataNoUpdate(w, x, y, z, 0);
     } else {
         worldSetDataNoUpdate(w, x, y, z, (unsigned char)(age + 1));

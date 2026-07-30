@@ -3,6 +3,7 @@
 
 #include "gpu/texture.h"
 #include "util/prof.h"
+#include "platform/time.h"
 
 #include <stdlib.h>
 #include <malloc.h>
@@ -150,7 +151,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         s_oomFrames--;
     }
 
-    worldRebuildStep(w, camX, camY, camZ, viewDist);
+    if (!gameFrozen()) worldRebuildStep(w, camX, camY, camZ, viewDist);
 
     profBegin(PROF_CULL);
 

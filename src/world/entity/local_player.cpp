@@ -16,6 +16,8 @@ extern World g_world;
 
 int   g_autoJump = 1;
 float g_sensitivity = 1.0f;
+
+float g_analogDeadzone = 0.20f;
 int   g_invertY = 0;
 
 LocalPlayer::LocalPlayer(Level* level) : Player(level) {
@@ -80,8 +82,9 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
 
     float xs = (128 - lx) / 127.0f;
     float yf = (128 - ly) / 127.0f;
-    if (xs > -0.2f && xs < 0.2f) xs = 0.0f;
-    if (yf > -0.2f && yf < 0.2f) yf = 0.0f;
+    const float dz = g_analogDeadzone;
+    if (xs > -dz && xs < dz) xs = 0.0f;
+    if (yf > -dz && yf < dz) yf = 0.0f;
 
     bool jumping = (btn & PSP_CTRL_START) != 0;
 

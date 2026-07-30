@@ -86,26 +86,24 @@ void Throwable::tick() {
     }
     float sxd = nx - x, syd = ny - y, szd = nz - z;
     float dist = Mth::sqrt(sxd * sxd + syd * syd + szd * szd);
-    int steps = (int)(dist / 0.1f) + 1;
 
     static EntityList candidates;
     level->getEntities(this, bb.expand(xd, yd, zd).grow(0.3f, 0.3f, 0.3f), candidates);
-    for (int i = 1; i <= steps; i++) {
-        float t = (float)i / steps;
-        float sx = x + sxd * t, sy = y + syd * t, sz = z + szd * t;
-
+    if (dist > 1e-6f) {
+        float ux = sxd / dist, uy = syd / dist, uz = szd / dist;
+        Entity* hitEntity = 0; float nearest = 0.0f, t;
         for (size_t ei = 0; ei < candidates.size(); ei++) {
             Entity* e = candidates[ei];
             if (e->removed || e == (Entity*)level->player || !e->isPickable()) continue;
-            if (sx > e->bb.x0 - 0.3f && sx < e->bb.x1 + 0.3f &&
-                sy > e->bb.y0 - 0.3f && sy < e->bb.y1 + 0.3f &&
-                sz > e->bb.z0 - 0.3f && sz < e->bb.z1 + 0.3f) {
-                e->hurt(this, 0);
-                onHit();
-                return;
-            }
+            if (e->bb.grow(0.3f, 0.3f, 0.3f).clip(x, y, z, ux, uy, uz, dist, t) &&
+                (!hitEntity || t < nearest)) { hitEntity = e; nearest = t; }
         }
+        if (hitEntity) {
 
+            hitEntity->hurt(this, 0);
+            onHit();
+            return;
+        }
     }
     if (tileHit.hit) { onHit(); return; }
 

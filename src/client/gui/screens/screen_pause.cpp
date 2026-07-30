@@ -83,7 +83,7 @@ void PauseScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int )
     if ((pressed & PSP_CTRL_DOWN) && g_pauseSel < PAUSE_BUTTONS - 1)  g_pauseSel++;
     if (g_pauseSel != selBefore) soundPlay("random.click", 1.0f, 1.0f);
 
-    if (pressed & PSP_CTRL_CIRCLE) {
+    if (pressed & (PSP_CTRL_CIRCLE | PSP_CTRL_SELECT)) {
         soundPlay("random.click", 1.0f, 1.0f);
         g_paused = false;
         return;

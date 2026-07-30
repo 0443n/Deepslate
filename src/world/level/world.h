@@ -367,6 +367,8 @@ void liquidFlow(const World* w, int x, int y, int z, unsigned char id,
 
 void worldNotifyNeighborsChanged(World* w, int x, int y, int z);
 
+bool worldSetTileUpdate(World* w, int x, int y, int z, unsigned char id, unsigned char data);
+
 void worldExplode(World* w, float x, float y, float z, float r);
 
 void worldPrimeTnt(World* w, int x, int y, int z, int fuseTicks);

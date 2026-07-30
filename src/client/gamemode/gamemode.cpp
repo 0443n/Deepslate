@@ -125,45 +125,6 @@ static void playTileBreakSound(int tileId, int x, int y, int z) {
     playTileSoundAt(s.breakSound, s, x, y, z);
 }
 
-static bool rayHitsAABB(float px, float py, float pz, float dx, float dy, float dz,
-                        const AABB& box, float range, float& t) {
-    float tmin = 0.0f, tmax = range;
-    const float eps = 1e-6f;
-    float lo, hi;
-
-    if (dx > -eps && dx < eps) {
-        if (px < box.x0 || px > box.x1) return false;
-    } else {
-        lo = (box.x0 - px)/dx; hi = (box.x1 - px)/dx;
-        if (lo > hi) { float s = lo; lo = hi; hi = s; }
-        if (lo > tmin) tmin = lo;
-        if (hi < tmax) tmax = hi;
-        if (tmin > tmax) return false;
-    }
-
-    if (dy > -eps && dy < eps) {
-        if (py < box.y0 || py > box.y1) return false;
-    } else {
-        lo = (box.y0 - py)/dy; hi = (box.y1 - py)/dy;
-        if (lo > hi) { float s = lo; lo = hi; hi = s; }
-        if (lo > tmin) tmin = lo;
-        if (hi < tmax) tmax = hi;
-        if (tmin > tmax) return false;
-    }
-
-    if (dz > -eps && dz < eps) {
-        if (pz < box.z0 || pz > box.z1) return false;
-    } else {
-        lo = (box.z0 - pz)/dz; hi = (box.z1 - pz)/dz;
-        if (lo > hi) { float s = lo; lo = hi; hi = s; }
-        if (lo > tmin) tmin = lo;
-        if (hi < tmax) tmax = hi;
-        if (tmin > tmax) return false;
-    }
-    t = tmin;
-    return true;
-}
-
 static Entity* pickEntityOnViewRay(float range, float maxT, bool mobsOnly) {
     if (!g_level.player) return 0;
     const float DEG2RAD = 3.14159265f / 180.0f;
@@ -183,7 +144,7 @@ static Entity* pickEntityOnViewRay(float range, float maxT, bool mobsOnly) {
         Entity* e = candidates[i];
         if (mobsOnly ? !e->isMob() : !e->isPickable()) continue;
         float t;
-        if (rayHitsAABB(px, py, pz, dx, dy, dz, e->bb, range, t) && t < bestT) {
+        if (e->bb.clip(px, py, pz, dx, dy, dz, range, t) && t < bestT) {
             bestT = t; best = e;
         }
     }

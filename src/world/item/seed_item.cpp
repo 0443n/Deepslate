@@ -8,7 +8,7 @@ bool SeedItem::useOn(ItemInstance* item, Player* player, World* world, int x, in
     if (worldBlock(world, x, y, z) != BLOCK_FARMLAND) return false;
     if (worldBlock(world, x, y + 1, z) != BLOCK_AIR) return false;
 
-    worldSetBlockAndData(world, x, y + 1, z, resultTile, 0);
+    worldSetTileUpdate(world, x, y + 1, z, resultTile, 0);
     worldUpdateLights(world);
     worldRebuildAroundNow(world, x, y + 1, z);
     if (player) player->inventory->consumeSelected();

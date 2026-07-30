@@ -16,4 +16,10 @@ static inline float nowSeconds() {
     return (float)(sceKernelGetSystemTimeWide() - g_timeBootUs) / 1000000.0f;
 }
 
+extern float g_gameSeconds;
+extern bool  g_gameFrozen;
+
+static inline float gameSeconds() { return g_gameSeconds; }
+static inline bool  gameFrozen()  { return g_gameFrozen; }
+
 #endif

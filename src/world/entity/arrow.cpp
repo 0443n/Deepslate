@@ -33,7 +33,7 @@ static const float ARROW_BASE_DAMAGE = 2.0f;
 int Arrow::damageForSpeed() {
     float pow = Mth::sqrt(xd * xd + yd * yd + zd * zd);
     int dmg = (int)ceilf(pow * ARROW_BASE_DAMAGE);
-    if (dmg < 1) dmg = 1;
+
     if (critArrow) dmg += sharedRandom.nextInt(dmg / 2 + 2);
     return dmg;
 }
@@ -127,53 +127,47 @@ void Arrow::tick() {
     }
     float sxd = nx - x, syd = ny - y, szd = nz - z;
     float dist = Mth::sqrt(sxd * sxd + syd * syd + szd * szd);
-    int steps = (int)(dist / 0.1f) + 1;
 
     static EntityList candidates;
     level->getEntities(this, bb.expand(xd, yd, zd).grow(0.3f, 0.3f, 0.3f), candidates);
-    for (int i = 1; i <= steps; i++) {
-        float t = (float)i / steps;
-        float sx = x + sxd * t, sy = y + syd * t, sz = z + szd * t;
-
+    Entity* hitEntity = 0;
+    bool    hitPlayer = false;
+    float   nearest = 0.0f;
+    if (dist > 1e-6f) {
+        float ux = sxd / dist, uy = syd / dist, uz = szd / dist;
+        float t;
         for (size_t ei = 0; ei < candidates.size(); ei++) {
             Entity* e = candidates[ei];
             if (e->removed || !e->isPickable()) continue;
 
             if (e->entityId == ownerId && flightTime < 5) continue;
-            if (sx > e->bb.x0 - 0.3f && sx < e->bb.x1 + 0.3f &&
-                sy > e->bb.y0 - 0.3f && sy < e->bb.y1 + 0.3f &&
-                sz > e->bb.z0 - 0.3f && sz < e->bb.z1 + 0.3f) {
-
-                if (e->hurt(this, damageForSpeed())) {
-                    level->playSound(this, "random.bowhit", 1.0f, arrowPitch());
-                    remove();
-                } else {
-
-                    xd *= -0.1f; yd *= -0.1f; zd *= -0.1f;
-                    yRot += 180.0f; yRotO += 180.0f;
-                    flightTime = 0;
-                }
-                return;
-            }
+            if (e->bb.grow(0.3f, 0.3f, 0.3f).clip(x, y, z, ux, uy, uz, dist, t) &&
+                (!hitEntity || t < nearest)) { hitEntity = e; nearest = t; }
         }
 
         if (ownerId != 0 && level->player && level->player->isAlive()) {
             LocalPlayer* p = level->player;
             float pf = p->y - PLAYER_EYE;
-            if (sx > p->x - PLAYER_W * 0.5f - 0.3f && sx < p->x + PLAYER_W * 0.5f + 0.3f &&
-                sy > pf - 0.3f                     && sy < pf + PLAYER_H + 0.3f &&
-                sz > p->z - PLAYER_W * 0.5f - 0.3f && sz < p->z + PLAYER_W * 0.5f + 0.3f) {
-                if (p->hurt(this, damageForSpeed())) {
-                    level->playSound(this, "random.bowhit", 1.0f, arrowPitch());
-                    remove();
-                } else {
-                    xd *= -0.1f; yd *= -0.1f; zd *= -0.1f;
-                    yRot += 180.0f; yRotO += 180.0f;
-                    flightTime = 0;
-                }
-                return;
-            }
+            AABB pbb(p->x - PLAYER_W * 0.5f, pf, p->z - PLAYER_W * 0.5f,
+                     p->x + PLAYER_W * 0.5f, pf + PLAYER_H, p->z + PLAYER_W * 0.5f);
+            if (pbb.grow(0.3f, 0.3f, 0.3f).clip(x, y, z, ux, uy, uz, dist, t) &&
+                (!hitEntity || t < nearest)) { hitEntity = (Entity*)p; hitPlayer = true; }
         }
+    }
+    if (hitEntity) {
+
+        bool took = hitPlayer ? level->player->hurt(this, damageForSpeed())
+                              : hitEntity->hurt(this, damageForSpeed());
+        if (took) {
+            level->playSound(this, "random.bowhit", 1.0f, arrowPitch());
+            remove();
+        } else {
+
+            xd *= -0.1f; yd *= -0.1f; zd *= -0.1f;
+            yRot += 180.0f; yRotO += 180.0f;
+            flightTime = 0;
+        }
+        return;
     }
 
     if (hit) {

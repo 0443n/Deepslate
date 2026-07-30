@@ -107,13 +107,19 @@ void drawTextField(MenuState& s, float x, float y, float w, float h,
                         (w - 10.0f) * UI_SCALE / scale);
 }
 
-void drawWindowFrame(MenuState& s) {
-    drawNinePatch(s, GA_SS_WINDOW_X, GA_SS_WINDOW_Y, 16, 16, 4, 0, 0, VW, VH);
-    if (!s.haveGui) return;
+void drawHeaderBar(MenuState& s, bool shadow) {
+    if (!s.haveGui) { guiFill(0, 0, G(VW), G(HEADER_H), 0xFF5B535Fu); return; }
     textureBind(&s.guiAtlas);
     spriteDraw(&s.guiAtlas, 0,             0, G(2),      G(HEADER_H), GA_HDR_LEFT,  0xFFFFFFFFu);
     spriteDraw(&s.guiAtlas, G(2),          0, G(VW - 4), G(HEADER_H), GA_HDR_BODY,  0xFFFFFFFFu);
     spriteDraw(&s.guiAtlas, G(VW - 2),     0, G(2),      G(HEADER_H), GA_HDR_RIGHT, 0xFFFFFFFFu);
+    if (shadow)
+        spriteDraw(&s.guiAtlas, 0, G(HEADER_H), G(VW), G(3), GA_HDR_SHADOW, 0xFFFFFFFFu);
+}
+
+void drawWindowFrame(MenuState& s) {
+    drawNinePatch(s, GA_SS_WINDOW_X, GA_SS_WINDOW_Y, 16, 16, 4, 0, 0, VW, VH);
+    drawHeaderBar(s);
 }
 
 void drawHeaderTitle(MenuState& s, const char* title, unsigned int color,
@@ -354,15 +360,17 @@ bool menuOskUpdate(MenuState& s) {
 void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y, float scale) {
     if (!s.haveGui || !s.haveFont) return;
 
+    const float BASE_H = 13.0f, TALL_DROP = 1.0f;
     float x = 6.0f;
     for (int i = 0; i < n; i++) {
         const ButtonIconRect& r = buttonIconRect(hints[i].icon);
         bool held = (g_heldButtons & hints[i].btn) != 0;
-        buttonIconDraw(&s.guiAtlas, hints[i].icon, x, y, scale,
+        float iy = y + (BASE_H - r.h) * scale + (r.h > BASE_H ? TALL_DROP : 0.0f);
+        buttonIconDraw(&s.guiAtlas, hints[i].icon, x, iy, scale,
                        held ? 0xC8C0C0C0u : 0xC8FFFFFFu);
         x += r.w * scale + 3.0f * scale;
         if (hints[i].label[0]) {
-            fontDrawTextShadow(&s.font, x, y + (r.h * scale - 8.0f * scale) * 0.5f, hints[i].label,
+            fontDrawTextShadow(&s.font, x, y + (BASE_H - 8.0f) * scale * 0.5f, hints[i].label,
                                0xFFE0E0E0u, scale);
             x += fontTextWidth(&s.font, hints[i].label) * scale + 10.0f * scale;
         }

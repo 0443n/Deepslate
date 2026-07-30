@@ -18,6 +18,7 @@ void playerSpawnEnsure();
 
 extern bool g_invOpen;
 extern int  g_invCursor;
+extern int  g_invHeaderSel;
 extern float g_flashSlotStartTime;
 extern int g_invFlashCursor;
 extern int g_invFlashTicks;
