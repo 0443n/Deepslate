@@ -1,11 +1,11 @@
 
 #include "world/level/tile/tile.h"
+#include "world/level/tile/material.h"
 #include "world/level/tile/tiles.h"
 #include "world/level/tile/tile_behavior.h"
 #include "world/level/chunk/chunk.h"
 #include "world/level/world.h"
 #include "world/level/level.h"
-#include "world/entity/item_entity.h"
 #include "world/item/item.h"
 #include "world/level/levelgen/Random.h"
 #include "world/entity/player.h"
@@ -40,7 +40,7 @@ static int facingQuadrant(Player* p) {
 }
 
 static int facingFromYaw(float yawDeg) {
-    static const int kQuadrantFace[4] = { F_BACK, F_LEFT, F_FORWARD, F_RIGHT };
+    static const int kQuadrantFace[4] = { 2 , 4 , 3 , 5  };
     int q = ((int)floorf(yawDeg / 90.0f + 0.5f)) & 3;
     return kQuadrantFace[q];
 }
@@ -60,12 +60,19 @@ const SoundType g_tileSounds[SOUND_TYPE_COUNT] = {
      { 1.0f,  1.0f, "step.sand",    "step.sand"  },
 };
 
-int Tile::getAABB(const World* , int x, int y, int z, BlockAABB out[3]) {
+int Tile::getTileAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
+    float b[3][6];
+    int n = tileShapeBoxes(w, x, y, z, id, worldData(w, x, y, z), b);
+    for (int i = 0; i < n; i++) {
+        out[i].x0 = b[i][0]; out[i].y0 = b[i][1]; out[i].z0 = b[i][2];
+        out[i].x1 = b[i][3]; out[i].y1 = b[i][4]; out[i].z1 = b[i][5];
+    }
+    return n;
+}
+
+int Tile::getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
     if (!solidPhys) return 0;
-    out[0].x0 = (float)x; out[0].x1 = x + 1.0f;
-    out[0].y0 = (float)y; out[0].y1 = y + 1.0f;
-    out[0].z0 = (float)z; out[0].z1 = z + 1.0f;
-    return 1;
+    return getTileAABB(w, x, y, z, out);
 }
 
 bool Tile::mayPlace(World* w, int x, int y, int z, int ) { return mayPlace(w, x, y, z); }
@@ -93,6 +100,9 @@ Drop Tile::getResource(int data) {
 
         case BLOCK_DOUBLE_SLAB:         return { BLOCK_SLAB, 2, (short)(data & DSLAB_MAT_MASK) };
         case BLOCK_SLAB:                return { BLOCK_SLAB, 1, (short)(data & DSLAB_MAT_MASK) };
+
+        case BLOCK_WOOD_SLAB_DOUBLE:    return { BLOCK_WOOD_SLAB, 2, (short)(data & DSLAB_MAT_MASK) };
+        case BLOCK_WOOD_SLAB:           return { BLOCK_WOOD_SLAB, 1, (short)(data & DSLAB_MAT_MASK) };
         case BLOCK_LOG:                 return { BLOCK_LOG, 1, (short)(data & LOG_TYPE_MASK) };
         case BLOCK_SANDSTONE:           return { BLOCK_SANDSTONE, 1, (short)data };
         case BLOCK_QUARTZ_BLOCK:        return { BLOCK_QUARTZ_BLOCK, 1, (short)data };
@@ -149,14 +159,8 @@ int Tile::getResourceCount(int data, Random& rng) {
     return getResource(data).count;
 }
 
-static void dropItem(int x, int y, int z, short id, short aux, Random& rng) {
-    const float s = 0.7f;
-    float xo = rng.nextFloat() * s + (1 - s) * 0.5f;
-    float yo = rng.nextFloat() * s + (1 - s) * 0.5f;
-    float zo = rng.nextFloat() * s + (1 - s) * 0.5f;
-    ItemEntity* e = new ItemEntity(&g_level, x + xo, y + yo, z + zo, ItemInstance(id, 1, aux));
-    e->throwTime = 10;
-    g_level.addEntity(e);
+static void dropItem(int x, int y, int z, short id, short aux, Random&) {
+    Tile::popResource(x, y, z, ItemInstance(id, 1, aux));
 }
 
 void Tile::spawnResources(World* , int x, int y, int z, int data, Random& rng) {
@@ -190,6 +194,10 @@ void Tile::getTexture(unsigned char data, int f, int* col, int* row, unsigned in
             else                  { *col = 3; *row = 0; }
             break;
         case BLOCK_DIRT:  *col = 2; *row = 0; break;
+
+        case BLOCK_WOOD_SLAB:
+        case BLOCK_WOOD_SLAB_DOUBLE:
+            Tile::tiles[BLOCK_PLANKS]->getTexture(0, f, col, row, tint); return;
         case BLOCK_SLAB:
         case BLOCK_DOUBLE_SLAB:
             switch (data & DSLAB_MAT_MASK) {
@@ -198,6 +206,7 @@ void Tile::getTexture(unsigned char data, int f, int* col, int* row, unsigned in
                 case DSLAB_COBBLE:      Tile::tiles[BLOCK_COBBLESTONE]->getTexture(0, f, col, row, tint); return;
                 case DSLAB_BRICK:       Tile::tiles[BLOCK_BRICKS]->getTexture(0, f, col, row, tint); return;
                 case DSLAB_SMOOTHBRICK: Tile::tiles[BLOCK_STONE_BRICKS]->getTexture(0, f, col, row, tint); return;
+                case DSLAB_QUARTZ:      Tile::tiles[BLOCK_QUARTZ_BLOCK]->getTexture(0, f, col, row, tint); return;
                 default:
                     if (f == F_TOP || f == F_DOWN) { *col = 6; *row = 0; }
                     else                           { *col = 5; *row = 0; }
@@ -429,26 +438,66 @@ struct BedTile : Tile { BedTile(unsigned char i) : Tile(i) {}
             guiChatMessage("You may not rest now, there are monsters nearby");
         return true;
     }
-    int getAABB(const World*, int x, int y, int z, BlockAABB out[3]) {
-        out[0] = { (float)x, (float)y, (float)z, x + 1.0f, y + 9.0f/16.0f, z + 1.0f }; return 1; }
     bool canSurvive(World* w, int x, int y, int z) { return supportCanSurvive(w, id, x, y, z, -1); }
 
 };
+
+struct CakeTile : Tile { CakeTile(unsigned char i) : Tile(i) {}
+
+    void getTexture(unsigned char data, int f, int* col, int* row, unsigned int* tint) {
+        *tint = 0xFFFFFFFFu;
+        *row = 7;
+        if (f == F_TOP)                       *col = 9;
+        else if (f == F_DOWN)                 *col = 12;
+        else if (f == F_LEFT && (data & 7))   *col = 11;
+        else                                  *col = 10;
+    }
+
+    bool mayPlace(World* w, int x, int y, int z, int face) {
+        return Tile::mayPlace(w, x, y, z) && face == F_TOP; }
+    bool canSurvive(World* w, int x, int y, int z) { return supportCanSurvive(w, id, x, y, z, -1); }
+
+    Drop getResource(int) { return { 0, 0, 0 }; }
+
+    bool use(World* w, int x, int y, int z, Player* p) {
+        if (!p) return true;
+        bool creative = g_gameMode && g_gameMode->isCreative();
+        if (!creative && p->health >= p->getMaxHealth()) return true;
+        if (!creative) p->heal(3);
+
+        g_level.playSound(p, "random.burp", 0.5f,
+                          (rand() / (float)RAND_MAX) * 0.1f + 0.9f);
+        int d = (worldData(w, x, y, z) & 7) + 1;
+        if (d <= 5) worldSetData(w, x, y, z, (unsigned char)d);
+        else        worldSetBlockAndData(w, x, y, z, BLOCK_AIR, 0);
+        worldRebuildAroundNow(w, x, y, z);
+        return true;
+    } };
 
 struct FarmTile : Tile { FarmTile(unsigned char i) : Tile(i) { randomTicks = true; }
 
     int getAABB(const World*, int x, int y, int z, BlockAABB out[3]) {
         out[0] = { (float)x, (float)y, (float)z, x + 1.0f, y + 1.0f, z + 1.0f }; return 1; }
-    void randomTick(World* w, int x, int y, int z) { tickFarmland(w, x, y, z); } };
+    void randomTick(World* w, int x, int y, int z) { tickFarmland(w, x, y, z); }
+
+    void neighborChanged(World* w, int x, int y, int z) {
+        Tile::neighborChanged(w, x, y, z);
+        if (worldBlock(w, x, y, z) != BLOCK_FARMLAND) return;
+
+        if (!materialOf(worldBlock(w, x, y + 1, z)).isSolid()) return;
+        worldSetBlockAndData(w, x, y, z, BLOCK_DIRT, 0);
+    }
+
+    void fallOn(World* w, int x, int y, int z, Entity*, float dist) {
+
+        if ((rand() / (float)RAND_MAX) < (dist - 0.5f)) {
+            worldSetBlockAndData(w, x, y, z, BLOCK_DIRT, 0);
+            worldNotifyNeighborsChanged(w, x, y, z);
+            worldRebuildAroundNow(w, x, y, z);
+        }
+    } };
 
 struct SlabTile : Tile { SlabTile(unsigned char i) : Tile(i) {}
-    int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
-        unsigned char data = worldData(w, x, y, z);
-        out[0].x0 = (float)x; out[0].x1 = x + 1.0f;
-        out[0].z0 = (float)z; out[0].z1 = z + 1.0f;
-        out[0].y0 = y + ((data & SLAB_TOP_SLOT_BIT) ? 0.5f : 0.0f);
-        out[0].y1 = y + ((data & SLAB_TOP_SLOT_BIT) ? 1.0f : 0.5f);
-        return 1; }
 
     int getPlacedOnFaceDataValue(World*, int, int, int, int face,
                                  float, float clickY, float, int itemValue) {
@@ -456,150 +505,7 @@ struct SlabTile : Tile { SlabTile(unsigned char i) : Tile(i) {}
         return (itemValue & DSLAB_MAT_MASK) | (upperHalf ? SLAB_TOP_SLOT_BIT : 0);
     } };
 
-static bool stairLockAttached(const World* w, int x, int y, int z, unsigned char myData) {
-    unsigned char nb = worldBlock(w, x, y, z);
-    if (isStairs(nb)) {
-        unsigned char nbData = worldData(w, x, y, z);
-        return (nbData & STAIR_UPSIDEDOWN_BIT) == (myData & STAIR_UPSIDEDOWN_BIT);
-    }
-    return false;
-}
-
-int stairShapeBoxes(const World* w, int gx, int y, int gz, unsigned char data, float out[3][6]) {
-    int dir = data & STAIR_DIR_MASK;
-    bool upsideDown = (data & STAIR_UPSIDEDOWN_BIT) != 0;
-    int n = 0;
-
-    float by0 = upsideDown ? 0.5f : 0.0f;
-    float by1 = upsideDown ? 1.0f : 0.5f;
-    out[n][0] = 0.0f; out[n][1] = by0; out[n][2] = 0.0f;
-    out[n][3] = 1.0f; out[n][4] = by1; out[n][5] = 1.0f;
-    n++;
-
-    float sx0 = 0.0f, sx1 = 1.0f;
-    float sy0 = upsideDown ? 0.0f : 0.5f;
-    float sy1 = upsideDown ? 0.5f : 1.0f;
-    float sz0 = 0.0f, sz1 = 1.0f;
-    bool checkInnerPiece = true;
-
-    if (dir == STAIR_DIR_EAST) {
-        sx0 = 0.5f; sz1 = 1.0f;
-        unsigned char backTile = worldBlock(w, gx + 1, y, gz);
-        if (isStairs(backTile) && stairLockAttached(w, gx + 1, y, gz, data)) {
-            int backDir = worldData(w, gx + 1, y, gz) & STAIR_DIR_MASK;
-            if (backDir == STAIR_DIR_NORTH && !stairLockAttached(w, gx, y, gz + 1, data)) {
-                sz1 = 0.5f; checkInnerPiece = false;
-            } else if (backDir == STAIR_DIR_SOUTH && !stairLockAttached(w, gx, y, gz - 1, data)) {
-                sz0 = 0.5f; checkInnerPiece = false;
-            }
-        }
-    } else if (dir == STAIR_DIR_WEST) {
-        sx1 = 0.5f; sz1 = 1.0f;
-        unsigned char backTile = worldBlock(w, gx - 1, y, gz);
-        if (isStairs(backTile) && stairLockAttached(w, gx - 1, y, gz, data)) {
-            int backDir = worldData(w, gx - 1, y, gz) & STAIR_DIR_MASK;
-            if (backDir == STAIR_DIR_NORTH && !stairLockAttached(w, gx, y, gz + 1, data)) {
-                sz1 = 0.5f; checkInnerPiece = false;
-            } else if (backDir == STAIR_DIR_SOUTH && !stairLockAttached(w, gx, y, gz - 1, data)) {
-                sz0 = 0.5f; checkInnerPiece = false;
-            }
-        }
-    } else if (dir == STAIR_DIR_SOUTH) {
-        sz0 = 0.5f; sz1 = 1.0f;
-        unsigned char backTile = worldBlock(w, gx, y, gz + 1);
-        if (isStairs(backTile) && stairLockAttached(w, gx, y, gz + 1, data)) {
-            int backDir = worldData(w, gx, y, gz + 1) & STAIR_DIR_MASK;
-            if (backDir == STAIR_DIR_WEST && !stairLockAttached(w, gx + 1, y, gz, data)) {
-                sx1 = 0.5f; checkInnerPiece = false;
-            } else if (backDir == STAIR_DIR_EAST && !stairLockAttached(w, gx - 1, y, gz, data)) {
-                sx0 = 0.5f; checkInnerPiece = false;
-            }
-        }
-    } else if (dir == STAIR_DIR_NORTH) {
-        sz1 = 0.5f;
-        unsigned char backTile = worldBlock(w, gx, y, gz - 1);
-        if (isStairs(backTile) && stairLockAttached(w, gx, y, gz - 1, data)) {
-            int backDir = worldData(w, gx, y, gz - 1) & STAIR_DIR_MASK;
-            if (backDir == STAIR_DIR_WEST && !stairLockAttached(w, gx + 1, y, gz, data)) {
-                sx1 = 0.5f; checkInnerPiece = false;
-            } else if (backDir == STAIR_DIR_EAST && !stairLockAttached(w, gx - 1, y, gz, data)) {
-                sx0 = 0.5f; checkInnerPiece = false;
-            }
-        }
-    }
-    out[n][0] = sx0; out[n][1] = sy0; out[n][2] = sz0;
-    out[n][3] = sx1; out[n][4] = sy1; out[n][5] = sz1;
-    n++;
-
-    if (checkInnerPiece) {
-        float ix0 = 0.0f, ix1 = 0.5f;
-        float iy0 = upsideDown ? 0.0f : 0.5f;
-        float iy1 = upsideDown ? 0.5f : 1.0f;
-        float iz0 = 0.5f, iz1 = 1.0f;
-        bool hasInner = false;
-
-        if (dir == STAIR_DIR_EAST) {
-            unsigned char frontTile = worldBlock(w, gx - 1, y, gz);
-            if (isStairs(frontTile) && stairLockAttached(w, gx - 1, y, gz, data)) {
-                int frontDir = worldData(w, gx - 1, y, gz) & STAIR_DIR_MASK;
-                if (frontDir == STAIR_DIR_NORTH && !stairLockAttached(w, gx, y, gz - 1, data)) {
-                    iz0 = 0.0f; iz1 = 0.5f; hasInner = true;
-                } else if (frontDir == STAIR_DIR_SOUTH && !stairLockAttached(w, gx, y, gz + 1, data)) {
-                    iz0 = 0.5f; iz1 = 1.0f; hasInner = true;
-                }
-            }
-        } else if (dir == STAIR_DIR_WEST) {
-            unsigned char frontTile = worldBlock(w, gx + 1, y, gz);
-            if (isStairs(frontTile) && stairLockAttached(w, gx + 1, y, gz, data)) {
-                ix0 = 0.5f; ix1 = 1.0f;
-                int frontDir = worldData(w, gx + 1, y, gz) & STAIR_DIR_MASK;
-                if (frontDir == STAIR_DIR_NORTH && !stairLockAttached(w, gx, y, gz - 1, data)) {
-                    iz0 = 0.0f; iz1 = 0.5f; hasInner = true;
-                } else if (frontDir == STAIR_DIR_SOUTH && !stairLockAttached(w, gx, y, gz + 1, data)) {
-                    iz0 = 0.5f; iz1 = 1.0f; hasInner = true;
-                }
-            }
-        } else if (dir == STAIR_DIR_SOUTH) {
-            unsigned char frontTile = worldBlock(w, gx, y, gz - 1);
-            if (isStairs(frontTile) && stairLockAttached(w, gx, y, gz - 1, data)) {
-                iz0 = 0.0f; iz1 = 0.5f;
-                int frontDir = worldData(w, gx, y, gz - 1) & STAIR_DIR_MASK;
-                if (frontDir == STAIR_DIR_WEST && !stairLockAttached(w, gx - 1, y, gz, data)) {
-                    hasInner = true;
-                } else if (frontDir == STAIR_DIR_EAST && !stairLockAttached(w, gx + 1, y, gz, data)) {
-                    ix0 = 0.5f; ix1 = 1.0f; hasInner = true;
-                }
-            }
-        } else if (dir == STAIR_DIR_NORTH) {
-            unsigned char frontTile = worldBlock(w, gx, y, gz + 1);
-            if (isStairs(frontTile) && stairLockAttached(w, gx, y, gz + 1, data)) {
-                int frontDir = worldData(w, gx, y, gz + 1) & STAIR_DIR_MASK;
-                if (frontDir == STAIR_DIR_WEST && !stairLockAttached(w, gx - 1, y, gz, data)) {
-                    hasInner = true;
-                } else if (frontDir == STAIR_DIR_EAST && !stairLockAttached(w, gx + 1, y, gz, data)) {
-                    ix0 = 0.5f; ix1 = 1.0f; hasInner = true;
-                }
-            }
-        }
-
-        if (hasInner) {
-            out[n][0] = ix0; out[n][1] = iy0; out[n][2] = iz0;
-            out[n][3] = ix1; out[n][4] = iy1; out[n][5] = iz1;
-            n++;
-        }
-    }
-    return n;
-}
-
 struct StairTile : Tile { StairTile(unsigned char i) : Tile(i) {}
-    int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
-        float b[3][6];
-        int n = stairShapeBoxes(w, x, y, z, worldData(w, x, y, z), b);
-        for (int i = 0; i < n; i++) {
-            out[i].x0 = x + b[i][0]; out[i].y0 = y + b[i][1]; out[i].z0 = z + b[i][2];
-            out[i].x1 = x + b[i][3]; out[i].y1 = y + b[i][4]; out[i].z1 = z + b[i][5];
-        }
-        return n; }
 
     int getPlacedOnFaceDataValue(World*, int, int, int, int face, float, float clickY, float, int) {
         bool upperHalf = (face == F_DOWN) || (face != F_TOP && clickY > 0.5f);
@@ -614,6 +520,7 @@ struct StairTile : Tile { StairTile(unsigned char i) : Tile(i) {}
     } };
 
 struct PaneTile : Tile { PaneTile(unsigned char i) : Tile(i) {}
+
     int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
         bool north = isSolidPhys(worldBlock(w, x, y, z - 1)) || isPane(worldBlock(w, x, y, z - 1));
         bool south = isSolidPhys(worldBlock(w, x, y, z + 1)) || isPane(worldBlock(w, x, y, z + 1));
@@ -642,6 +549,7 @@ struct PaneTile : Tile { PaneTile(unsigned char i) : Tile(i) {}
         return num; } };
 
 struct FenceTile : Tile { FenceTile(unsigned char i) : Tile(i) {}
+
     int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
         bool fn = connectsFence(worldBlock(w, x, y, z - 1));
         bool fs = connectsFence(worldBlock(w, x, y, z + 1));
@@ -655,33 +563,6 @@ struct FenceTile : Tile { FenceTile(unsigned char i) : Tile(i) {}
         return 1; } };
 
 struct DoorTile : Tile { DoorTile(unsigned char i) : Tile(i) {}
-    int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
-        unsigned char data = worldData(w, x, y, z);
-        bool isUpper = (data & 8) != 0;
-        int lowerData = isUpper ? worldData(w, x, y - 1, z) : data;
-        int upperData = isUpper ? data : worldData(w, x, y + 1, z);
-        float r = 3.0f / 16.0f;
-        int dir = lowerData & 3;
-        bool open = (lowerData & 4) != 0;
-        bool rightHinge = (upperData & 1) != 0;
-        float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 1.0f, y1 = 1.0f, z1 = 1.0f;
-        if (dir == 0) {
-            if (open) { if (!rightHinge) { x0 = 0; x1 = 1; z0 = 0; z1 = r; } else { x0 = 0; x1 = 1; z0 = 1 - r; z1 = 1; } }
-            else { x0 = 0; x1 = r; z0 = 0; z1 = 1; }
-        } else if (dir == 1) {
-            if (open) { if (!rightHinge) { x0 = 1 - r; x1 = 1; z0 = 0; z1 = 1; } else { x0 = 0; x1 = r; z0 = 0; z1 = 1; } }
-            else { x0 = 0; x1 = 1; z0 = 0; z1 = r; }
-        } else if (dir == 2) {
-            if (open) { if (!rightHinge) { x0 = 0; x1 = 1; z0 = 1 - r; z1 = 1; } else { x0 = 0; x1 = 1; z0 = 0; z1 = r; } }
-            else { x0 = 1 - r; x1 = 1; z0 = 0; z1 = 1; }
-        } else if (dir == 3) {
-            if (open) { if (!rightHinge) { x0 = 0; x1 = r; z0 = 0; z1 = 1; } else { x0 = 1 - r; x1 = 1; z0 = 0; z1 = 1; } }
-            else { x0 = 0; x1 = 1; z0 = 1 - r; z1 = 1; }
-        }
-        out[0].x0 = x + x0; out[0].x1 = x + x1;
-        out[0].y0 = y + y0; out[0].y1 = y + y1;
-        out[0].z0 = z + z0; out[0].z1 = z + z1;
-        return 1; }
     bool canSurvive(World* w, int x, int y, int z) { return supportCanSurvive(w, id, x, y, z, -1); }
 
     bool mayPlace(World* w, int x, int y, int z, int ) {
@@ -704,21 +585,6 @@ struct DoorTile : Tile { DoorTile(unsigned char i) : Tile(i) {}
     } };
 
 struct TrapdoorTile : Tile { TrapdoorTile(unsigned char i) : Tile(i) {}
-    int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
-        unsigned char data = worldData(w, x, y, z);
-        bool open = (data & 4) != 0;
-        float r = 3.0f / 16.0f;
-        float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f, x1 = 1.0f, y1 = r, z1 = 1.0f;
-        if (open) {
-            if ((data & 3) == 0) { x0 = 0; x1 = 1; y0 = 0; y1 = 1; z0 = 1 - r; z1 = 1; }
-            else if ((data & 3) == 1) { x0 = 0; x1 = 1; y0 = 0; y1 = 1; z0 = 0; z1 = r; }
-            else if ((data & 3) == 2) { x0 = 1 - r; x1 = 1; y0 = 0; y1 = 1; z0 = 0; z1 = 1; }
-            else if ((data & 3) == 3) { x0 = 0; x1 = r; y0 = 0; y1 = 1; z0 = 0; z1 = 1; }
-        }
-        out[0].x0 = x + x0; out[0].x1 = x + x1;
-        out[0].y0 = y + y0; out[0].y1 = y + y1;
-        out[0].z0 = z + z0; out[0].z1 = z + z1;
-        return 1; }
     bool canSurvive(World* w, int x, int y, int z) { return supportCanSurvive(w, id, x, y, z, -1); }
     bool mayPlace(World* w, int x, int y, int z, int face) {
         if (!Tile::mayPlace(w, x, y, z)) return false;
@@ -765,6 +631,7 @@ struct LadderTile : Tile { LadderTile(unsigned char i) : Tile(i) {}
     } };
 
 struct FenceGateTile : Tile { FenceGateTile(unsigned char i) : Tile(i) {}
+
     int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]) {
         unsigned char data = worldData(w, x, y, z);
         bool open = (data & 4) != 0;
@@ -800,30 +667,54 @@ struct FenceGateTile : Tile { FenceGateTile(unsigned char i) : Tile(i) {}
         worldSetData(w, x, y, z, (unsigned char)facingQuadrant(p));
     } };
 
-struct ChestTile : Tile { ChestTile(unsigned char i) : Tile(i) {}
-    int getAABB(const World*, int x, int y, int z, BlockAABB out[3]) {
-        const float m = 0.025f;
-        out[0] = { x + m, y + 0.0f, z + m, x + 1.0f - m, y + 1.0f - 2*m, z + 1.0f - m };
-        return 1; }
+void chestShapeBox(const World* w, int gx, int y, int gz, float out[6]) {
+    const float A = 1.0f / 16.0f, B = 15.0f / 16.0f, H = 14.0f / 16.0f;
+    out[0] = A; out[1] = 0.0f; out[2] = A; out[3] = B; out[4] = H; out[5] = B;
+    (void)w;
+    TileEntity* te = g_level.getTileEntity(gx, y, gz);
+    if (!te || te->type != TE_CHEST) return;
+    ChestTileEntity* ce = (ChestTileEntity*)te;
+    if (!ce->pair) return;
+    int dx = ce->pair->x - gx, dz = ce->pair->z - gz;
+    if      (dz < 0) out[2] = 0.0f;
+    else if (dz > 0) out[5] = 1.0f;
+    else if (dx < 0) out[0] = 0.0f;
+    else if (dx > 0) out[3] = 1.0f;
+}
 
-    bool mayPlace(World* w, int x, int y, int z) {
-        if (!Tile::mayPlace(w, x, y, z)) return false;
-        return worldBlock(w, x - 1, y, z) != BLOCK_CHEST && worldBlock(w, x + 1, y, z) != BLOCK_CHEST
-            && worldBlock(w, x, y, z - 1) != BLOCK_CHEST && worldBlock(w, x, y, z + 1) != BLOCK_CHEST; }
+struct ChestTile : Tile { ChestTile(unsigned char i) : Tile(i) {}
 
     void setPlacedBy(World* w, int x, int y, int z, Player* p) {
-        if (p) worldSetData(w, x, y, z, (unsigned char)facingFromYaw(p->yRot));
-        if (!g_level.getTileEntity(x, y, z)) g_level.setTileEntity(x, y, z, new ChestTileEntity());
+
+        worldSetData(w, x, y, z, (unsigned char)(p ? facingFromYaw(p->yRot) : 4 ));
+
+        if (g_level.getTileEntity(x, y, z)) return;
+        ChestTileEntity* ce = new ChestTileEntity();
+        g_level.setTileEntity(x, y, z, ce);
+
+        static const int D[4][2] = { {-1,0}, {1,0}, {0,-1}, {0,1} };
+        for (int k = 0; k < 4; k++) {
+            int nx = x + D[k][0], nz = z + D[k][1];
+            if (worldBlock(w, nx, y, nz) != BLOCK_CHEST) continue;
+            TileEntity* t = g_level.getTileEntity(nx, y, nz);
+            if (!t || t->type != TE_CHEST) continue;
+            ChestTileEntity* other = (ChestTileEntity*)t;
+            if (other->pair || !other->canPairWith(ce)) continue;
+            other->pairWith(ce);
+            ce->pairWith(other);
+            break;
+        }
     }
 
-    bool use(World* w, int x, int y, int z, Player*) {
-        if (g_gameMode && !g_gameMode->isCreative() && !isOpaque(worldBlock(w, x, y + 1, z))) {
-            TileEntity* te = g_level.getTileEntity(x, y, z);
-            if (!te) {
-                g_level.setTileEntity(x, y, z, new ChestTileEntity());
-                te = g_level.getTileEntity(x, y, z);
-            }
-            if (te && te->type == TE_CHEST) guiOpenChest((ChestTileEntity*)te);
+    bool use(World*, int x, int y, int z, Player*) {
+        TileEntity* te = g_level.getTileEntity(x, y, z);
+        if (!te) {
+            g_level.setTileEntity(x, y, z, new ChestTileEntity());
+            te = g_level.getTileEntity(x, y, z);
+        }
+        if (te && te->type == TE_CHEST) {
+            ChestTileEntity* ce = (ChestTileEntity*)te;
+            if (ce->canOpen()) ce->openBy();
         }
         return true;
     } };
@@ -1050,6 +941,7 @@ static bool rawCube(unsigned char id) {
     if (id == BLOCK_FIRE) return false;
     if (isSign(id)) return false;
     if (id == BLOCK_CHEST) return false;
+    if (id == BLOCK_CAKE) return false;
     return true;
 }
 static bool rawOpaque(unsigned char id) {
@@ -1058,7 +950,7 @@ static bool rawOpaque(unsigned char id) {
            !isCrossShaped(id) && id != BLOCK_CACTUS && id != BLOCK_TOPSNOW && id != BLOCK_REEDS &&
            !isSlab(id) && !isStairs(id) && id != BLOCK_FENCE && id != BLOCK_LADDER && id != BLOCK_TORCH &&
            !isDoor(id) && !isTrapdoor(id) && !isFenceGate(id) && !isBed(id) && id != BLOCK_FARMLAND &&
-           id != BLOCK_CHEST && !isSign(id) && id != BLOCK_FIRE;
+           id != BLOCK_CHEST && !isSign(id) && id != BLOCK_FIRE && id != BLOCK_CAKE;
 }
 static bool rawReplaceable(unsigned char id) {
 
@@ -1076,7 +968,7 @@ static int rawLightOpacity(unsigned char id) {
         isFence(id) || isStairs(id) || isSlab(id) || isDoor(id) ||
         isTrapdoor(id) || isFenceGate(id) || id == BLOCK_LADDER || id == BLOCK_TORCH || isBed(id) ||
         id == BLOCK_FARMLAND || isSign(id) || id == BLOCK_FIRE ||
-        id == BLOCK_CHEST) return 0;
+        id == BLOCK_CHEST || id == BLOCK_CAKE) return 0;
     return 15;
 }
 static int rawLightEmit(unsigned char id) {
@@ -1108,6 +1000,7 @@ static int rawSoundType(unsigned char id) {
             return SOUND_SAND;
 
         case BLOCK_WOOL: case BLOCK_TOPSNOW: case BLOCK_SNOW_BLOCK: case BLOCK_CACTUS:
+        case BLOCK_CAKE:
             return SOUND_CLOTH;
 
         case BLOCK_GLASS: case BLOCK_GLASS_PANE: case BLOCK_ICE: case BLOCK_GLOWSTONE:
@@ -1126,10 +1019,75 @@ static int rawSoundType(unsigned char id) {
         case BLOCK_FIRE:
 
         case BLOCK_STAIRS_PLANKS:
+
+        case BLOCK_WOOD_SLAB: case BLOCK_WOOD_SLAB_DOUBLE:
             return SOUND_WOOD;
 
         default:
             return SOUND_STONE;
+    }
+}
+
+static float rawDestroySpeed(int id) {
+    switch (id) {
+        case BLOCK_STONE: case BLOCK_STONE_BRICKS: case BLOCK_BOOKSHELF:
+        case BLOCK_STAIRS_STONE_BRICK:
+            return 1.5f;
+        case BLOCK_DIRT: case BLOCK_SAND:
+            return 0.5f;
+        case BLOCK_GRASS: case BLOCK_GRAVEL: case BLOCK_CLAY: case BLOCK_FARMLAND:
+            return 0.6f;
+        case BLOCK_PLANKS: case BLOCK_LOG: case BLOCK_FENCE: case BLOCK_FENCE_GATE:
+        case BLOCK_DOUBLE_SLAB: case BLOCK_SLAB: case BLOCK_COBBLESTONE:
+        case BLOCK_WOOD_SLAB: case BLOCK_WOOD_SLAB_DOUBLE:
+        case BLOCK_BRICKS: case BLOCK_MOSSY_COBBLE: case BLOCK_NETHER_BRICK:
+        case BLOCK_STAIRS_PLANKS: case BLOCK_STAIRS_COBBLESTONE:
+        case BLOCK_STAIRS_BRICK: case BLOCK_STAIRS_NETHER_BRICK:
+            return 2.0f;
+        case BLOCK_LEAVES:
+            return 0.2f;
+        case BLOCK_GLASS: case BLOCK_GLASS_PANE: case BLOCK_GLOWSTONE:
+            return 0.3f;
+        case BLOCK_ORE_GOLD: case BLOCK_ORE_IRON: case BLOCK_ORE_COAL:
+        case BLOCK_ORE_LAPIS: case BLOCK_ORE_EMERALD:
+        case BLOCK_ORE_REDSTONE: case BLOCK_ORE_REDSTONE_LIT:
+        case BLOCK_LAPIS_BLOCK: case BLOCK_GOLD_BLOCK:
+        case BLOCK_DOOR_WOOD: case BLOCK_TRAPDOOR: case BLOCK_NETHER_REACTOR:
+            return 3.0f;
+        case BLOCK_IRON_BLOCK: case BLOCK_DIAMOND_BLOCK: case BLOCK_DOOR_IRON:
+            return 5.0f;
+        case BLOCK_OBSIDIAN: case BLOCK_GLOWING_OBSIDIAN:
+            return 10.0f;
+        case BLOCK_COBWEB:
+            return 4.0f;
+        case BLOCK_WOOL: case BLOCK_SANDSTONE: case BLOCK_QUARTZ_BLOCK:
+        case BLOCK_STAIRS_SANDSTONE: case BLOCK_STAIRS_QUARTZ:
+            return 0.8f;
+        case BLOCK_ICE:
+            return 0.5f;
+        case BLOCK_TOPSNOW:
+            return 0.1f;
+        case BLOCK_SNOW_BLOCK: case BLOCK_BED:
+            return 0.2f;
+        case BLOCK_CAKE:
+            return 0.5f;
+        case BLOCK_CACTUS: case BLOCK_LADDER: case BLOCK_NETHERRACK:
+            return 0.4f;
+        case BLOCK_CHEST: case BLOCK_CRAFTING_TABLE: case BLOCK_STONECUTTER:
+            return 2.5f;
+        case BLOCK_FURNACE: case BLOCK_FURNACE_LIT:
+            return 3.5f;
+        case BLOCK_SIGN: case BLOCK_WALL_SIGN: case BLOCK_MELON:
+            return 1.0f;
+        case BLOCK_BEDROCK: case BLOCK_INVISIBLE_BEDROCK:
+            return -1.0f;
+
+        case BLOCK_SAPLING: case BLOCK_TALLGRASS: case BLOCK_FLOWER: case BLOCK_ROSE:
+        case BLOCK_MUSHROOM_BROWN: case BLOCK_MUSHROOM_RED: case BLOCK_TNT:
+        case BLOCK_TORCH: case BLOCK_WHEAT: case BLOCK_REEDS: case BLOCK_MELON_STEM:
+            return 0.0f;
+        default:
+            return 1.0f;
     }
 }
 
@@ -1148,6 +1106,7 @@ static int shapeOf(unsigned char id) {
     if (isBed(id))              return SHAPE_BED;
     if (isSign(id))             return SHAPE_SIGN;
     if (id == BLOCK_CHEST)      return SHAPE_CHEST;
+    if (id == BLOCK_CAKE)       return SHAPE_CAKE;
     if (id == BLOCK_FIRE)       return SHAPE_FIRE;
     if (id == BLOCK_CACTUS)     return SHAPE_CACTUS;
     if (id == BLOCK_TOPSNOW)    return SHAPE_TOPSNOW;
@@ -1206,6 +1165,7 @@ static Tile* makeTile(unsigned char id) {
         case SHAPE_LADDER:    return new LadderTile(id);
         case SHAPE_BED:       return new BedTile(id);
         case SHAPE_CHEST:     return new ChestTile(id);
+        case SHAPE_CAKE:      return new CakeTile(id);
         default:              return new Tile(id);
     }
 }
@@ -1221,6 +1181,8 @@ void Tile::initTiles() {
         t->lightBlock    = (unsigned char)rawLightOpacity((unsigned char)id);
         t->lightEmission = (unsigned char)rawLightEmit((unsigned char)id);
         t->soundType     = (unsigned char)rawSoundType((unsigned char)id);
+        t->destroySpeed  = rawDestroySpeed((unsigned char)id);
+        t->material      = &materialOf((unsigned char)id);
         tiles[id] = t;
     }
 }

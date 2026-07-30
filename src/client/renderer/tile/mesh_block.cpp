@@ -27,6 +27,19 @@ static const signed char kFaceCorner[6][4][3] = {
      { {0,0,1},{1,0,1},{1,1,1},{0,1,1} },
 };
 
+static inline void faceCornerColors(const World* w, const unsigned char* lc,
+                                    unsigned char* llc, int nbi, int nx, int ny, int nz,
+                                    int f, unsigned char id, unsigned int tint,
+                                    unsigned int cc[2][2]) {
+    float sm[2][2];
+    smoothFaceLight(w, lc, llc, nbi, nx, ny, nz, f, sm);
+    unsigned int shadeTint = mulColor(kFaceShade[f], tint);
+    float emit = g_brightRamp[lightEmit(id)];
+    for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 2; j++)
+        cc[i][j] = mulColor(shadeTint, brightColorF(sm[i][j] < emit ? emit : sm[i][j]));
+}
+
 #define WATER_TOP 0.889f
 
 static int writeQuadDouble(ChunkVertex* out, int n, const float P[4][3],
@@ -250,11 +263,12 @@ static inline bool isNoMipLayerId(unsigned char id) {
     return isCrossShaped(id) || id == BLOCK_WHEAT || id == BLOCK_MELON_STEM
         || id == BLOCK_FIRE || isLadder(id) || id == BLOCK_BED || isTorch(id)
         || isPane(id) || isDoor(id) || isTrapdoor(id)
-        || id == BLOCK_CACTUS || isGlass(id);
+        || id == BLOCK_CACTUS || isGlass(id) || id == BLOCK_CAKE;
 }
 
-int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, int layer, int cap, bool leavesOpaque, bool leavesCull) {
+int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, int layer, int cap, bool leavesOpaque, bool leavesCull, int* nLava) {
     int n = 0;
+    bool sawLava = false;
 
     unsigned char lc[18 * 18 * 18];
     unsigned char llc[18 * 18 * 18];
@@ -290,8 +304,7 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
             if (id == BLOCK_AIR || isWaterId(id) || isLeaf(id)) continue;
             if (isLavaId(id)) {
                 if (layer != 3) continue;
-                if (out && n + 72 > cap) return -1;
-                n = emitLiquid(w, gx, y, gz, id, out, n);
+                sawLava = true;
                 continue;
             }
         }
@@ -302,7 +315,7 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
             && isOpaque(LCB(gx, y, gz - 1)) && isOpaque(LCB(gx, y, gz + 1)))
             continue;
 
-        if (isSign(id)) continue;
+        if (isSign(id) || id == BLOCK_CHEST) continue;
 
         if (layer == 0 && isNoMipLayerId(id)) continue;
 
@@ -385,17 +398,15 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
             continue;
         }
 
-        if (layer == 0 && isFenceGate(id)) {
-            if (out && n + 144 > cap) return -1;
-            n = emitFenceGate(w, gx, y, gz, id, worldData(w, gx, y, gz), out, n);
+        if (layer == 3 && id == BLOCK_CAKE) {
+            if (out && n + 36 > cap) return -1;
+            n = emitCake(w, gx, y, gz, id, worldData(w, gx, y, gz), out, n);
             continue;
         }
 
-        if (layer == 0 && id == BLOCK_CHEST) {
-            if (out && n + 36 > cap) return -1;
-            n = emitPartialBox(w, gx, y, gz, id, worldData(w, gx, y, gz),
-                               1.0f/16.0f, 0.0f, 1.0f/16.0f, 15.0f/16.0f, 14.0f/16.0f, 15.0f/16.0f,
-                               (1 << F_DOWN), 0, out, n, true, true);
+        if (layer == 0 && isFenceGate(id)) {
+            if (out && n + 144 > cap) return -1;
+            n = emitFenceGate(w, gx, y, gz, id, worldData(w, gx, y, gz), out, n);
             continue;
         }
 
@@ -432,11 +443,11 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
                 if (layer == 2 && leavesOpaque) col += 1;
                 float u0 = col * TILE_UV, v0 = row * TILE_UV;
 
-                unsigned int shade = kFaceShade[f];
-                int faceBr = LLB(nx, ny, nz);
-                if (lightEmit(id) > faceBr) faceBr = lightEmit(id);
-                unsigned int color = mulColor(mulColor(shade, tint),
-                                              g_brightColor[faceBr]);
+                unsigned int cc[2][2];
+                faceCornerColors(w, lc, llc,
+                                 ((((nx - ox + 1) * 18 + (nz - oz + 1)) * 18) + (ny - y0 + 1)),
+                                 nx, ny, nz, f, id, tint, cc);
+                const int ca = f >> 1, ca1 = (ca + 1) % 3, ca2 = (ca + 2) % 3;
 
                 float th = (id == BLOCK_TOPSNOW) ? 0.125f
                          : (id == BLOCK_FARMLAND) ? 0.9375f
@@ -467,7 +478,7 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
                     const float TE = TILE_UV / 128.0f;
                     out[n + t].u = u0 + (TE + kFaceUV[f][k][0] * (TILE_UV - 2.0f * TE));
                     out[n + t].v = v0 + (TE + uv_v * (TILE_UV - 2.0f * TE));
-                    out[n + t].color = color;
+                    out[n + t].color = cc[c[ca1]][c[ca2]];
 
                     out[n + t].x = bx;
                     out[n + t].y = by;
@@ -475,6 +486,19 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
                 }
             }
             n += 6;
+        }
+    }
+
+    if (nLava) *nLava = n;
+    if (sawLava) {
+        for (int lx = 0; lx < CHUNK_SX; lx++)
+        for (int lz = 0; lz < CHUNK_SZ; lz++)
+        for (int y = y0; y < y1; y++) {
+            int gx = ox + lx, gz = oz + lz;
+            unsigned char id = worldBlock(w, gx, y, gz);
+            if (!isLavaId(id)) continue;
+            if (out && n + 36 > cap) return -1;
+            n = emitLiquid(w, gx, y, gz, id, out, n);
         }
     }
     #undef LCB
@@ -485,8 +509,9 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
 int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 ChunkVertex* out0, ChunkVertex* out1, ChunkVertex* out2, ChunkVertex* out3,
                 int cap0, int cap1, int cap2, int cap3, int* n0, int* n1, int* n2, int* n3,
-                bool leavesOpaque, bool leavesCull) {
+                int* nLava, bool leavesOpaque, bool leavesCull) {
     int no = 0, nw = 0, nl = 0, nn = 0;
+    bool sawLava = false;
 
     unsigned char lc[18 * 18 * 18];
     unsigned char llc[18 * 18 * 18];
@@ -517,7 +542,7 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
             && isOpaque(lc[base + kFaceStride[2]]) && isOpaque(lc[base + kFaceStride[3]])
             && isOpaque(lc[base + kFaceStride[4]]) && isOpaque(lc[base + kFaceStride[5]]))
             continue;
-        if (isSign(id)) continue;
+        if (isSign(id) || id == BLOCK_CHEST) continue;
 
         if (isWaterId(id)) {
             if (nw + 36 > cap1) return -1;
@@ -525,8 +550,7 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
             continue;
         }
         if (isLavaId(id)) {
-            if (nn + 72 > cap3) return -1;
-            nn = emitLiquid(w, gx, y, gz, id, out3, nn);
+            sawLava = true;
             continue;
         }
         if (id == BLOCK_MELON_STEM) {
@@ -598,17 +622,15 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
             continue;
         }
 
-        if (isFenceGate(id)) {
-            if (no + 144 > cap0) return -1;
-            no = emitFenceGate(w, gx, y, gz, id, worldData(w, gx, y, gz), out0, no);
+        if (id == BLOCK_CAKE) {
+            if (nn + 36 > cap3) return -1;
+            nn = emitCake(w, gx, y, gz, id, worldData(w, gx, y, gz), out3, nn);
             continue;
         }
 
-        if (id == BLOCK_CHEST) {
-            if (no + 36 > cap0) return -1;
-            no = emitPartialBox(w, gx, y, gz, id, worldData(w, gx, y, gz),
-                                1.0f/16.0f, 0.0f, 1.0f/16.0f, 15.0f/16.0f, 14.0f/16.0f, 15.0f/16.0f,
-                                (1 << F_DOWN), 0, out0, no, true, true);
+        if (isFenceGate(id)) {
+            if (no + 144 > cap0) return -1;
+            no = emitFenceGate(w, gx, y, gz, id, worldData(w, gx, y, gz), out0, no);
             continue;
         }
 
@@ -644,12 +666,11 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
             if (leafOpaqueDst) col += 1;
             float u0 = col * TILE_UV, v0 = row * TILE_UV;
 
-            unsigned int shade = kFaceShade[f];
-            int faceBr = lightLazy(w, llc, nbi, gx + kFaceNeighbor[f][0],
-                                                y  + kFaceNeighbor[f][1],
-                                                gz + kFaceNeighbor[f][2]);
-            if (lightEmit(id) > faceBr) faceBr = lightEmit(id);
-            unsigned int color = mulColor(mulColor(shade, tint), g_brightColor[faceBr]);
+            unsigned int cc[2][2];
+            faceCornerColors(w, lc, llc, nbi, gx + kFaceNeighbor[f][0],
+                                              y  + kFaceNeighbor[f][1],
+                                              gz + kFaceNeighbor[f][2], f, id, tint, cc);
+            const int ca = f >> 1, ca1 = (ca + 1) % 3, ca2 = (ca + 2) % 3;
 
             float th = (id == BLOCK_TOPSNOW) ? 0.125f
                      : (id == BLOCK_FARMLAND) ? 0.9375f
@@ -677,7 +698,7 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 float bz = (float)(gz + c[2]) + iz + seamOff(c[2]);
                 dst[nd + t].u = u0 + (cTE + kFaceUV[f][k][0] * cInner);
                 dst[nd + t].v = v0 + (cTE + uv_v * cInner);
-                dst[nd + t].color = color;
+                dst[nd + t].color = cc[c[ca1]][c[ca2]];
                 dst[nd + t].x = bx;
                 dst[nd + t].y = by;
                 dst[nd + t].z = bz;
@@ -686,8 +707,21 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
         }
         if (leafOpaqueDst) nl = nd; else if (noMip) nn = nd; else no = nd;
     }
+
+    int nLavaStart = nn;
+    if (sawLava) {
+        for (int lx = 0; lx < CHUNK_SX; lx++)
+        for (int lz = 0; lz < CHUNK_SZ; lz++)
+        for (int y = y0; y < y1; y++) {
+            unsigned char id = lc[(((lx + 1) * 18 + (lz + 1)) * 18) + (y - y0 + 1)];
+            if (!isLavaId(id)) continue;
+            if (nn + 36 > cap3) return -1;
+            nn = emitLiquid(w, ox + lx, y, oz + lz, id, out3, nn);
+        }
+    }
     #undef LCB
     #undef LLB
     *n0 = no; *n1 = nw; *n2 = nl; *n3 = nn;
+    *nLava = nLavaStart;
     return 0;
 }

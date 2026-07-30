@@ -9,7 +9,7 @@ public:
     virtual bool isCreative() = 0;
     virtual void handleInput(unsigned int pressed, unsigned int held);
 
-    virtual bool useItemOn(ItemInstance* item, const BlockHit& hit);
+    virtual bool useItemOn(ItemInstance* item, const BlockHit& hit, bool* usedItem = 0);
 };
 
 class CreativeMode : public GameMode {
@@ -29,6 +29,9 @@ extern MiningState g_mining;
 extern GameMode* g_gameMode;
 void gameModeInit(int gameType);
 void gameModeShutdown();
+
+extern int g_useItemDelay;
+static const int USE_ITEM_DELAY_TICKS = 8;
 
 void gameModeHandleInput(unsigned int pressed, unsigned int held);
 

@@ -4,12 +4,14 @@
 #include <cstdio>
 
 #include "client/player/player.h"
+#include "client/gui/screens/screen.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include "gpu/sprite.h"
 #include "platform/audio/sound.h"
 #include "platform/time.h"
 #include "gpu/gui_atlas.h"
+#include "client/gui/hud.h"
 
 bool g_deadScreen = false;
 static int   s_deadSel  = 0;
@@ -18,12 +20,21 @@ static float s_openTime = 0.0f;
 static const float DEAD_WAIT = 1.5f;
 
 void deadScreenOpen() {
+
+    extern bool g_invOpen, g_craftOpen, g_armorOpen, g_furnaceOpen;
+    g_invOpen = g_craftOpen = g_armorOpen = g_furnaceOpen = false;
+    chestClose();
     g_deadScreen = true;
     s_deadSel = 0;
     s_openTime = nowSeconds();
 }
+struct DeadScreen : Screen {
+    void renderBackground(MenuState& s);
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
 
-void deadHandleInput(MenuState& s, unsigned int pressed) {
+void DeadScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
     int before = s_deadSel;
     if (pressed & PSP_CTRL_LEFT)  s_deadSel = 0;
     if (pressed & PSP_CTRL_RIGHT) s_deadSel = 1;
@@ -45,24 +56,17 @@ void deadHandleInput(MenuState& s, unsigned int pressed) {
     (void)s;
 }
 
-void deadRender(MenuState& s) {
+void DeadScreen::renderBackground(MenuState& s) {
+    (void)s;
+    sceGuDisable(GU_DEPTH_TEST);
+    guiFillGradient(0.0f, 0.0f, 480.0f, 272.0f, 0x60000050u, 0xA0303080u);
+}
+
+void DeadScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
     bool haveTouch = s.haveGui;
 
     sceGuDisable(GU_DEPTH_TEST);
-
-    {
-        struct ColorVertex { unsigned int color; float x, y, z; };
-        ColorVertex* v = (ColorVertex*)sceGuGetMemory(4 * sizeof(ColorVertex));
-        const unsigned int top = 0x60000050u, bot = 0xA0303080u;
-        v[0].color = top; v[0].x = 0.0f;   v[0].y = 0.0f;   v[0].z = 0.0f;
-        v[1].color = top; v[1].x = 480.0f; v[1].y = 0.0f;   v[1].z = 0.0f;
-        v[2].color = bot; v[2].x = 0.0f;   v[2].y = 272.0f; v[2].z = 0.0f;
-        v[3].color = bot; v[3].x = 480.0f; v[3].y = 272.0f; v[3].z = 0.0f;
-        sceGuDisable(GU_TEXTURE_2D);
-        sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 4, 0, v);
-        sceGuEnable(GU_TEXTURE_2D);
-    }
 
     if (haveFont) {
         const char* title = "You died!";
@@ -90,17 +94,13 @@ void deadRender(MenuState& s) {
             bool hover = active && (s_deadSel == i);
             float bx = startX + i * (btnW + gap);
 
-            textureBind(&s.guiAtlas);
-            spriteDraw(&s.guiAtlas, bx * UI_SCALE, by * UI_SCALE, btnW * UI_SCALE, btnH * UI_SCALE,
-                       GA_BTN_PAIR_X + (hover ? 60.0f : 0.0f), GA_BTN_PAIR_Y, 60.0f, 20.0f,
-                       active ? WHITE : 0xFF808080u);
-
-            float lw = fontTextWidth(&font, labels[i]) * UI_SCALE;
-            unsigned int lcol = !active ? 0xFF707070u : (hover ? 0xFFA0FFFFu : 0xFFE0E0E0u);
-            fontDrawTextShadow(&font, bx * UI_SCALE + (btnW * UI_SCALE - lw) / 2.0f,
-                               (by + 6.0f) * UI_SCALE, labels[i], lcol, UI_SCALE);
+            guiTButton(s, bx, by, btnW, btnH, hover);
+            guiTButtonLabel(s, bx, by, btnW, btnH, labels[i], hover, active);
         }
     }
 
     sceGuEnable(GU_DEPTH_TEST);
 }
+
+static DeadScreen s_deadScreen;
+Screen& deadScreen() { return s_deadScreen; }

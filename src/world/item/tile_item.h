@@ -26,7 +26,8 @@ public:
 
 class SlabItem : public TileItem {
 public:
-    SlabItem(short id) : TileItem(id) {}
+    short doubleId;
+    SlabItem(short id, short dblId) : TileItem(id), doubleId(dblId) {}
     virtual bool useOn(ItemInstance* item, Player* player, World* world, int x, int y, int z, int face,
                        float clickX, float clickY, float clickZ);
 };

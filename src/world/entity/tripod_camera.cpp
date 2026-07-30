@@ -6,6 +6,8 @@
 bool  g_photoPending = false;
 float g_photoX, g_photoY, g_photoZ, g_photoYaw, g_photoPitch;
 Entity* g_photoCamera = 0;
+bool  g_photoIsIcon = false;
+char  g_photoIconPath[320] = {0};
 
 TripodCamera::TripodCamera(Level* level, float x, float y, float z,
                            float ownerYaw, float ownerPitch)

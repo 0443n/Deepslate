@@ -26,6 +26,11 @@ public:
     LocalPlayer* player;
     bool isClientSide;
 
+    int spawnX, spawnY, spawnZ;
+    void setSpawnPos(int x, int y, int z) { spawnX = x; spawnY = y; spawnZ = z; }
+
+    void validateSpawn();
+
     explicit Level(World* world);
 
     int   getTile(int x, int y, int z) const;
@@ -75,13 +80,11 @@ public:
     void removeTileEntity(int x, int y, int z);
     void removeAllTileEntities();
 
-    bool checkAndHandleWater(const AABB&, class Entity*) const { return false; }
     bool containsAnyLiquid(const AABB& box) const;
-    bool containsFireTile(const AABB&) const { return false; }
+    bool containsFireTile(const AABB& box) const;
 
     bool isInWater(Entity*, const AABB& box) const;
     bool isInLava(const AABB& box) const;
-    void addParticle(int, float,float,float, float,float,float) const {}
 
     void playSound(Entity* e, const char* name, float volume, float pitch) const;
     void playSound(float x, float y, float z, const char* name, float volume, float pitch) const;
@@ -90,7 +93,7 @@ public:
 
     void playLandSound(Entity*, int x, int y, int z, int tileId) const;
 
-    void handleFallOn(int x, int y, int z, Entity*, float dist) const {}
+    void handleFallOn(int x, int y, int z, Entity* e, float dist) const;
 };
 
 extern Level g_level;

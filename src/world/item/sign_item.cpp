@@ -31,7 +31,7 @@ bool SignItem::useOn(ItemInstance* item, Player* player, World* world,
                      int x, int y, int z, int face, float, float, float) {
     if (face == F_DOWN) return false;
 
-    if (!isSolidMaterial(worldBlock(world, x, y, z))) return false;
+    if (!materialOf(worldBlock(world, x, y, z)).isSolid()) return false;
 
     int nx = x + kFaceNeighbor[face][0];
     int ny = y + kFaceNeighbor[face][1];

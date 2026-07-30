@@ -59,14 +59,14 @@ bool SlabItem::useOn(ItemInstance* item, Player* player, World* w, int x, int y,
     if (((face == F_TOP && !isUpper) || (face == F_DOWN && isUpper)) &&
         currentTile == tileId && slabType == (item->data & DSLAB_MAT_MASK)) {
 
-        Tile* dbl = Tile::tiles[BLOCK_DOUBLE_SLAB];
+        Tile* dbl = Tile::tiles[doubleId];
         BlockAABB boxes[3];
         int n = dbl->getAABB(w, x, y, z, boxes);
         for (int i = 0; i < n; i++) {
             AABB box(boxes[i].x0, boxes[i].y0, boxes[i].z0, boxes[i].x1, boxes[i].y1, boxes[i].z1);
             if (!g_level.isUnobstructed(box)) return true;
         }
-        if (worldSetBlockAndData(w, x, y, z, BLOCK_DOUBLE_SLAB, (unsigned char)slabType)) {
+        if (worldSetBlockAndData(w, x, y, z, (unsigned char)doubleId, (unsigned char)slabType)) {
             const SoundType& snd = g_tileSounds[dbl->soundType];
             if (snd.stepSound)
                 g_level.playSound(x + 0.5f, y + 0.5f, z + 0.5f, snd.stepSound,

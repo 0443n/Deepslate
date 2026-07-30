@@ -5,6 +5,7 @@
 #include "world/entity/item_entity.h"
 #include "world/item/item_instance.h"
 #include "world/level/level.h"
+#include "client/renderer/particle.h"
 #include "world/level/world.h"
 extern World g_world;
 #include "world/level/world.h"
@@ -137,20 +138,24 @@ void Entity::move(float xa, float ya, float za) {
     }
 
     float xaOrg = xa, yaOrg = ya, zaOrg = za;
+
+    float xaPre = xa, zaPre = za;
     AABB bbOrg = bb;
     bool sneaking = onGround && isSneaking();
 
     if (sneaking) {
         float d = 0.05f;
-        while (xa != 0 && level->getCubes(this, bb.cloneMove(xa, -1.0f, 0)).empty()) {
+
+        const float E = AABB::EPS;
+        while (xa != 0 && level->getCubes(this, bb.cloneMove(xa, -1.0f, 0).grow(-E, 0, -E)).empty()) {
             if (xa < d && xa >= -d) xa = 0; else if (xa > 0) xa -= d; else xa += d;
             xaOrg = xa;
         }
-        while (za != 0 && level->getCubes(this, bb.cloneMove(0, -1.0f, za)).empty()) {
+        while (za != 0 && level->getCubes(this, bb.cloneMove(0, -1.0f, za).grow(-E, 0, -E)).empty()) {
             if (za < d && za >= -d) za = 0; else if (za > 0) za -= d; else za += d;
             zaOrg = za;
         }
-        while (xa != 0 && za != 0 && level->getCubes(this, bb.cloneMove(xa, -1.0f, za)).empty()) {
+        while (xa != 0 && za != 0 && level->getCubes(this, bb.cloneMove(xa, -1.0f, za).grow(-E, 0, -E)).empty()) {
             if (xa < d && xa >= -d) xa = 0; else if (xa > 0) xa -= d; else xa += d;
             if (za < d && za >= -d) za = 0; else if (za > 0) za -= d; else za += d;
             xaOrg = xa; zaOrg = za;
@@ -204,9 +209,26 @@ void Entity::move(float xa, float ya, float za) {
     collision = horizontalCollision || verticalCollision;
     checkFallDamage(ya, onGround);
 
-    if (xaOrg != xa) xd = 0;
+    if (xaPre != xa) xd = 0;
     if (yaOrg != ya) yd = 0;
-    if (zaOrg != za) zd = 0;
+    if (zaPre != za) zd = 0;
+
+    if (makeStepSound && !sneaking) {
+        float xm = x - xOrigin, zm = z - zOrigin;
+        walkDist += sqrtf(xm * xm + zm * zm) * 0.6f;
+        int xt = Mth::floor(x);
+        int yt = Mth::floor(y - 0.2f - heightOffset);
+        int zt = Mth::floor(z);
+        int t = level->getTile(xt, yt, zt);
+        if (t == 0) {
+            int under = level->getTile(xt, yt - 1, zt);
+            if (isFence((unsigned char)under) || isFenceGate((unsigned char)under)) t = under;
+        }
+        if (walkDist > nextStep && t > 0) {
+            nextStep = ((int)walkDist) + 1;
+            playStepSound(xt, yt, zt, t);
+        }
+    }
 
     int bx0 = Mth::floor(bb.x0), by0 = Mth::floor(bb.y0), bz0 = Mth::floor(bb.z0);
     int bx1 = Mth::floor(bb.x1), by1 = Mth::floor(bb.y1), bz1 = Mth::floor(bb.z1);
@@ -221,6 +243,10 @@ void Entity::move(float xa, float ya, float za) {
 
     ySlideOffset *= 0.4f;
 
+    checkFireAndWaterTiles();
+}
+
+void Entity::checkFireAndWaterTiles() {
     bool water = isInWater();
     if (level->containsFireTile(bb)) {
         burn(1);
@@ -280,6 +306,24 @@ void Entity::interpolateTurn(float xo, float yo) {
     if (xRot > 90) xRot = 90;
 }
 
+void Entity::doWaterSplashEffect() {
+    float speed = sqrtf(xd * xd * 0.2f + yd * yd + zd * zd * 0.2f) * 0.2f;
+    if (speed > 1.0f) speed = 1.0f;
+
+    if (speed < 0.5f) speed = 0.5f;
+    level->playSound(this, "random.splash", speed,
+                     1.0f + (sharedRandom.nextFloat() - sharedRandom.nextFloat()) * 0.4f);
+
+    float yt = floorf(bb.y0);
+    int n = 1 + (int)(bbWidth * 20.0f);
+    for (int i = 0; i < n; i++) {
+        float xo = (sharedRandom.nextFloat() * 2.0f - 1.0f) * bbWidth;
+        float zo = (sharedRandom.nextFloat() * 2.0f - 1.0f) * bbWidth;
+        particlesBubble(x + xo, yt + 1.0f, z + zo,
+                        xd, yd - sharedRandom.nextFloat() * 0.2f, zd);
+    }
+}
+
 void Entity::tick() { baseTick(); }
 
 void Entity::baseTick() {
@@ -289,12 +333,7 @@ void Entity::baseTick() {
     xRotO = xRot; yRotO = yRot;
 
     if (isInWater()) {
-        if (!wasInWater && !firstTick) {
-            float speed = sqrtf(xd * xd * 0.2f + yd * yd + zd * zd * 0.2f) * 0.2f;
-            if (speed > 1) speed = 1;
-            level->playSound(this, "random.splash", speed,
-                             1 + (sharedRandom.nextFloat() - sharedRandom.nextFloat()) * 0.4f);
-        }
+        if (!wasInWater && !firstTick) doWaterSplashEffect();
         fallDistance = 0;
         wasInWater = true;
         onFire = 0;
@@ -332,7 +371,8 @@ void Entity::checkFallDamage(float ya, bool onGround) {
                 int t = level->getTile(xt, yt, zt);
                 if (t > 0) level->handleFallOn(xt, yt, zt, this, fallDistance);
             }
-            causeFallDamage(fallDistance);
+
+            if (!isInWater()) causeFallDamage(fallDistance);
             fallDistance = 0;
         }
     } else {

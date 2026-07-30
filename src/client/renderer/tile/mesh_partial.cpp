@@ -102,6 +102,10 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
                 float ux0 = fullTileUV ? 0.0f : x0, ux1 = fullTileUV ? 1.0f : x1;
                 float uy0 = fullTileUV ? 0.0f : y0, uy1 = fullTileUV ? 1.0f : y1;
                 float uz0 = fullTileUV ? 0.0f : z0, uz1 = fullTileUV ? 1.0f : z1;
+
+                if (ux0 < 0.0f || ux1 > 1.0f) { ux0 = 0.0f; ux1 = 1.0f; }
+                if (uy0 < 0.0f || uy1 > 1.0f) { uy0 = 0.0f; uy1 = 1.0f; }
+                if (uz0 < 0.0f || uz1 > 1.0f) { uz0 = 0.0f; uz1 = 1.0f; }
                 float uv_u, uv_v;
                 if (f == F_TOP || f == F_DOWN) {
                     uv_u = (cx == 0.0f) ? ux0 : ux1;
@@ -475,18 +479,18 @@ int emitDoor(const World* w, int gx, int y, int gz, unsigned char id, unsigned c
 }
 
 int emitTrapdoor(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n) {
-    float r = 3.0f / 16.0f;
-    float x0 = 0.0f, y0 = 0.0f, z0 = 0.0f;
-    float x1 = 1.0f, y1 = r, z1 = 1.0f;
+    float sh[6];
+    trapdoorShape(data, sh);
+    float x0 = sh[0], y0 = sh[1], z0 = sh[2], x1 = sh[3], y1 = sh[4], z1 = sh[5];
 
-    bool open = (data & 4) != 0;
-    if (open) {
-        if ((data & 3) == 0) { x0 = 0; x1 = 1; y0 = 0; y1 = 1; z0 = 1 - r; z1 = 1; }
-        else if ((data & 3) == 1) { x0 = 0; x1 = 1; y0 = 0; y1 = 1; z0 = 0; z1 = r; }
-        else if ((data & 3) == 2) { x0 = 1 - r; x1 = 1; y0 = 0; y1 = 1; z0 = 0; z1 = 1; }
-        else if ((data & 3) == 3) { x0 = 0; x1 = r; y0 = 0; y1 = 1; z0 = 0; z1 = 1; }
-    }
+    return emitPartialBox(w, gx, y, gz, id, data, x0, y0, z0, x1, y1, z1,
+                          boxBoundaryMask(x0, y0, z0, x1, y1, z1), 0, out, n, true);
+}
 
+int emitCake(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n) {
+    float x0 = (2 * (data & 7) + 1) / 16.0f;
+    float x1 = 15.0f / 16.0f, y0 = 0.0f, y1 = 8.0f / 16.0f;
+    float z0 = 1.0f / 16.0f, z1 = 15.0f / 16.0f;
     return emitPartialBox(w, gx, y, gz, id, data, x0, y0, z0, x1, y1, z1,
                           boxBoundaryMask(x0, y0, z0, x1, y1, z1), 0, out, n, true);
 }

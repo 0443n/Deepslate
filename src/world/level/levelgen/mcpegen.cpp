@@ -1,6 +1,7 @@
 #include "world/level/levelgen/mcpegen.h"
 #include "world/level/levelgen/features.h"
 #include "world/level/levelgen/caves.h"
+#include "world/level/levelgen/gen_features.h"
 #include "world/level/levelgen/PerlinNoise.h"
 #include "world/level/world.h"
 
@@ -326,7 +327,8 @@ void McpeGen::postProcessChunk(World* w, int chunkX, int chunkZ) {
     snowCap(w, chunkX, chunkZ, mTemp);
 }
 
-void worldGenerateMCPE(World* w, long seed) {
+void worldGenerateMCPE(World* w, long seed, int genMask) {
+    const bool doCaves = genFeatureEnabled(genMask, GEN_FEATURE_CAVES);
     McpeGen* g = new McpeGen(seed);
     int totalChunks = WORLD_CHUNKS_X * WORLD_CHUNKS_Z;
     int doneChunks = 0;
@@ -337,7 +339,8 @@ void worldGenerateMCPE(World* w, long seed) {
         g->computeBiome(cx, cz);
         g->prepareChunk(w, cx, cz);
         g->buildSurfacesChunk(w, cx, cz);
-        caveFeature(w, seed, cx, cz);
+
+        if (doCaves) caveFeature(w, seed, cx, cz);
 
         doneChunks++;
         g_terrainProgress = (doneChunks * 50) / totalChunks;

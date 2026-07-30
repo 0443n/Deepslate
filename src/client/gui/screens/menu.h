@@ -5,10 +5,13 @@
 #include "gpu/texture.h"
 #include "gpu/font.h"
 #include "world/level/storage/worldlist.h"
+#include "world/level/storage/external_servers.h"
 
-enum AppScreen { SCREEN_TITLE, SCREEN_WORLDS, SCREEN_DELETE, SCREEN_CREATE, SCREEN_JOIN, SCREEN_JOIN_IP, SCREEN_OPTIONS, SCREEN_GAME };
+enum AppScreen { SCREEN_TITLE, SCREEN_WORLDS, SCREEN_DELETE, SCREEN_CREATE, SCREEN_JOIN, SCREEN_ADD_SERVER, SCREEN_OPTIONS, SCREEN_GAME };
 
 static const float UI_SCALE = 2.0f;
+
+inline float G(float v) { return v * UI_SCALE; }
 static const float VW = 480.0f / UI_SCALE;
 static const float VH = 272.0f / UI_SCALE;
 static const unsigned int WHITE = 0xFFFFFFFFu;
@@ -31,6 +34,8 @@ struct MenuState {
     int  deleteSelected;
     int  createSelected;
     int  newWorldGamemode;
+    int  newWorldType;
+    int  newWorldGenMask;
     char newWorldName[64];
     char newWorldSeed[64];
     int  uiRow;
@@ -38,27 +43,88 @@ struct MenuState {
     float listScrollX;
     int  selected;
 
-    int  joinListSelected;
-    int  joinIpSelected;
-    char joinIp[64];
+    ExternalServerList servers;
+    int  joinUiRow;
+    int  joinBarSel;
+    int  joinRow;
+    float joinScroll;
+    int  joinEditMode;
+
+    int  addSelected;
+    char addName[32];
+    char addAddr[64];
+    char addPort[8];
 
     int  optFocus;
     int  optCategory;
     int  optTabHighlight;
     int  optItemHighlight;
-    int  optEditingRow;
+    float optScroll;
+    float createScroll;
 
     char statusMsg[128];
 };
 
 void drawRect(float x, float y, float w, float h, unsigned int color);
 
+void drawDirtBackground(MenuState& s, float y = 0.0f, float h = -1.0f,
+                        float uOffset = 0.0f, unsigned int tint = DIRT_TINT);
+
+void drawWindowFrame(MenuState& s);
+
+static const float MENU_PX       = 0.75f;
+static const float MENU_BAR_H    = 26.0f * MENU_PX;
+static const float MENU_BAR_BTNH = 18.0f * MENU_PX;
+static const float MENU_BAR_BTNY = (MENU_BAR_H - MENU_BAR_BTNH) / 2.0f;
+
+static const float MENU_BAR_TEXT = 2.0f;
+
+static const float MENU_BEVEL    = 2.0f;
+
+float menuBarButtonW(MenuState& s, const char* label);
+void  menuBarButton(MenuState& s, float x, float w, const char* label, bool hovered);
+
+void drawMenuHeader(MenuState& s, const char* title, float x, float w,
+                    float h, float textScale, float titleX = 0.0f, float titleW = 0.0f);
+
+void drawTextField(MenuState& s, float x, float y, float w, float h,
+                   const char* text, const char* placeholder, bool focused,
+                   float scale = UI_SCALE);
+
+void uiDraw(MenuState& s, float x, float y, float w, float h,
+            float tsx, float tsy, float asx, float asy,
+            float sw, float sh, unsigned int tint);
+
+void drawHeaderTitle(MenuState& s, const char* title, unsigned int color = 0xFFFFFFFFu,
+                     float centreX = 0.0f, float width = VW);
+
+static const float HEADER_H = 23.0f;
+
+struct HoldCharge {
+    int          key;
+    unsigned int start;
+    float        share;
+    HoldCharge() : key(-1), start(0), share(0.0f) {}
+    void reset() { key = -1; share = 0.0f; }
+};
+
+int holdChargeUpdate(HoldCharge& c, int slotKey, int count, bool crossHeld);
+
 void drawNinePatch(MenuState& s, float sx, float sy, float sw, float sh, float corner,
-                   float gx, float gy, float gw, float gh);
+                   float gx, float gy, float gw, float gh, float destCorner = -1.0f);
 void fontDrawTextClipped(const Font* font, float x, float y, const char* text,
                          unsigned int color, float scale, float maxWidthRaw);
 void fontDrawTextWrapped(const Font* font, float x, float y, const char* text,
                          unsigned int color, float scale, float maxWidthRaw);
+
+enum OskTarget {
+    OSK_TARGET_WORLD_NAME = 1,
+    OSK_TARGET_WORLD_SEED = 2,
+    OSK_TARGET_SIGN       = 4,
+    OSK_TARGET_SRV_NAME   = 5,
+    OSK_TARGET_SRV_ADDR   = 6,
+    OSK_TARGET_SRV_PORT   = 7,
+};
 void startOsk(int target, const char* desc, const char* intext, int maxLen = 64);
 
 bool menuOskUpdate(MenuState& s);
@@ -72,31 +138,33 @@ void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y = UI_
                      float scale = UI_HINT_S);
 void menuHintsDraw(MenuState& s);
 
+bool optionsScreenUp(const MenuState& s);
+
 extern unsigned int g_heldButtons;
 
-void titleHandleInput(MenuState& s, unsigned int pressed);   void titleRender(MenuState& s);
-void worldsHandleInput(MenuState& s, unsigned int pressed);  void worldsRender(MenuState& s);
-void deleteHandleInput(MenuState& s, unsigned int pressed);  void deleteRender(MenuState& s);
-void createHandleInput(MenuState& s, unsigned int pressed);  void createRender(MenuState& s);
-void joinHandleInput(MenuState& s, unsigned int pressed);    void joinRender(MenuState& s);
-void joinIpHandleInput(MenuState& s, unsigned int pressed);  void joinIpRender(MenuState& s);
-void optionsHandleInput(MenuState& s, unsigned int pressed); void optionsRender(MenuState& s);
 void optionsInitDefaults();
 void optionsLoad();
 void optionsSave();
-void optionsSetThirdPerson(bool on);
+
+void optionsToggleThirdPerson();
+
+static const unsigned int GUI_DISABLED = 0xFF707070u;
+void guiTButton(MenuState& s, float x, float y, float w, float h, bool pressed,
+                float destCorner = 2.0f);
+void guiTButtonLabel(MenuState& s, float x, float y, float w, float h,
+                     const char* label, bool hovered, bool active, float scale = UI_SCALE);
+
+void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,
+                     bool on, bool hovered, unsigned int tint = 0xFFFFFFFFu);
 
 unsigned int menuSelectionSig(const MenuState& s);
 
 unsigned int optionsValueSig();
 
-void pauseHandleInput(MenuState& s, unsigned int pressed);   void pauseRender(MenuState& s);
-
 extern bool g_craftOpen;
 
 enum { CRAFT_WORKBENCH = 0, CRAFT_STONECUTTER = 1 };
 void craftOpen(int craftingSize, int filterMode);
-void craftHandleInput(MenuState& s, unsigned int pressed);   void craftRender(MenuState& s);
 bool craftHasCategories();
 bool armorFocusIsWornSlot();
 bool chestCursorOnChest();
@@ -109,25 +177,21 @@ class FurnaceTileEntity;
 class ChestTileEntity;
 extern bool g_furnaceOpen;
 void furnaceOpen(FurnaceTileEntity* fe);
-void furnaceHandleInput(MenuState& s, unsigned int pressed, unsigned int held); void furnaceRender(MenuState& s);
 extern bool g_chestOpen;
 void chestOpen(ChestTileEntity* ce);
-void chestHandleInput(MenuState& s, unsigned int pressed, unsigned int held);   void chestRender(MenuState& s);
+
+void chestClose();
 
 extern bool g_armorOpen;
 void armorOpen();
-void armorHandleInput(MenuState& s, unsigned int pressed);   void armorRender(MenuState& s);
 
-void inBedHandleInput(MenuState& s, unsigned int pressed);  void inBedRender(MenuState& s);
 void inBedRenderFade(MenuState& s);
 
 extern bool g_deadScreen;
 void deadScreenOpen();
-void deadHandleInput(MenuState& s, unsigned int pressed);    void deadRender(MenuState& s);
 
 class SignTileEntity;
 extern SignTileEntity* g_signEditing;
-void signHandleInput(MenuState& s, unsigned int pressed);    void signRender(MenuState& s);
 void signStartEdit(SignTileEntity* ste);
 void signEditLine(int line);
 

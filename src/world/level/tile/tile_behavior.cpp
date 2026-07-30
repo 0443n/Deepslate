@@ -1,6 +1,7 @@
 
 #include "world/level/tile/tile_behavior.h"
 #include "world/level/tile/tile.h"
+#include "world/level/tile/random_tick_pick.h"
 #include "world/level/level.h"
 #include "world/entity/falling_tile.h"
 #include <stdlib.h>
@@ -35,21 +36,18 @@ void tileNeighborChanged(World* w, int x, int y, int z) {
     Tile::tiles[worldBlock(w, x, y, z)]->neighborChanged(w, x, y, z);
 }
 
-static unsigned int s_randValue = 42184323;
-
-typedef char assert_ref_dims[(CHUNK_SX == 16 && CHUNK_SZ == 16 &&
-                              (WORLD_H & (WORLD_H - 1)) == 0) ? 1 : -1];
+static unsigned int s_tick = 0;
 
 void tileRandomTick(World* w) {
+    s_tick++;
     for (int cx = 0; cx < WORLD_CHUNKS_X; cx++)
     for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
         int xo = cx * CHUNK_SX, zo = cz * CHUNK_SZ;
-        for (int i = 0; i < 20; i++) {
-            s_randValue = s_randValue * 3u + 1013904223u;
-            unsigned int val = s_randValue >> 2;
-            int x = xo + (int)(val & 15);
-            int z = zo + (int)((val >> 8) & 15);
-            int y = (int)((val >> 16) & (WORLD_H - 1));
+        unsigned int chunkIndex = (unsigned int)(cx * WORLD_CHUNKS_Z + cz);
+        for (unsigned int i = 0; i < SAMPLES_PER_CHUNK; i++) {
+            int lx, lz, y;
+            randomTickPick(s_tick, chunkIndex, i, &lx, &lz, &y);
+            int x = xo + lx, z = zo + lz;
             Tile* t = Tile::tiles[worldBlock(w, x, y, z)];
             if (t->randomTicks) t->randomTick(w, x, y, z);
         }

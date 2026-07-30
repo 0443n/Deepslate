@@ -55,6 +55,7 @@ enum { BLOCK_AIR = 0,
        BLOCK_CLAY = 82,
        BLOCK_REEDS = 83,
        BLOCK_FENCE = 85, BLOCK_NETHERRACK = 87, BLOCK_GLOWSTONE = 89,
+       BLOCK_CAKE = 92,
 
        BLOCK_INVISIBLE_BEDROCK = 95,
        BLOCK_TRAPDOOR = 96,
@@ -65,6 +66,8 @@ enum { BLOCK_AIR = 0,
        BLOCK_STAIRS_SANDSTONE = 128,
        BLOCK_QUARTZ_BLOCK = 155,
        BLOCK_STAIRS_QUARTZ = 156,
+
+       BLOCK_WOOD_SLAB_DOUBLE = 157, BLOCK_WOOD_SLAB = 158,
 
        BLOCK_STONECUTTER = 245, BLOCK_GLOWING_OBSIDIAN = 246, BLOCK_NETHER_REACTOR = 247,
 
@@ -78,7 +81,7 @@ enum { STAIR_DIR_MASK = 3, STAIR_DIR_EAST=0, STAIR_DIR_WEST=1, STAIR_DIR_SOUTH=2
 
 enum { SLAB_TOP_SLOT_BIT = 8 };
 enum { DSLAB_STONE = 0, DSLAB_SAND = 1, DSLAB_WOOD = 2, DSLAB_COBBLE = 3,
-       DSLAB_BRICK = 4, DSLAB_SMOOTHBRICK = 5, DSLAB_MAT_MASK = 7 };
+       DSLAB_BRICK = 4, DSLAB_SMOOTHBRICK = 5, DSLAB_QUARTZ = 6, DSLAB_MAT_MASK = 7 };
 
 enum { LOG_OAK = 0, LOG_SPRUCE = 1, LOG_BIRCH = 2, LOG_TYPE_MASK = 3 };
 enum { SS_DEFAULT = 0, SS_CHISELED = 1, SS_SMOOTH = 2 };
@@ -97,7 +100,7 @@ static inline bool isStairs(unsigned char id) {
         default: return false;
     }
 }
-static inline bool isSlab(unsigned char id)   { return id == BLOCK_SLAB; }
+static inline bool isSlab(unsigned char id)   { return id == BLOCK_SLAB || id == BLOCK_WOOD_SLAB; }
 static inline bool isPane(unsigned char id)   { return id == BLOCK_GLASS_PANE; }
 static inline bool isFence(unsigned char id)  { return id == BLOCK_FENCE; }
 static inline bool isFenceGate(unsigned char id){ return id == BLOCK_FENCE_GATE; }
@@ -111,6 +114,8 @@ static inline bool isSign(unsigned char id)   { return id == BLOCK_SIGN || id ==
 static inline bool isWaterId(unsigned char id) { return id == BLOCK_WATER || id == BLOCK_CALM_WATER; }
 static inline bool isLavaId(unsigned char id)  { return id == BLOCK_LAVA  || id == BLOCK_CALM_LAVA;  }
 static inline bool isLiquidId(unsigned char id){ return isWaterId(id) || isLavaId(id); }
+
+static inline int liquidTickDelay(unsigned char id) { return isWaterId(id) ? 5 : 30; }
 
 static inline float liquidTileHeight(int d) {
     if (d >= 8) d = 0;
@@ -184,6 +189,24 @@ static inline unsigned int mulColor(unsigned int a, unsigned int b) {
 
 enum { F_LEFT, F_RIGHT, F_DOWN, F_TOP, F_BACK, F_FORWARD };
 
+static inline int faceFromMcpe(int d) {
+    switch (d) {
+        case 2:  return F_BACK;
+        case 3:  return F_FORWARD;
+        case 4:  return F_LEFT;
+        default: return F_RIGHT;
+    }
+}
+
+static inline int mcpeFromFace(int f) {
+    switch (f) {
+        case F_BACK:    return 2;
+        case F_FORWARD: return 3;
+        case F_LEFT:    return 4;
+        default:        return 5;
+    }
+}
+
 extern const signed char kFaceNeighbor[6][3];
 
 extern const unsigned int kFaceShade[6];
@@ -207,12 +230,12 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
 int emitSlab(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitStairs(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 
-int stairShapeBoxes(const World* w, int gx, int y, int gz, unsigned char data, float out[3][6]);
 int emitPane(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitFence(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitDoor(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitTrapdoor(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitFenceGate(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
+int emitCake(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitTorch(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitBed(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitMelonStem(const World* w, ChunkVertex* out, int n, int gx, int y, int gz, unsigned char data, unsigned int bright);
@@ -249,6 +272,8 @@ struct ChunkSection {
     DrawVertex*  noMip;
     int          noMipCount;
 
+    int          noMipLavaStart;
+
     int          ox, oy, oz;
     float        by0, by1;
     float        lby0, lby1;
@@ -267,14 +292,18 @@ struct ChunkMesh {
     ChunkSection sec[N_SECTIONS];
     int          ox, oz;
     float        cx, cz;
+
+    bool         drawn;
 };
 
-int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, int layer, int cap = 0x7fffffff, bool leavesOpaque = true, bool leavesCull = true);
+bool worldColumnDrawn(const World* w, float x, float z);
+
+int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, int layer, int cap = 0x7fffffff, bool leavesOpaque = true, bool leavesCull = true, int* nLava = 0);
 
 int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 ChunkVertex* out0, ChunkVertex* out1, ChunkVertex* out2, ChunkVertex* out3,
                 int cap0, int cap1, int cap2, int cap3, int* n0, int* n1, int* n2, int* n3,
-                bool leavesOpaque, bool leavesCull);
+                int* nLava, bool leavesOpaque, bool leavesCull);
 
 DrawVertex* chunkPack(const ChunkVertex* src, int n, int ox, int oy, int oz);
 
@@ -286,7 +315,9 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si);
 void chunkDrawSection(const ChunkSection* s);
 void chunkDrawWaterSection(const ChunkSection* s);
 void chunkDrawLeavesSection(const ChunkSection* s);
-void chunkDrawNoMipSection(const ChunkSection* s);
+
+enum { NOMIP_ALL = 0, NOMIP_NO_LAVA = 1, NOMIP_LAVA = 2 };
+void chunkDrawNoMipSection(const ChunkSection* s, int part = NOMIP_ALL);
 void chunkFreeMesh(ChunkMesh* c);
 
 #endif

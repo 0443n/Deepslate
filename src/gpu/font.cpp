@@ -86,6 +86,32 @@ void fontDrawTextShadow(const Font* f, float x, float y, const char* text, unsig
     drawGlyphs(f, x, y, text, color, scale);
 }
 
+void fontDrawTransformed(const Font* f, float x, float y, const char* text,
+                         unsigned int color, float rotDeg, float scale,
+                         bool centered) {
+    float len = (float)fontTextWidth(f, text);
+    const float a  = rotDeg * 3.14159265f / 180.0f;
+    const float cs = cosf(a) * scale, sn = sinf(a) * scale;
+    const float startX = centered ? -len * 0.5f : 0.0f;
+
+    unsigned int shadow = ((color & 0x00FCFCFCu) >> 2) | (color & 0xFF000000u);
+    textureBind(&f->tex);
+    for (int pass = 0; pass < 2; pass++) {
+
+        const float off = (pass == 0) ? 1.0f : 0.0f;
+        const unsigned int col = (pass == 0) ? shadow : color;
+        float cursorX = startX;
+        for (const unsigned char* p = (const unsigned char*)text; *p; p++) {
+            unsigned char ch = *p;
+            spriteDrawRot(&f->tex, x, y, cs, sn,
+                          cursorX + off, off, (float)CELL, (float)CELL,
+                          (float)((ch % COLS) * CELL), (float)((ch / COLS) * CELL),
+                          (float)CELL, (float)CELL, col);
+            cursorX += f->charWidth[ch];
+        }
+    }
+}
+
 int fontTextWidth(const Font* f, const char* text) {
     int maxLen = 0, len = 0;
     for (const unsigned char* p = (const unsigned char*)text; *p; p++) {

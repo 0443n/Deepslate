@@ -6,6 +6,8 @@
 #include <pspgum.h>
 #include <pspkernel.h>
 
+#include "util/prof.h"
+
 static unsigned int __attribute__((aligned(16))) g_list[524288 / 4];
 static void* g_listUncached = 0;
 
@@ -65,7 +67,8 @@ void guInit(void) {
     sceGuEnable(GU_DEPTH_TEST);
 
     sceGuFrontFace(GU_CW);
-    sceGuShadeModel(GU_FLAT);
+
+    sceGuShadeModel(GU_SMOOTH);
     sceGuEnable(GU_CULL_FACE);
     sceGuEnable(GU_CLIP_PLANES);
 
@@ -96,8 +99,10 @@ void guStartFrame(unsigned int clearColor) {
 }
 
 void guFinishFrame(void) {
+    profBegin(PROF_GESYNC);
     sceGuFinish();
     sceGuSync(0, 0);
+    profEnd(PROF_GESYNC);
 }
 
 void guPresent(void) {
@@ -107,19 +112,25 @@ void guPresent(void) {
                           PSP_DISPLAY_SETBUF_NEXTFRAME);
     g_drawIdx ^= 1;
 
+    profBegin(PROF_VBLANK);
     sceDisplayWaitVblankStart();
+    profEnd(PROF_VBLANK);
 }
 
 void guEndFrame(void) {
+    profEnd(PROF_HUD);
     guFinishFrame();
     guPresent();
+    profFrameEnd();
 }
 
 #include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
-bool guSavePhotoPng(const char* path) {
+bool guSavePhotoPng(const char* path, int shrink) {
+    if (shrink < 1) shrink = 1;
+    const int outW = GU_SCR_WIDTH / shrink, outH = GU_SCR_HEIGHT / shrink;
     const int shotBytes = GU_BUF_WIDTH * GU_SCR_HEIGHT * 2;
 
     unsigned short* shot = (unsigned short*)memalign(64, shotBytes);
@@ -146,18 +157,27 @@ bool guSavePhotoPng(const char* path) {
         return false;
     }
     png_init_io(png, f);
-    png_set_IHDR(png, info, GU_SCR_WIDTH, GU_SCR_HEIGHT, 8, PNG_COLOR_TYPE_RGB,
+    png_set_IHDR(png, info, outW, outH, 8, PNG_COLOR_TYPE_RGB,
                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png, info);
 
     unsigned char row[GU_SCR_WIDTH * 3];
-    for (int y = 0; y < GU_SCR_HEIGHT; y++) {
-        const unsigned short* src = shotRd + y * GU_BUF_WIDTH;
-        for (int x = 0; x < GU_SCR_WIDTH; x++) {
-            unsigned short p = src[x];
-            row[x * 3 + 0] = (unsigned char)(( p        & 0x1F) << 3);
-            row[x * 3 + 1] = (unsigned char)(((p >> 5)  & 0x3F) << 2);
-            row[x * 3 + 2] = (unsigned char)(((p >> 11) & 0x1F) << 3);
+    const unsigned int n = (unsigned int)(shrink * shrink);
+    for (int y = 0; y < outH; y++) {
+        for (int x = 0; x < outW; x++) {
+            unsigned int r = 0, g = 0, b = 0;
+            for (int sy = 0; sy < shrink; sy++) {
+                const unsigned short* src = shotRd + (y * shrink + sy) * GU_BUF_WIDTH;
+                for (int sx = 0; sx < shrink; sx++) {
+                    unsigned short p = src[x * shrink + sx];
+                    r += (unsigned int)(( p        & 0x1F) << 3);
+                    g += (unsigned int)(((p >> 5)  & 0x3F) << 2);
+                    b += (unsigned int)(((p >> 11) & 0x1F) << 3);
+                }
+            }
+            row[x * 3 + 0] = (unsigned char)(r / n);
+            row[x * 3 + 1] = (unsigned char)(g / n);
+            row[x * 3 + 2] = (unsigned char)(b / n);
         }
         png_write_row(png, row);
     }

@@ -10,6 +10,8 @@ extern unsigned int g_skyColorNow;
 
 extern float g_camX, g_camY, g_camZ;
 
+extern float g_nearZPlane;
+
 void gameRender(MenuState& s);
 
 bool gameProgressScreenUp();

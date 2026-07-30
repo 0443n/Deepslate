@@ -14,12 +14,16 @@
 #include "gpu/sprite.h"
 #include "gpu/font.h"
 #include "platform/path.h"
+#include "util/prof.h"
 #include "platform/audio/sound.h"
 #include "world/level/storage/worldlist.h"
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
 #include "world/level/tile/tile.h"
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/screen.h"
+#include "client/gui/screens/panorama.h"
+#include "client/gui/screens/world_icons.h"
 #include "client/player/player.h"
 #include "client/renderer/render.h"
 
@@ -79,12 +83,15 @@ static bool loadTex(Texture* out, const char* rel) {
     return textureLoad(assetPath(rel), out) || textureLoad(rel, out);
 }
 
-static bool loadTex4444(Texture* out, const char* rel) {
-    return textureLoad4444(assetPath(rel), out) || textureLoad4444(rel, out);
-}
-
 static bool loadTex16(Texture* out, const char* rel, int psm) {
     return textureLoad16(assetPath(rel), out, psm) || textureLoad16(rel, out, psm);
+}
+
+static bool screenNeedsTouchGui(int screen, bool worldLoaded) {
+    if (screen == SCREEN_OPTIONS) return !worldLoaded;
+    return screen == SCREEN_TITLE  || screen == SCREEN_WORLDS ||
+           screen == SCREEN_DELETE || screen == SCREEN_CREATE ||
+           screen == SCREEN_JOIN   || screen == SCREEN_ADD_SERVER;
 }
 
 static void touchGuiSetLoaded(MenuState& s, bool want) {
@@ -163,7 +170,8 @@ int main(int argc, char* argv[]) {
     static MenuState s;
 
     s.haveFont         = loadFnt(&s.font, "data/images/font/default8.png");
-    s.haveGui          = loadTex4444(&s.guiAtlas, "data/images/gui/gui_game.png");
+
+    s.haveGui          = loadTex16(&s.guiAtlas, "data/images/gui/gui_game.png", GU_PSM_4444);
     s.haveLogo         = loadTex16(&s.logo, "data/images/gui/title.png", GU_PSM_5551);
     s.haveBg           = loadTex(&s.dirtBg, "data/images/gui/background.png");
     s.haveTouch        = loadTex(&s.touchGui, "data/images/gui/touchgui.png");
@@ -175,13 +183,9 @@ int main(int argc, char* argv[]) {
     worldListScan(&s.worlds);
     s.worldSelected = 0;
     s.deleteSelected = 1;
-    s.createSelected = 1;
-    s.newWorldGamemode = 0;
-    strcpy(s.newWorldName, "New world");
-    s.newWorldSeed[0] = '\0';
-    s.joinListSelected = 0;
-    s.joinIpSelected = 1;
-    s.joinIp[0] = '\0';
+    createFormReset(s);
+    joinListReset(s);
+    addServerFormReset(s);
     s.uiRow = 1;
     s.topSelected = 0;
     s.listScrollX = 0.0f;
@@ -190,7 +194,7 @@ int main(int argc, char* argv[]) {
     s.optCategory = 0;
     s.optTabHighlight = 0;
     s.optItemHighlight = 0;
-    s.optEditingRow = -1;
+    s.optScroll = 0.0f;
     s.statusMsg[0] = '\0';
 
     s.statusMsg[0] = '\0';
@@ -258,10 +262,7 @@ int main(int argc, char* argv[]) {
 
         if (pressed & PSP_CTRL_SELECT) {
             if (s.screen == SCREEN_WORLDS) {
-                s.createSelected = 1;
-                s.newWorldName[0] = '\0';
-                s.newWorldSeed[0] = '\0';
-                s.newWorldGamemode = 0;
+                createFormReset(s);
                 s.screen = SCREEN_CREATE;
             }
         }
@@ -272,25 +273,28 @@ int main(int argc, char* argv[]) {
         unsigned int sigBefore = menuSelectionSig(s);
         AppScreen screenBefore = s.screen;
 
-        extern bool g_invOpen, g_chestOpen, g_furnaceOpen, g_craftOpen, g_armorOpen, g_paused;
-        bool inGameMenu = g_invOpen || g_chestOpen || g_furnaceOpen || g_craftOpen || g_armorOpen || g_paused;
+        extern bool g_invOpen, g_chestOpen, g_furnaceOpen, g_craftOpen, g_armorOpen;
+        extern bool g_paused, g_optionsOpen;
+        bool inGameMenu = g_invOpen || g_chestOpen || g_furnaceOpen || g_craftOpen ||
+                          g_armorOpen || g_paused || g_optionsOpen;
         unsigned int pMenu = pressed | repeat;
-        switch (s.screen) {
-            case SCREEN_TITLE:   titleHandleInput(s, pMenu);   break;
-            case SCREEN_WORLDS:  worldsHandleInput(s, pMenu);  break;
-            case SCREEN_DELETE:  deleteHandleInput(s, pMenu);  break;
-            case SCREEN_CREATE:  createHandleInput(s, pMenu);  break;
-            case SCREEN_JOIN:    joinHandleInput(s, pMenu);    break;
-            case SCREEN_JOIN_IP: joinIpHandleInput(s, pMenu);  break;
-            case SCREEN_OPTIONS: optionsHandleInput(s, pMenu); break;
-            case SCREEN_GAME:    gameUpdate(s, inGameMenu ? pMenu : pressed, pad); break;
+        if (Screen* cur = menuScreen(s.screen)) {
+            cur->handleInput(s, pMenu, pad.Buttons);
+        } else {
+
+            gameUpdate(s, inGameMenu ? pMenu
+                       : (pressed | (repeat & (PSP_CTRL_LEFT | PSP_CTRL_RIGHT))), pad);
         }
 
-        if (pressed && screenBefore != SCREEN_GAME &&
+        if (pressed && (screenBefore != SCREEN_GAME || g_optionsOpen) &&
             (!navOnly || menuSelectionSig(s) != sigBefore))
             soundPlay("random.click", 1.0f, 1.0f);
 
-        touchGuiSetLoaded(s, s.screen != SCREEN_GAME);
+        touchGuiSetLoaded(s, screenNeedsTouchGui(s.screen, g_worldBuilt));
+
+        panoramaSetLoaded(s.screen != SCREEN_GAME && !g_worldBuilt);
+
+        worldIconsSetLoaded(s.screen == SCREEN_WORLDS || s.screen == SCREEN_DELETE);
         guStartFrame(s.screen == SCREEN_GAME ? g_skyColorNow : 0xFF000000u);
 
         if (s.screen == SCREEN_GAME) {
@@ -299,7 +303,8 @@ int main(int argc, char* argv[]) {
             guOrtho();
             sceGuDisable(GU_DEPTH_TEST);
 
-            if (gameProgressScreenUp()) { guEndFrame(); continue; }
+            { extern bool g_photoPending;
+              if (gameProgressScreenUp() && !g_photoPending) { guEndFrame(); continue; } }
             extern bool g_invOpen;
             extern int g_showFps, g_showCoords;
             extern bool g_photoPending;
@@ -308,7 +313,13 @@ int main(int argc, char* argv[]) {
                 float ty = 10.0f;
                 if (g_showFps) {
                     char fpsBuf[32];
+#if PROF
+
+                    extern int g_profLines;
+                    std::snprintf(fpsBuf, sizeof(fpsBuf), "FPS: %d  P%d", (int)(fps + 0.5f), g_profLines);
+#else
                     std::snprintf(fpsBuf, sizeof(fpsBuf), "FPS: %d", (int)(fps + 0.5f));
+#endif
                     fontDrawTextShadow(&s.font, 10, ty, fpsBuf, 0xFFE0E0E0u, 1.0f);
                     ty += 12.0f;
 #if MEM_OVERLAY
@@ -381,19 +392,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            extern bool g_paused;
-
-            if (g_craftOpen) craftRender(s);
-            if (g_armorOpen) armorRender(s);
-            if (g_furnaceOpen) furnaceRender(s);
-            if (g_chestOpen) chestRender(s);
-            if (g_worldBuilt && g_level.player && g_level.player->isSleeping())
-                inBedRender(s);
-            if (g_paused) pauseRender(s);
-
-            if (g_deadScreen) deadRender(s);
-
-            if (g_signEditing) signRender(s);
+            if (Screen* over = overlayScreen()) over->render(s);
 
             gameHintsDraw(s);
 
@@ -402,19 +401,43 @@ int main(int argc, char* argv[]) {
             {
                 extern bool g_photoPending;
                 extern Entity* g_photoCamera;
+                extern bool g_photoIsIcon;
+                extern char g_photoIconPath[320];
+                if (g_photoPending && g_photoIsIcon) {
+
+                    guFinishFrame();
+                    guSavePhotoPng(g_photoIconPath, 4);
+                    g_photoPending = false;
+                    g_photoIsIcon  = false;
+                    continue;
+                }
                 if (g_photoPending) {
                     guFinishFrame();
-                    sceIoMkdir(assetPath("photos"), 0777);
-                    char rel[64], full[320];
+
+                    sceIoMkdir("ms0:/PSP", 0777);
+                    sceIoMkdir("ms0:/PSP/PHOTO", 0777);
+                    sceIoMkdir("ms0:/PSP/PHOTO/Minecraft", 0777);
+                    char full[320];
                     for (int i = 0; i < 10000; i++) {
-                        std::snprintf(rel, sizeof(rel), "photos/img_%04d.png", i);
-                        std::strncpy(full, assetPath(rel), sizeof(full) - 1);
-                        full[sizeof(full) - 1] = '\0';
+                        std::snprintf(full, sizeof(full),
+                                      "ms0:/PSP/PHOTO/Minecraft/img_%04d.png", i);
                         FILE* probe = fopen(full, "rb");
                         if (!probe) break;
                         fclose(probe);
                     }
-                    guSavePhotoPng(full);
+                    if (!guSavePhotoPng(full, 1)) {
+                        sceIoMkdir(assetPath("photos"), 0777);
+                        char rel[64];
+                        for (int i = 0; i < 10000; i++) {
+                            std::snprintf(rel, sizeof(rel), "photos/img_%04d.png", i);
+                            std::strncpy(full, assetPath(rel), sizeof(full) - 1);
+                            full[sizeof(full) - 1] = '\0';
+                            FILE* probe = fopen(full, "rb");
+                            if (!probe) break;
+                            fclose(probe);
+                        }
+                        guSavePhotoPng(full, 1);
+                    }
                     g_photoPending = false;
                     g_photoCamera = 0;
 
@@ -426,15 +449,7 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        switch (s.screen) {
-            case SCREEN_TITLE:   titleRender(s);   break;
-            case SCREEN_WORLDS:  worldsRender(s);  break;
-            case SCREEN_DELETE:  deleteRender(s);  break;
-            case SCREEN_CREATE:  createRender(s);  break;
-            case SCREEN_JOIN:    joinRender(s);    break;
-            case SCREEN_JOIN_IP: joinIpRender(s);  break;
-            case SCREEN_OPTIONS: optionsRender(s); break;
-        }
+        if (Screen* cur = menuScreen(s.screen)) cur->render(s);
         menuHintsDraw(s);
 
         guEndFrame();
@@ -445,6 +460,7 @@ int main(int argc, char* argv[]) {
     if (s.haveLogo)  textureFree(&s.logo);
     if (s.haveBg) textureFree(&s.dirtBg);
     if (s.haveTouch) textureFree(&s.touchGui);
+    panoramaSetLoaded(false);
 
     guTerm();
     sceKernelExitGame();

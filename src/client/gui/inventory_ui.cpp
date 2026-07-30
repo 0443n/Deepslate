@@ -54,7 +54,6 @@ static void drawItemFrame(float x, float y, float w, float h) {
 
 void inventoryDraw(MenuState& s) {
 
-    #define G(v) ((v) * HUD_S)
     const int   cols   = INV_COLS;
     const int   Bx = 10, By = 6, ItemSize = 32, BlockBorder = 4, clipBottom = 0;
     const int   rows   = 1 + (g_level.player->inventory->gridSize() - 1) / cols;
@@ -112,10 +111,8 @@ void inventoryDraw(MenuState& s) {
             if (gv < 0) gv = 0;
             iconTint = 0xFF000000u | (gv << 16) | (gv << 8) | gv;
         }
-        drawBlockIcon(it->id, it->data, G(cx + BlockBorder + 4), G(cy + BlockBorder + 4), G(16), iconTint);
-        if (!g_level.player->inventory->isCreative() && it->count > 1)
-            drawStackCount(s.font, it->count, G(cx + BlockBorder + 4), G(cy + BlockBorder + 4), G(16));
-        drawDurabilityBar(it->id, it->data, G(cx + BlockBorder + 4), G(cy + BlockBorder + 4), G(16));
+        drawGuiItem(s.font, *it, G(cx + BlockBorder + 4), G(cy + BlockBorder + 4), G(16),
+                    iconTint, !g_level.player->inventory->isCreative());
     }
     sceGuScissor(0, 0, 480, 272);
 
@@ -150,17 +147,9 @@ void inventoryDraw(MenuState& s) {
             }
         }
 
-        if (scrollAlpha > 0.0f) {
-            const float trackX = G(paneX + paneW) + G(2.0f), trackW = G(3.0f);
-            const float trackY = G(paneY), trackH = G(paneH - clipBottom);
-            float thumbH = trackH * (float)visRows / (float)rows;
-            if (thumbH < G(10.0f)) thumbH = G(10.0f);
-            float scrollFraction = (maxScroll > 0) ? scrollY / (float)(maxScroll * ItemSize) : 0.0f;
-            float thumbY = trackY + (trackH - thumbH) * scrollFraction;
-            unsigned int alphaInt = (unsigned int)(scrollAlpha * 255.0f);
-            unsigned int color = (alphaInt << 24) | 0x00AAAAAAu;
-            guiFill(trackX, thumbY, trackW, thumbH, color);
-        }
+        guiScrollbar(G(paneX + paneW) + G(2.0f), G(paneY), G(3.0f), G(paneH - clipBottom),
+                     G(rows * ItemSize), G(scrollY),
+                     (unsigned int)(scrollAlpha * 255.0f));
     }
 
     drawItemFrame(0, G(paneY - By), 480, G(paneH + 2 * By));
@@ -174,5 +163,4 @@ void inventoryDraw(MenuState& s) {
                            title, 0xFFFFFFFFu, ts);
     }
 
-    #undef G
 }

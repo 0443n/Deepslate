@@ -40,6 +40,7 @@ bool BonemealItem::useOn(ItemInstance* item, Player* player, World* world, int x
         case BLOCK_SAPLING:
             saplingGrow(world, x, y, z);
             worldUpdateLights(world);
+
             worldRebuildAroundNow(world, x, y, z);
             if (player) player->inventory->consumeSelected();
             return true;

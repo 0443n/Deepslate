@@ -23,10 +23,6 @@ static float arrowPitch() {
     return 1.2f / ((rand() / (float)RAND_MAX) * 0.2f + 0.9f);
 }
 
-static inline bool solidAt(World* w, float x, float y, float z) {
-    return isSolidPhys(worldBlock(w, Mth::floor(x), Mth::floor(y), Mth::floor(z)));
-}
-
 static unsigned char lodgedData(World* w, int x, int y, int z) {
     unsigned char d = worldData(w, x, y, z);
     if (isDoor(worldBlock(w, x, y, z)) && (d & 8)) return worldData(w, x, y - 1, z);
@@ -122,16 +118,22 @@ void Arrow::tick() {
     flightTime++;
 
     float nx = x + xd, ny = y + yd, nz = z + zd;
-    float dist = Mth::sqrt(xd * xd + yd * yd + zd * zd);
+    BlockHit tileHit = worldClip(level->w, x, y, z, nx, ny, nz, false, true);
+    bool hit = tileHit.hit;
+    if (hit) {
+        nx = tileHit.x + tileHit.clickX;
+        ny = tileHit.y + tileHit.clickY;
+        nz = tileHit.z + tileHit.clickZ;
+    }
+    float sxd = nx - x, syd = ny - y, szd = nz - z;
+    float dist = Mth::sqrt(sxd * sxd + syd * syd + szd * szd);
     int steps = (int)(dist / 0.1f) + 1;
-    float px = x, py = y, pz = z;
-    bool hit = false;
 
     static EntityList candidates;
     level->getEntities(this, bb.expand(xd, yd, zd).grow(0.3f, 0.3f, 0.3f), candidates);
     for (int i = 1; i <= steps; i++) {
         float t = (float)i / steps;
-        float sx = x + xd * t, sy = y + yd * t, sz = z + zd * t;
+        float sx = x + sxd * t, sy = y + syd * t, sz = z + szd * t;
 
         for (size_t ei = 0; ei < candidates.size(); ei++) {
             Entity* e = candidates[ei];
@@ -172,18 +174,17 @@ void Arrow::tick() {
                 return;
             }
         }
-        if (solidAt(level->w, sx, sy, sz)) {
-            hit = true;
-            break;
-        }
-        px = sx; py = sy; pz = sz;
     }
 
     if (hit) {
 
-        xTile = Mth::floor(px + xd / dist * 0.1f);
-        yTile = Mth::floor(py + yd / dist * 0.1f);
-        zTile = Mth::floor(pz + zd / dist * 0.1f);
+        xTile = tileHit.x; yTile = tileHit.y; zTile = tileHit.z;
+        float px = nx, py = ny, pz = nz;
+        if (dist > 1e-6f) {
+            px -= sxd / dist * 0.05f;
+            py -= syd / dist * 0.05f;
+            pz -= szd / dist * 0.05f;
+        }
         lastTile = worldBlock(level->w, xTile, yTile, zTile);
         lastData = lodgedData(level->w, xTile, yTile, zTile);
         x = px; y = py; z = pz;

@@ -30,6 +30,31 @@ void spriteDraw(const Texture* tex,
                    2, 0, v);
 }
 
+void spriteDrawRot(const Texture* tex,
+                   float ox, float oy, float cs, float sn,
+                   float lx, float ly, float lw, float lh,
+                   float sx, float sy, float sw, float sh,
+                   unsigned int color) {
+    (void)tex;
+
+    const float cx[4] = { lx,      lx + lw, lx + lw, lx      };
+    const float cy[4] = { ly,      ly,      ly + lh, ly + lh };
+    const float cu[4] = { sx,      sx + sw, sx + sw, sx      };
+    const float cv[4] = { sy,      sy,      sy + sh, sy + sh };
+
+    TexVertex* v = (TexVertex*)sceGuGetMemory(4 * sizeof(TexVertex));
+    for (int i = 0; i < 4; i++) {
+        v[i].u = cu[i]; v[i].v = cv[i];
+        v[i].color = color;
+        v[i].x = ox + cx[i] * cs - cy[i] * sn;
+        v[i].y = oy + cx[i] * sn + cy[i] * cs;
+        v[i].z = 0.0f;
+    }
+    sceGuDrawArray(GU_TRIANGLE_FAN,
+                   GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D,
+                   4, 0, v);
+}
+
 void spriteDrawFull(const Texture* tex, float dx, float dy, unsigned int color) {
     spriteDraw(tex, dx, dy, (float)tex->realW, (float)tex->realH,
                0.0f, 0.0f, (float)tex->realW, (float)tex->realH, color);

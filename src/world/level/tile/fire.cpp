@@ -21,6 +21,8 @@ void fireInitFlammables() {
     for (int i = 0; i < 256; i++) flameOdds[i] = burnOdds[i] = 0;
 
     setFlammable(BLOCK_PLANKS,   5,  20);
+    setFlammable(BLOCK_WOOD_SLAB,        5, 20);
+    setFlammable(BLOCK_WOOD_SLAB_DOUBLE, 5, 20);
     setFlammable(BLOCK_LOG,      5,   5);
     setFlammable(BLOCK_LEAVES,  30,  60);
     setFlammable(BLOCK_BOOKSHELF,30,  20);

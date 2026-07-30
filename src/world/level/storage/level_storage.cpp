@@ -29,6 +29,8 @@
 #include <cstring>
 #include <string>
 
+static std::vector<int> s_chestPositions;
+
 static const int CH_BLOCKS = 16 * 16 * 128;
 static const int CH_NIBBLE = CH_BLOCKS / 2;
 static const int CH_COLS   = 256;
@@ -135,6 +137,9 @@ static bool loadChunks(World* w, const char* absDir, bool* outGotLight) {
 
                         if (payload[dstBase + y] == BLOCK_ORE_REDSTONE_LIT)
                             worldScheduleTick(w, gx, y, gz, BLOCK_ORE_REDSTONE_LIT, 30);
+
+                        if (payload[dstBase + y] == BLOCK_CHEST)
+                            s_chestPositions.push_back(gx | (y << 8) | (gz << 16));
                     }
                 }
             }
@@ -177,6 +182,10 @@ static CompoundTag* buildPlayerTag(World* w) {
     p->putInt("BedPositionX", g_level.player->bedX);
     p->putInt("BedPositionY", g_level.player->bedY);
     p->putInt("BedPositionZ", g_level.player->bedZ);
+
+    p->putInt("SpawnX", g_level.player->respawnX);
+    p->putInt("SpawnY", g_level.player->respawnY);
+    p->putInt("SpawnZ", g_level.player->respawnZ);
 
     ListTag* inv = new ListTag();
     if (g_level.player->inventory->isCreative()) {
@@ -235,16 +244,9 @@ static bool saveLevelDat(World* w, const char* absDir, long seed, int gameType, 
     root.putLong("RandomSeed", (long long)seed);
     root.putInt("GameType", gameType);
 
-    if (g_bedSpawnY >= 0) {
-        root.putInt("SpawnX", g_bedSpawnX);
-        root.putInt("SpawnY", g_bedSpawnY);
-        root.putInt("SpawnZ", g_bedSpawnZ);
-    } else {
-        int cx = WORLD_W / 2, cz = WORLD_D / 2;
-        root.putInt("SpawnX", cx);
-        root.putInt("SpawnY", (int)w->heightmap[cx * WORLD_D + cz]);
-        root.putInt("SpawnZ", cz);
-    }
+    root.putInt("SpawnX", g_level.spawnX);
+    root.putInt("SpawnY", g_level.spawnY);
+    root.putInt("SpawnZ", g_level.spawnZ);
     root.putLong("Time", (long long)w->dayTime);
     root.putLong("SizeOnDisk", 0);
     root.putLong("LastPlayed", 0);
@@ -310,9 +312,9 @@ static void loadLevelDat(World* w, const char* absDir, long* outSeed, int* outGa
                 w->dayTime = (long)tag->getLong("Time");
 
                 if (tag->contains("SpawnY")) {
-                    g_bedSpawnX = tag->getInt("SpawnX");
-                    g_bedSpawnY = tag->getInt("SpawnY");
-                    g_bedSpawnZ = tag->getInt("SpawnZ");
+                    g_level.setSpawnPos(tag->getInt("SpawnX"),
+                                        tag->getInt("SpawnY"),
+                                        tag->getInt("SpawnZ"));
                 }
                 CompoundTag* p = tag->getCompound("Player");
                 if (p) {
@@ -336,6 +338,11 @@ static void loadLevelDat(World* w, const char* absDir, long* outSeed, int* outGa
                         g_level.player->bedY = p->getInt("BedPositionY");
                         g_level.player->bedZ = p->getInt("BedPositionZ");
                     }
+
+                    if (p->contains("SpawnY"))
+                        g_level.player->setRespawnPosition(p->getInt("SpawnX"),
+                                                           p->getInt("SpawnY"),
+                                                           p->getInt("SpawnZ"));
 
                     g_loadedSurvival = (outGameType && *outGameType != 1);
                     ListTag* inv = p->getList("Inventory");
@@ -422,7 +429,7 @@ static void saveEntities(World* w, const char* absDir) {
     ListTag* tes = new ListTag();
     for (size_t i = 0; i < g_level.tileEntities.size(); i++) {
         TileEntity* te = g_level.tileEntities[i];
-        if (te->removed) continue;
+        if (te->removed || !te->shouldSave()) continue;
         CompoundTag* t = new CompoundTag();
         if (te->save(t)) {
             t->putString("id", tileEntityName(te->type));
@@ -461,6 +468,44 @@ static TileEntity* createTileEntityByName(const std::string& id) {
     if (id == "Furnace") return new FurnaceTileEntity();
     if (id == "NetherReactor") return new ReactorTileEntity();
     return NULL;
+}
+
+static void repairMissingChestTileEntities() {
+    int made = 0;
+    for (size_t i = 0; i < s_chestPositions.size(); i++) {
+        int p = s_chestPositions[i];
+        int x = p & 0xFF, y = (p >> 8) & 0x7F, z = (p >> 16) & 0xFF;
+        if (g_level.getTileEntity(x, y, z)) continue;
+        g_level.setTileEntity(x, y, z, new ChestTileEntity());
+        made++;
+    }
+    if (made) printf("[save] rebuilt %d missing chest tile entities\n", made);
+    s_chestPositions.clear();
+    std::vector<int>().swap(s_chestPositions);
+}
+
+static void migrateChestFurnaceFacing(World* w) {
+    std::vector<TileEntity*>& tes = g_level.tileEntities;
+    bool old = false;
+    for (size_t i = 0; i < tes.size() && !old; i++) {
+        TileEntity* te = tes[i];
+        if (!te || (te->type != TE_CHEST && te->type != TE_FURNACE)) continue;
+        int d = worldData(w, te->x, te->y, te->z);
+        if (d == F_LEFT || d == F_RIGHT) old = true;
+    }
+    if (!old) return;
+
+    int fixed = 0;
+    for (size_t i = 0; i < tes.size(); i++) {
+        TileEntity* te = tes[i];
+        if (!te || (te->type != TE_CHEST && te->type != TE_FURNACE)) continue;
+        unsigned char id = worldBlock(w, te->x, te->y, te->z);
+        if (id != BLOCK_CHEST && id != BLOCK_FURNACE && id != BLOCK_FURNACE_LIT) continue;
+        int f = worldData(w, te->x, te->y, te->z) & 7;
+        worldSetDataNoUpdate(w, te->x, te->y, te->z, (unsigned char)mcpeFromFace(f));
+        fixed++;
+    }
+    printf("[save] converted %d chest/furnace facings to MCPE face numbering\n", fixed);
 }
 
 static void loadEntities(World* w, const char* absDir) {
@@ -587,6 +632,9 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
 
     worldUpdateSkyDarken(w);
     loadEntities(w, absDir);
+
+    repairMissingChestTileEntities();
+    migrateChestFurnaceFacing(w);
     return true;
 }
 
@@ -627,19 +675,26 @@ static char s_activeDir[320] = "";
 static char s_activeName[64] = "World";
 static long s_activeSeed = 0;
 static int  s_activeGameType = 1;
+static int  s_activeWorldType = WORLD_TYPE_OLD;
+static int  s_activeGenMask = GEN_FEATURES_ALL_ON;
 
-void setActiveWorld(const char* absDir, long seed, int gameType, const char* levelName) {
+void setActiveWorld(const char* absDir, long seed, int gameType, const char* levelName,
+                    int worldType, int genMask) {
     if (absDir) strncpy(s_activeDir, absDir, sizeof(s_activeDir) - 1);
     s_activeDir[sizeof(s_activeDir) - 1] = '\0';
     if (levelName) strncpy(s_activeName, levelName, sizeof(s_activeName) - 1);
     s_activeName[sizeof(s_activeName) - 1] = '\0';
     s_activeSeed = seed;
     s_activeGameType = gameType;
+    s_activeWorldType = worldType;
+    s_activeGenMask = genMask;
 }
 
 const char* getActiveDir() { return s_activeDir; }
 long getActiveSeed() { return s_activeSeed; }
 int getActiveGameType() { return s_activeGameType; }
+int getActiveWorldType() { return s_activeWorldType; }
+int getActiveGenMask() { return s_activeGenMask; }
 const char* getActiveName() { return s_activeName; }
 
 }

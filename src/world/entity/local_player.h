@@ -13,6 +13,8 @@ public:
     bool prevSneakBtn = false;
 
     virtual void die(Entity* source);
+
+    virtual void doWaterSplashEffect();
 };
 
 #endif

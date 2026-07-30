@@ -105,7 +105,7 @@ bool worldAllocArrays(World* w) {
     return true;
 }
 
-bool worldInitTerrain(World* w, long seed) {
+bool worldInitTerrain(World* w, long seed, int worldType) {
     g_terrainProgress = 0;
     g_terrainThreadDone = false;
     if (!worldAllocArrays(w)) return false;
@@ -114,14 +114,15 @@ bool worldInitTerrain(World* w, long seed) {
 #if WORLDGEN_PROFILE
     clock_t t0 = clock();
 #endif
-    worldGenerateMCPE(w, seed);
-    worldSettleLiquids(w);
+
+    levelSourceFor(worldType).buildTerrain(w, seed);
 
     g_terrainProgress = 60;
     worldInitLight(w);
     g_terrainProgress = 90;
 
     w->lightReady = true;
+
     worldPlaceMushrooms(w);
     worldPlaceFlowers(w);
 
@@ -166,6 +167,26 @@ static unsigned char columnTop(World* w, int x, int z, int* outY) {
 static bool isValidSpawn(World* w, int x, int z) {
     int ty; unsigned char top = columnTop(w, x, z, &ty);
     return isSolidPhys(top) && top != BLOCK_LEAVES;
+}
+
+void worldValidateSpawn(World* w, int* x, int* y, int* z) {
+    if (*y <= 0) *y = 64;
+    Random random(g_worldSeed);
+    int xs = *x, zs = *z;
+    int guard = 0;
+    while (!isValidSpawn(w, xs, zs) && guard++ < 10000) {
+        xs += random.nextInt(8) - random.nextInt(8);
+        zs += random.nextInt(8) - random.nextInt(8);
+        if (xs < 4) xs += 8;
+        if (xs >= WORLD_W - 4) xs -= 8;
+        if (zs < 4) zs += 8;
+        if (zs >= WORLD_D - 4) zs -= 8;
+    }
+    if (xs != *x || zs != *z) {
+        int ty; columnTop(w, xs, zs, &ty);
+        *y = ty;
+    }
+    *x = xs; *z = zs;
 }
 
 void worldFindSpawn(World* w, int* outX, int* outZ, int* outFeetY) {

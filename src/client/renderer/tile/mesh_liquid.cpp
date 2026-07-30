@@ -83,18 +83,13 @@ static float getSlopeAngle(const World* w, int x, int y, int z, unsigned char li
     return atan2f(flowZ, flowX) - 3.14159265f * 0.5f;
 }
 
-static inline int pushLiquidQuad(ChunkVertex* out, int n, const ChunkVertex v[4], bool two) {
+static inline int pushLiquidQuad(ChunkVertex* out, int n, const ChunkVertex v[4]) {
     out[n++] = v[0]; out[n++] = v[1]; out[n++] = v[2];
     out[n++] = v[2]; out[n++] = v[3]; out[n++] = v[0];
-    if (two) {
-        out[n++] = v[0]; out[n++] = v[2]; out[n++] = v[1];
-        out[n++] = v[2]; out[n++] = v[0]; out[n++] = v[3];
-    }
     return n;
 }
 
 int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVertex* out, int n) {
-    bool twoSided = isLavaId(id);
     float h00 = getLiquidHeight(w, gx, y, gz, id);
     float h01 = getLiquidHeight(w, gx, y, gz + 1, id);
     float h11 = getLiquidHeight(w, gx + 1, y, gz + 1, id);
@@ -118,7 +113,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
         if (f != F_TOP && isSolidRender(nb)) continue;
 
         if (!out) {
-            n += twoSided ? 12 : 6;
+            n += 6;
             continue;
         }
 
@@ -159,7 +154,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
                 {uc + cc - s, vc - cc - s, color, x + 1, yf + h10, z    },
                 {uc - cc - s, vc - cc + s, color, x,     yf + h00, z    }
             };
-            n = pushLiquidQuad(out, n, vtx, twoSided);
+            n = pushLiquidQuad(out, n, vtx);
         } else if (f == F_DOWN) {
             ChunkVertex vtx[4] = {
                 {u0, v0, color, x,     yf, z    },
@@ -167,7 +162,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
                 {u1, v1, color, x + 1, yf, z + 1},
                 {u0, v1, color, x,     yf, z + 1}
             };
-            n = pushLiquidQuad(out, n, vtx, twoSided);
+            n = pushLiquidQuad(out, n, vtx);
         } else if (f == F_LEFT) {
             float vv1 = v0 + (1.0f - h01) * TILE_UV;
             float vv0 = v0 + (1.0f - h00) * TILE_UV;
@@ -177,7 +172,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
                 {u0, vv0, color, x, yf + h00, z    },
                 {u0, v1,  color, x, yf,       z    }
             };
-            n = pushLiquidQuad(out, n, vtx, twoSided);
+            n = pushLiquidQuad(out, n, vtx);
         } else if (f == F_RIGHT) {
             float vv3 = v0 + (1.0f - h10) * TILE_UV;
             float vv2 = v0 + (1.0f - h11) * TILE_UV;
@@ -187,7 +182,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
                 {u1, vv2, color, x + 1, yf + h11, z + 1},
                 {u1, v1,  color, x + 1, yf,       z + 1}
             };
-            n = pushLiquidQuad(out, n, vtx, twoSided);
+            n = pushLiquidQuad(out, n, vtx);
         } else if (f == F_BACK) {
             float vv0 = v0 + (1.0f - h00) * TILE_UV;
             float vv3 = v0 + (1.0f - h10) * TILE_UV;
@@ -197,7 +192,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
                 {u1, v1,  color, x + 1, yf,       z},
                 {u0, v1,  color, x,     yf,       z}
             };
-            n = pushLiquidQuad(out, n, vtx, twoSided);
+            n = pushLiquidQuad(out, n, vtx);
         } else if (f == F_FORWARD) {
             float vv1 = v0 + (1.0f - h01) * TILE_UV;
             float vv2 = v0 + (1.0f - h11) * TILE_UV;
@@ -207,7 +202,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
                 {u1, vv2, color, x + 1, yf + h11, z + 1},
                 {u0, vv1, color, x,     yf + h01, z + 1}
             };
-            n = pushLiquidQuad(out, n, vtx, twoSided);
+            n = pushLiquidQuad(out, n, vtx);
         }
     }
     return n;

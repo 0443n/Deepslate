@@ -10,14 +10,7 @@ void drawGeneratingScreen(MenuState& s, int percent, const char* status) {
     sceGuDisable(GU_DEPTH_TEST);
 
     if (s.haveBg) {
-        textureBind(&s.dirtBg);
-        sceGuTexWrap(GU_REPEAT, GU_REPEAT);
-        float tileScale = (float)s.dirtBg.realW / (32.0f * UI_SCALE);
-        float bgW = (VW * UI_SCALE) * tileScale;
-        float bgH = (VH * UI_SCALE) * tileScale;
-        spriteDraw(&s.dirtBg, 0.0f, 0.0f, VW * UI_SCALE, VH * UI_SCALE,
-                   0.0f, 0.0f, bgW, bgH, DIRT_TINT);
-        sceGuTexWrap(GU_CLAMP, GU_CLAMP);
+        drawDirtBackground(s);
     }
 
     const float cx = VW / 2.0f, cy = VH / 2.0f;

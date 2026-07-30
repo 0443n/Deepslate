@@ -18,6 +18,10 @@ void fontDrawText(const Font* f, float x, float y, const char* text, unsigned in
 
 void fontDrawTextShadow(const Font* f, float x, float y, const char* text, unsigned int color, float scale = 1.0f);
 
+void fontDrawTransformed(const Font* f, float x, float y, const char* text,
+                         unsigned int color, float rotDeg, float scale,
+                         bool centered);
+
 int fontTextWidth(const Font* f, const char* text);
 
 #endif

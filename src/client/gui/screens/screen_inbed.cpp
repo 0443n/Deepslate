@@ -3,14 +3,20 @@
 #include <pspgu.h>
 
 #include "client/player/player.h"
+#include "client/gui/screens/screen.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include "gpu/sprite.h"
 #include "client/gui/hud.h"
 #include "platform/audio/sound.h"
 #include "gpu/gui_atlas.h"
+struct InBedScreen : Screen {
+    void renderBackground(MenuState& s) {}
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
 
-void inBedHandleInput(MenuState& s, unsigned int pressed) {
+void InBedScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
     (void)s;
 
     if (pressed & (PSP_CTRL_CROSS | PSP_CTRL_CIRCLE | PSP_CTRL_LTRIGGER)) {
@@ -32,9 +38,9 @@ void inBedRenderFade(MenuState& s) {
     guiFill(0.0f, 0.0f, 480.0f, 272.0f, (a << 24));
 }
 
-void inBedRender(MenuState& s) {
-    Font& font = s.font; bool haveFont = s.haveFont;
+void InBedScreen::renderContent(MenuState& s) {
     bool haveTouch = s.haveGui;
+    bool haveFont  = s.haveFont;
     LocalPlayer* p = g_level.player;
     if (!p) return;
 
@@ -46,13 +52,12 @@ void inBedRender(MenuState& s) {
 
         const float bx = (VW - btnW) / 2.0f, by = VH - btnH - 26.0f;
 
-        textureBind(&s.guiAtlas);
-        spriteDraw(&s.guiAtlas, bx * UI_SCALE, by * UI_SCALE, btnW * UI_SCALE, btnH * UI_SCALE,
-                   GA_BTN_PAIR_X + 60.0f, GA_BTN_PAIR_Y, 60.0f, 20.0f, WHITE);
-        float lw = fontTextWidth(&font, label) * UI_SCALE;
-        fontDrawTextShadow(&font, bx * UI_SCALE + (btnW * UI_SCALE - lw) / 2.0f,
-                           (by + 6.0f) * UI_SCALE, label, 0xFFA0FFFFu, UI_SCALE);
+        guiTButton(s, bx, by, btnW, btnH, true);
+        guiTButtonLabel(s, bx, by, btnW, btnH, label, true, true);
     }
 
     sceGuEnable(GU_DEPTH_TEST);
 }
+
+static InBedScreen s_inBedScreen;
+Screen& inBedScreen() { return s_inBedScreen; }

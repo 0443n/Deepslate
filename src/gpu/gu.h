@@ -30,7 +30,7 @@ void guEndFrame(void);
 void guFinishFrame(void);
 void guPresent(void);
 
-bool guSavePhotoPng(const char* path);
+bool guSavePhotoPng(const char* path, int shrink);
 
 void guPerspective(float fovDeg, float nearZ, float farZ);
 

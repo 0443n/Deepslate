@@ -47,8 +47,8 @@ public:
 
     virtual float getDestroySpeed(int blockId) const {
         if (blockId >= 0 && blockId < 256) {
-            TileMaterial m = tileMaterial((unsigned char)blockId);
-            if (m == MAT_STONE || m == MAT_METAL) return speed;
+            const Material& m = materialOf((unsigned char)blockId);
+            if (&m == &Material::stone || &m == &Material::metal) return speed;
         }
         return DiggerItem::getDestroySpeed(blockId);
     }
@@ -81,6 +81,11 @@ public:
         if (b == BLOCK_IRON_BLOCK || b == BLOCK_ORE_IRON)       return level >= 1;
         if (b == BLOCK_LAPIS_BLOCK || b == BLOCK_ORE_LAPIS)     return level >= 1;
         if (b == BLOCK_ORE_REDSTONE || b == BLOCK_ORE_REDSTONE_LIT) return level >= 2;
+
+        if (b >= 0 && b < 256) {
+            const Material& m = materialOf((unsigned char)b);
+            if (&m == &Material::stone || &m == &Material::metal) return true;
+        }
         return mineable[b >= 0 && b < 256 ? b : 0];
     }
 };
@@ -90,7 +95,7 @@ public:
 
     virtual float getDestroySpeed(int blockId) const {
         if (blockId >= 0 && blockId < 256 &&
-            tileMaterial((unsigned char)blockId) == MAT_WOOD) return speed;
+            &materialOf((unsigned char)blockId) == &Material::wood) return speed;
         return DiggerItem::getDestroySpeed(blockId);
     }
 public:
@@ -99,6 +104,8 @@ public:
         addTile(BLOCK_LOG);
         addTile(BLOCK_CHEST);
         addTile(BLOCK_DOUBLE_SLAB); addTile(BLOCK_SLAB);
+
+        addTile(BLOCK_WOOD_SLAB_DOUBLE); addTile(BLOCK_WOOD_SLAB);
     }
 };
 

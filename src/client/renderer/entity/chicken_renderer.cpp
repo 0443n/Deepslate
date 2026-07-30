@@ -46,14 +46,9 @@ void ChickenRenderer::render(Entity* e, float x, float y, float z, float rot, fl
     Mob*     mob = (Mob*)e;
     Chicken* ch  = (Chicken*)e;
 
-    float dBody = mob->yBodyRot - mob->yBodyRotO;
-    while (dBody > 180.0f) dBody -= 360.0f; while (dBody < -180.0f) dBody += 360.0f;
-    float ibody = mob->yBodyRotO + dBody * a;
-    float dHead = rot - ibody; while (dHead > 180.0f) dHead -= 360.0f; while (dHead < -180.0f) dHead += 360.0f;
-    float ipitch = mob->xRotO + (mob->xRot - mob->xRotO) * a;
-    float ws = mob->walkAnimSpeedO + (mob->walkAnimSpeed - mob->walkAnimSpeedO) * a; if (ws > 1.0f) ws = 1.0f;
-    float wp = mob->walkAnimPos - mob->walkAnimSpeed * (1.0f - a);
-    if (mob->isBaby()) wp *= 3.0f;
+    MobAnim m = mobAnimSetup(mob, rot, a);
+    float ibody = m.bodyRot, dHead = m.headYaw, ipitch = m.pitch;
+    float ws = m.speed, wp = m.pos;
 
     float hx = -(ipitch * DEG2RAD);
     float hy  = -(dHead  * DEG2RAD);
@@ -73,7 +68,5 @@ void ChickenRenderer::render(Entity* e, float x, float y, float z, float rot, fl
     parts[P_WING0].zRot =  bob; parts[P_WING0].xRot = 0; parts[P_WING0].yRot = 0;
     parts[P_WING1].zRot = -bob; parts[P_WING1].xRot = 0; parts[P_WING1].yRot = 0;
 
-    float yFixed = y + 2.0f / 16.0f;
-
-    mobRenderParts(mob, parts, P_COUNT, &g_tex, x, yFixed, z, ibody, a, 0xFFFFFFFFu, 5.0f, 2.0f);
+    mobRenderParts(mob, parts, P_COUNT, &g_tex, x, y, z, ibody, a, 0xFFFFFFFFu, 5.0f, 2.0f);
 }

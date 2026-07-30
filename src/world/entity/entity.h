@@ -51,6 +51,8 @@ public:
     virtual void tick();
     virtual void baseTick();
 
+    virtual void doWaterSplashEffect();
+
     virtual bool intersects(float x0, float y0, float z0, float x1, float y1, float z1);
     virtual bool isFree(float xa, float ya, float za, float grow);
     virtual bool isFree(float xa, float ya, float za);
@@ -114,11 +116,14 @@ public:
     virtual int  getAuxData();
     virtual bool isBaby() { return false; }
 
+    virtual void resetPos(bool clearMore);
+
 protected:
     virtual void setRot(float yRot, float xRot);
     virtual void setSize(float w, float h);
-    virtual void resetPos(bool clearMore);
     virtual void outOfWorld();
+
+    void checkFireAndWaterTiles();
 
     virtual void checkFallDamage(float ya, bool onGround);
     virtual void causeFallDamage(float fallDamage2);

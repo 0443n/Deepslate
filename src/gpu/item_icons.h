@@ -6,6 +6,11 @@
 #define II_BOW_PULL_0         115
 #define II_BOW_PULL_1         116
 #define II_BOW_PULL_2         117
+#define II_BUCKET_EMPTY       121
+#define II_BUCKET_LAVA        123
+#define II_BUCKET_MILK        124
+#define II_BUCKET_WATER       122
+#define II_CAKE               120
 #define II_CAMERA             114
 #define II_CHESTPLATE_CHAIN   110
 #define II_EGG                113
@@ -27,7 +32,7 @@ static const short kItemIcon[256] = {
       -1,   -1,   -1,   -1,   98,   -1,   71,   -1,
       31,   30,   10,   96,   97,   -1,   -1,   -1,
      113,   -1,   -1,   -1,   99,   -1,   -1,   -1,
-      95,  101,   -1,    4,   -1,   -1,   -1,   56,
+      95,  101,  120,    4,   -1,   -1,   -1,   56,
       68,   -1,   15,   32,   33,   34,   35,   -1,
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,

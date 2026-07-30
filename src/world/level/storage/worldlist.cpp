@@ -1,4 +1,6 @@
 #include "world/level/storage/worldlist.h"
+#include "world/level/levelgen/level_source.h"
+#include "world/level/levelgen/gen_features.h"
 #include "world/level/storage/level_storage.h"
 
 #include "platform/path.h"
@@ -51,6 +53,10 @@ void worldListScan(WorldList* out) {
 
             out->gameModes[out->count] = 0;
             out->seeds[out->count] = 0;
+
+            out->worldTypes[out->count] = WORLD_TYPE_OLD;
+
+            out->genMasks[out->count] = GEN_FEATURES_ALL_ON;
             strncpy(out->displayNames[out->count], entry.d_name, sizeof(out->displayNames[0]) - 1);
             out->displayNames[out->count][sizeof(out->displayNames[0]) - 1] = '\0';
 
@@ -87,7 +93,18 @@ void worldListScan(WorldList* out) {
                     if (nl && *(nl + 1) != '\0') {
                         char* name = nl + 1;
                         char* end = strchr(name, '\n');
-                        if (end && *(end + 1) != '\0') out->seeds[out->count] = strtol(end + 1, NULL, 10);
+                        if (end && *(end + 1) != '\0') {
+                            out->seeds[out->count] = strtol(end + 1, NULL, 10);
+
+                            char* end2 = strchr(end + 1, '\n');
+                            if (end2 && *(end2 + 1) != '\0') {
+                                out->worldTypes[out->count] = atoi(end2 + 1);
+
+                                char* end3 = strchr(end2 + 1, '\n');
+                                if (end3 && *(end3 + 1) != '\0')
+                                    out->genMasks[out->count] = atoi(end3 + 1);
+                            }
+                        }
                         if (end) *end = '\0';
                         if (name[0] != '\0') {
                             strncpy(out->displayNames[out->count], name, sizeof(out->displayNames[0]) - 1);
@@ -129,6 +146,8 @@ void worldListScan(WorldList* out) {
             memcpy(tmp, out->dates[j], 64);        memcpy(out->dates[j], out->dates[j - 1], 64);               memcpy(out->dates[j - 1], tmp, 64);
             int g = out->gameModes[j]; out->gameModes[j] = out->gameModes[j - 1]; out->gameModes[j - 1] = g;
             long sd = out->seeds[j];   out->seeds[j] = out->seeds[j - 1];         out->seeds[j - 1] = sd;
+            int wt = out->worldTypes[j]; out->worldTypes[j] = out->worldTypes[j - 1]; out->worldTypes[j - 1] = wt;
+            int gm2 = out->genMasks[j];  out->genMasks[j] = out->genMasks[j - 1];      out->genMasks[j - 1] = gm2;
         }
 }
 
@@ -139,7 +158,8 @@ void worldListTouch(const char* absDir) {
     if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
 }
 
-bool worldListCreate(WorldList* list, const char* inName, char* outName, int gamemode, long seed) {
+bool worldListCreate(WorldList* list, const char* inName, char* outName, int gamemode, long seed,
+                     int worldType, int genMask) {
     if (list->count >= MCPSP_MAX_WORLDS)
         return false;
 
@@ -178,7 +198,9 @@ bool worldListCreate(WorldList* list, const char* inName, char* outName, int gam
     SceUID fd = sceIoOpen(assetPath(infoPath), PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0777);
     if (fd >= 0) {
         char buf[128];
-        snprintf(buf, sizeof(buf), "%d\n%s\n%ld\n", gamemode, displayName, seed);
+
+        snprintf(buf, sizeof(buf), "%d\n%s\n%ld\n%d\n%d\n", gamemode, displayName, seed,
+                 worldType, genMask);
         sceIoWrite(fd, buf, strlen(buf));
         sceIoClose(fd);
     }
@@ -192,6 +214,8 @@ bool worldListCreate(WorldList* list, const char* inName, char* outName, int gam
     snprintf(list->dates[list->count], sizeof(list->dates[0]), "Just now");
     list->gameModes[list->count] = gamemode;
     list->seeds[list->count] = seed;
+    list->worldTypes[list->count] = worldType;
+    list->genMasks[list->count] = genMask;
 
     strncpy(outName, candidate, 64);
     list->count++;
@@ -230,6 +254,10 @@ bool worldListDelete(WorldList* list, int index) {
         strcpy(list->displayNames[i], list->displayNames[i + 1]);
         strcpy(list->dates[i], list->dates[i + 1]);
         list->gameModes[i] = list->gameModes[i + 1];
+
+        list->seeds[i] = list->seeds[i + 1];
+        list->worldTypes[i] = list->worldTypes[i + 1];
+        list->genMasks[i] = list->genMasks[i + 1];
     }
     list->count--;
     return true;

@@ -4,10 +4,11 @@
 
 #include "world/level/tile/entity/tile_entity.h"
 #include "world/item/item_instance.h"
+#include "world/Container.h"
 
 class CompoundTag;
 
-class FurnaceTileEntity : public TileEntity {
+class FurnaceTileEntity : public TileEntity, public Container {
     typedef TileEntity super;
 public:
     static const int BURN_INTERVAL = 200;
@@ -17,7 +18,14 @@ public:
 
     virtual void tick();
     virtual bool save(CompoundTag* tag);
+    virtual bool shouldSave();
     virtual void load(CompoundTag* tag);
+
+    virtual ItemInstance* getItem(int slot);
+    virtual void          setItem(int slot, ItemInstance* item);
+    virtual ItemInstance  removeItem(int slot, int count);
+    virtual int getContainerSize() const { return NUM_ITEMS; }
+    virtual int getMaxStackSize() const  { return Container::LARGE_MAX_STACK_SIZE; }
 
     bool isLit() const { return litTime > 0; }
 
@@ -30,6 +38,10 @@ public:
     static int getBurnDuration(const ItemInstance& fuel);
 
     static ItemInstance furnaceResult(short ingredientId);
+
+    static bool isFuel(const ItemInstance& item);
+    static bool isFurnaceItem(const ItemInstance& item);
+    bool isSlotEmpty(int slot) const;
 
     bool canBurn() const;
     void burn();

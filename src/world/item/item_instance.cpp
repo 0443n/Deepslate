@@ -14,7 +14,7 @@ bool ItemInstance::useOn(Player* player, World* world, int x, int y, int z, int 
 
 int ItemInstance::getMaxStackSize() const {
     Item* it = getItem();
-    return it ? it->maxStackSize : 64;
+    return it ? it->getMaxStackSize(this) : 64;
 }
 
 void ItemInstance::hurt(int amount) {

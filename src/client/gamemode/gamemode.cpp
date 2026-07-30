@@ -7,6 +7,7 @@
 #include "world/entity/tripod_camera.h"
 #include "client/player/player_state.h"
 #include "world/level/world.h"
+#include "world/level/tile/material.h"
 #include "world/level/level.h"
 #include "world/entity/entity.h"
 #include "world/entity/arrow.h"
@@ -25,6 +26,7 @@
 #include "world/level/tile/fire.h"
 #include "world/entity/item_entity.h"
 #include "platform/time.h"
+#include "client/gamemode/click_repeat.h"
 
 static Mob* nearbyTripodCamera() {
     if (!g_level.player) return 0;
@@ -53,92 +55,12 @@ static bool canDrawBow() {
     return false;
 }
 
-static bool tileNeedsTool(unsigned char id, unsigned char data) {
-    switch (id) {
-        case BLOCK_STONE: case BLOCK_COBBLESTONE: case BLOCK_MOSSY_COBBLE:
-        case BLOCK_STONE_BRICKS: case BLOCK_BRICKS: case BLOCK_SANDSTONE:
-        case BLOCK_QUARTZ_BLOCK: case BLOCK_OBSIDIAN:
-
-        case BLOCK_NETHERRACK: case BLOCK_NETHER_BRICK:
-        case BLOCK_ORE_COAL: case BLOCK_ORE_IRON: case BLOCK_ORE_GOLD:
-        case BLOCK_ORE_EMERALD: case BLOCK_ORE_LAPIS:
-        case BLOCK_ORE_REDSTONE: case BLOCK_ORE_REDSTONE_LIT:
-        case BLOCK_IRON_BLOCK: case BLOCK_GOLD_BLOCK: case BLOCK_DIAMOND_BLOCK:
-        case BLOCK_LAPIS_BLOCK:
-        case BLOCK_FURNACE: case BLOCK_FURNACE_LIT: case BLOCK_STONECUTTER:
-        case BLOCK_TOPSNOW: case BLOCK_SNOW_BLOCK:
-        case BLOCK_STAIRS_COBBLESTONE: case BLOCK_STAIRS_BRICK:
-        case BLOCK_STAIRS_STONE_BRICK: case BLOCK_STAIRS_SANDSTONE:
-        case BLOCK_STAIRS_NETHER_BRICK:
-            return true;
-        case BLOCK_DOUBLE_SLAB: case BLOCK_SLAB:
-            return (data & DSLAB_MAT_MASK) != DSLAB_WOOD;
-        default:
-            return false;
-    }
+static bool tileNeedsTool(unsigned char id, unsigned char ) {
+    return !materialOf(id).isAlwaysDestroyable();
 }
 
 MiningState g_mining = { false, 0, 0, 0, 0.0f };
-
-static float tileDestroyTime(int id) {
-    switch (id) {
-        case BLOCK_STONE: case BLOCK_STONE_BRICKS: case BLOCK_BOOKSHELF:
-        case BLOCK_STAIRS_STONE_BRICK:
-            return 1.5f;
-        case BLOCK_DIRT: case BLOCK_SAND:
-            return 0.5f;
-        case BLOCK_GRASS: case BLOCK_GRAVEL: case BLOCK_CLAY: case BLOCK_FARMLAND:
-            return 0.6f;
-        case BLOCK_PLANKS: case BLOCK_LOG: case BLOCK_FENCE: case BLOCK_FENCE_GATE:
-        case BLOCK_DOUBLE_SLAB: case BLOCK_SLAB: case BLOCK_COBBLESTONE:
-        case BLOCK_BRICKS: case BLOCK_MOSSY_COBBLE: case BLOCK_NETHER_BRICK:
-        case BLOCK_STAIRS_PLANKS: case BLOCK_STAIRS_COBBLESTONE:
-        case BLOCK_STAIRS_BRICK: case BLOCK_STAIRS_NETHER_BRICK:
-            return 2.0f;
-        case BLOCK_LEAVES:
-            return 0.2f;
-        case BLOCK_GLASS: case BLOCK_GLASS_PANE: case BLOCK_GLOWSTONE:
-            return 0.3f;
-        case BLOCK_ORE_GOLD: case BLOCK_ORE_IRON: case BLOCK_ORE_COAL:
-        case BLOCK_ORE_LAPIS: case BLOCK_ORE_EMERALD:
-        case BLOCK_ORE_REDSTONE: case BLOCK_ORE_REDSTONE_LIT:
-        case BLOCK_LAPIS_BLOCK: case BLOCK_GOLD_BLOCK:
-        case BLOCK_DOOR_WOOD: case BLOCK_TRAPDOOR: case BLOCK_NETHER_REACTOR:
-            return 3.0f;
-        case BLOCK_IRON_BLOCK: case BLOCK_DIAMOND_BLOCK: case BLOCK_DOOR_IRON:
-            return 5.0f;
-        case BLOCK_OBSIDIAN: case BLOCK_GLOWING_OBSIDIAN:
-            return 10.0f;
-        case BLOCK_COBWEB:
-            return 4.0f;
-        case BLOCK_WOOL: case BLOCK_SANDSTONE: case BLOCK_QUARTZ_BLOCK:
-        case BLOCK_STAIRS_SANDSTONE: case BLOCK_STAIRS_QUARTZ:
-            return 0.8f;
-        case BLOCK_ICE:
-            return 0.5f;
-        case BLOCK_TOPSNOW:
-            return 0.1f;
-        case BLOCK_SNOW_BLOCK: case BLOCK_BED:
-            return 0.2f;
-        case BLOCK_CACTUS: case BLOCK_LADDER: case BLOCK_NETHERRACK:
-            return 0.4f;
-        case BLOCK_CHEST: case BLOCK_CRAFTING_TABLE: case BLOCK_STONECUTTER:
-            return 2.5f;
-        case BLOCK_FURNACE: case BLOCK_FURNACE_LIT:
-            return 3.5f;
-        case BLOCK_SIGN: case BLOCK_WALL_SIGN: case BLOCK_MELON:
-            return 1.0f;
-        case BLOCK_BEDROCK: case BLOCK_INVISIBLE_BEDROCK:
-            return -1.0f;
-
-        case BLOCK_SAPLING: case BLOCK_TALLGRASS: case BLOCK_FLOWER: case BLOCK_ROSE:
-        case BLOCK_MUSHROOM_BROWN: case BLOCK_MUSHROOM_RED: case BLOCK_TNT:
-        case BLOCK_TORCH: case BLOCK_WHEAT: case BLOCK_REEDS: case BLOCK_MELON_STEM:
-            return 0.0f;
-        default:
-            return 1.0f;
-    }
-}
+int g_useItemDelay = 0;
 
 void playerDropSelected(bool all) {
     if (g_level.player->inventory->isCreative() || !g_level.player) return;
@@ -170,14 +92,13 @@ void playerDropSelected(bool all) {
     soundPlay("random.pop", 0.3f, 1.0f);
 }
 
-static void spillContainerItem(int x, int y, int z, const ItemInstance& it) {
-    const float s = 0.7f;
-    float xo = (rand() / (float)RAND_MAX) * s + (1 - s) * 0.5f;
-    float yo = (rand() / (float)RAND_MAX) * s + (1 - s) * 0.5f;
-    float zo = (rand() / (float)RAND_MAX) * s + (1 - s) * 0.5f;
-    ItemEntity* e = new ItemEntity(&g_level, x + xo, y + yo, z + zo, it);
-    e->throwTime = 10;
-    g_level.addEntity(e);
+static void spillContainer(Container* c, int x, int y, int z) {
+
+    if (g_gameMode->isCreative()) return;
+    for (int i = 0; i < c->getContainerSize(); i++) {
+        ItemInstance* it = c->getItem(i);
+        if (it && !it->isNull()) Tile::popResource(x, y, z, *it);
+    }
 }
 #include "client/renderer/item_hand.h"
 #include "client/renderer/particle.h"
@@ -328,16 +249,10 @@ static void breakTargetedBlock(const BlockHit& hit) {
 
     if (brokenId == BLOCK_CHEST || brokenId == BLOCK_FURNACE || brokenId == BLOCK_FURNACE_LIT) {
         TileEntity* te = g_level.getTileEntity(hit.x, hit.y, hit.z);
-        if (te && te->type == TE_CHEST) {
-            ChestTileEntity* c = (ChestTileEntity*)te;
-            for (int i = 0; i < ChestTileEntity::CONTAINER_SIZE; i++)
-                if (ItemInstance* it = c->container.getItem(i))
-                    if (!it->isNull()) spillContainerItem(hit.x, hit.y, hit.z, *it);
-        } else if (te && te->type == TE_FURNACE) {
-            FurnaceTileEntity* fu = (FurnaceTileEntity*)te;
-            for (int i = 0; i < FurnaceTileEntity::NUM_ITEMS; i++)
-                if (!fu->items[i].isNull()) spillContainerItem(hit.x, hit.y, hit.z, fu->items[i]);
-        }
+        if (te && te->type == TE_CHEST)
+            spillContainer(&((ChestTileEntity*)te)->container, hit.x, hit.y, hit.z);
+        else if (te && te->type == TE_FURNACE)
+            spillContainer((FurnaceTileEntity*)te, hit.x, hit.y, hit.z);
     }
     if (isSign(brokenId) || brokenId == BLOCK_CHEST ||
         brokenId == BLOCK_FURNACE || brokenId == BLOCK_FURNACE_LIT)
@@ -345,13 +260,11 @@ static void breakTargetedBlock(const BlockHit& hit) {
     {
 
         ItemInstance* sel = g_level.player->inventory->getSelected();
-        bool shearedLeaf = (brokenId == BLOCK_LEAVES && sel && sel->id == ITEM_SHEARS);
-        if (shearedLeaf) {
-            ItemEntity* le = new ItemEntity(&g_level, hit.x + 0.5f, hit.y + 0.5f, hit.z + 0.5f,
-                                            ItemInstance(BLOCK_LEAVES, 1, (short)(brokenData & 3)));
-            le->throwTime = 10;
-            g_level.addEntity(le);
-        }
+        bool shearedLeaf = (brokenId == BLOCK_LEAVES && sel && sel->id == ITEM_SHEARS &&
+                            !g_gameMode->isCreative());
+        if (shearedLeaf)
+            Tile::popResource(hit.x, hit.y, hit.z,
+                              ItemInstance(BLOCK_LEAVES, 1, (short)(brokenData & 3)));
         bool couldDestroy = true;
         if (!g_gameMode->isCreative() && tileNeedsTool(brokenId, brokenData)) {
             Item* it = (sel && sel->id > 0 && sel->id < 4096) ? Item::items[sel->id] : nullptr;
@@ -360,13 +273,8 @@ static void breakTargetedBlock(const BlockHit& hit) {
         if (couldDestroy && !shearedLeaf)
             worldSpawnResources(&g_world, hit.x, hit.y, hit.z, brokenId, brokenData);
 
-        if (couldDestroy && brokenId == BLOCK_TOPSNOW && !g_gameMode->isCreative()) {
-            ItemEntity* se = new ItemEntity(&g_level,
-                hit.x + 0.5f, hit.y + 0.5f, hit.z + 0.5f,
-                ItemInstance(ITEM_SNOWBALL, 1, 0));
-            se->throwTime = 10;
-            g_level.addEntity(se);
-        }
+        if (couldDestroy && brokenId == BLOCK_TOPSNOW && !g_gameMode->isCreative())
+            Tile::popResource(hit.x, hit.y, hit.z, ItemInstance(ITEM_SNOWBALL, 1, 0));
 
         if (!g_gameMode->isCreative() && sel && !sel->isNull()) {
             Item* tool = Item::items[sel->id];
@@ -416,7 +324,7 @@ static bool continueMining(const BlockHit& hit) {
         Tile::tiles[id]->attack(&g_world, hit.x, hit.y, hit.z, g_level.player);
     }
 
-    float dt = tileDestroyTime(id);
+    float dt = Tile::tiles[id]->destroySpeed;
     if (id == BLOCK_AIR || dt < 0.0f) { g_mining.progress = 0.0f; return false; }
     if (dt == 0.0f) return true;
 
@@ -456,7 +364,8 @@ static bool continueMining(const BlockHit& hit) {
     return done;
 }
 
-bool GameMode::useItemOn(ItemInstance* item, const BlockHit& hit) {
+bool GameMode::useItemOn(ItemInstance* item, const BlockHit& hit, bool* usedItem) {
+    if (usedItem) *usedItem = false;
     unsigned char t = worldBlock(&g_world, hit.x, hit.y, hit.z);
 
     if (t == BLOCK_INVISIBLE_BEDROCK) return true;
@@ -471,40 +380,40 @@ bool GameMode::useItemOn(ItemInstance* item, const BlockHit& hit) {
         bool ok = item->useOn(g_level.player, &g_world, hit.x, hit.y, hit.z, hit.face,
                               hit.clickX, hit.clickY, hit.clickZ);
         item->data = aux; item->count = count;
+        if (usedItem) *usedItem = ok;
         return ok;
     }
-    return item->useOn(g_level.player, &g_world, hit.x, hit.y, hit.z, hit.face,
-                       hit.clickX, hit.clickY, hit.clickZ);
+    bool ok = item->useOn(g_level.player, &g_world, hit.x, hit.y, hit.z, hit.face,
+                          hit.clickX, hit.clickY, hit.clickZ);
+    if (usedItem) *usedItem = ok;
+    return ok;
+}
+
+static ClickRepeat s_click[2];
+
+static void clickPlacedBlock(bool placed) {
+    s_click[1].placed(placed, g_level.player ? g_level.player->x : 0.0f,
+                              g_level.player ? g_level.player->y : 0.0f,
+                              g_level.player ? g_level.player->z : 0.0f);
+}
+
+static unsigned int autoRepeatClicks(unsigned int pressed, unsigned int held) {
+    const unsigned int kMask[2] = { PSP_CTRL_RTRIGGER, PSP_CTRL_LTRIGGER };
+    unsigned int now = sceKernelGetSystemTimeLow();
+    LocalPlayer* p = g_level.player;
+    unsigned int out = 0;
+    for (int b = 0; b < 2; b++) {
+        if (!(held & kMask[b]))  { s_click[b].release(); continue; }
+        if (pressed & kMask[b])  { s_click[b].pressed(now); continue; }
+        if (p && p->isSleeping()) continue;
+        if (p && s_click[b].repeatDue(now, p->x, p->y, p->z)) out |= kMask[b];
+    }
+    return out;
 }
 
 void GameMode::handleInput(unsigned int pressed, unsigned int held) {
 
-    extern int g_showFps;
-    {
-        static bool s_waterChord = false, s_lavaChord = false;
-        bool down  = (held & PSP_CTRL_DOWN) != 0;
-        bool water = down && (held & PSP_CTRL_LTRIGGER);
-        bool lava  = down && (held & PSP_CTRL_RTRIGGER);
-        if (g_worldBuilt && g_showFps && g_level.player->inventory->isCreative() && (water || lava) &&
-            !(water ? s_waterChord : s_lavaChord)) {
-            if (water) s_waterChord = true; else s_lavaChord = true;
-            unsigned char id = water ? (unsigned char)BLOCK_WATER : (unsigned char)BLOCK_LAVA;
-            BlockHit hit = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z, g_level.player->yRot, g_level.player->xRot, 5.0f);
-            if (hit.hit) {
-                int nx = hit.x + kFaceNeighbor[hit.face][0];
-                int ny = hit.y + kFaceNeighbor[hit.face][1];
-                int nz = hit.z + kFaceNeighbor[hit.face][2];
-                worldSetBlockAndData(&g_world, nx, ny, nz, id, 0);
-                worldScheduleTick(&g_world, nx, ny, nz, id, 30);
-                worldNotifyNeighborsChanged(&g_world, nx, ny, nz);
-                worldUpdateLights(&g_world);
-                worldRebuildAroundNow(&g_world, nx, ny, nz);
-            }
-            return;
-        }
-        if (!water) s_waterChord = false;
-        if (!lava)  s_lavaChord  = false;
-    }
+    if (g_worldBuilt) pressed |= autoRepeatClicks(pressed, held);
 
     if (g_worldBuilt) {
         static unsigned int s_startUs = 0;
@@ -561,7 +470,8 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
     if (g_worldBuilt) {
         ItemInstance* sel = g_level.player->inventory->getSelected();
         if (sel && (sel->id == ITEM_SNOWBALL || sel->id == ITEM_EGG)) {
-            if (pressed & PSP_CTRL_LTRIGGER) {
+            if ((pressed & PSP_CTRL_LTRIGGER) && !g_useItemDelay) {
+                g_useItemDelay = USE_ITEM_DELAY_TICKS;
                 int type = (sel->id == ITEM_EGG) ? EntityTypes::IdThrownEgg
                                                  : EntityTypes::IdSnowball;
                 g_level.addEntity(new Throwable(&g_level,
@@ -578,7 +488,8 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
         }
 
         else if (sel && sel->id == ITEM_CAMERA) {
-            if (pressed & PSP_CTRL_LTRIGGER) {
+            if ((pressed & PSP_CTRL_LTRIGGER) && !g_useItemDelay) {
+                g_useItemDelay = USE_ITEM_DELAY_TICKS;
 
                 bool handled = interactMobUnderCrosshair();
                 if (!handled) {
@@ -694,15 +605,26 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
         if (pressed & PSP_CTRL_RTRIGGER) {
             playerSwing();
         }
-        BlockHit hit = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z, g_level.player->yRot, g_level.player->xRot, 5.0f);
+
+        ItemInstance* held = g_level.player->inventory->getSelected();
+        bool clipLiquids = (pressed & PSP_CTRL_LTRIGGER) && held && held->getItem() &&
+                           held->getItem()->isLiquidClipItem(held->data);
+        BlockHit hit = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z, g_level.player->yRot, g_level.player->xRot, 5.0f, clipLiquids);
         if (hit.hit) {
             if (pressed & PSP_CTRL_RTRIGGER) {
 
                 if (g_gameMode->isCreative()) breakTargetedBlock(hit);
-            } else if (g_gameMode->useItemOn(g_level.player->inventory->getSelected(), hit)) {
+            } else {
 
-                playerSwing();
-                return;
+                bool placedBlock = false;
+                bool consumed = g_gameMode->useItemOn(g_level.player->inventory->getSelected(),
+                                                      hit, &placedBlock);
+
+                clickPlacedBlock(g_gameMode->isCreative() && placedBlock);
+                if (consumed) {
+                    playerSwing();
+                    return;
+                }
             }
         }
     }

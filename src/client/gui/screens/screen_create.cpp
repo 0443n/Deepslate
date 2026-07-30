@@ -2,175 +2,402 @@
 #include <pspctrl.h>
 #include <pspgu.h>
 #include <cstdio>
+#include <cstring>
 
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/screen.h"
+#include "client/gui/hud.h"
 #include "gpu/sprite.h"
+#include "gpu/gui_atlas.h"
+#include "world/level/levelgen/level_source.h"
+#include "world/level/levelgen/gen_features.h"
+#include "world/level/storage/worldlist.h"
 
-void createHandleInput(MenuState& s, unsigned int pressed) {
-    int& createSelected = s.createSelected;
-    int& newWorldGamemode = s.newWorldGamemode;
-    char (&newWorldName)[64] = s.newWorldName;
-    char (&newWorldSeed)[64] = s.newWorldSeed;
-    WorldList& worlds = s.worlds;
-    int& worldSelected = s.worldSelected;
-    int& uiRow = s.uiRow;
-    char (&statusMsg)[128] = s.statusMsg;
-    AppScreen& screen = s.screen;
+struct CreateScreen : Screen {
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
+
+namespace {
+
+const float PX     = 0.625f;
+const float TEXT_S = 1.0f;
+
+const float BEVEL = 2.0f * PX;
+
+struct CreateRowDef {
+    const char* label;
+    const char* placeholder;
+    int         oskTarget;
+    const char* oskPrompt;
+    bool        advancedOnly;
+};
+
+const CreateRowDef kFieldRows[] = {
+    { "Name", "New world", 1, "Enter World Name:", false },
+
+    { "Seed", 0,           2, "Enter World Seed:", true  },
+};
+const int FIELD_COUNT = (int)(sizeof(kFieldRows) / sizeof(kFieldRows[0]));
+const int ROW_NAME = 0, ROW_SEED = 1;
+
+const int ROW_COUNT = FIELD_COUNT + GEN_FEATURE_COUNT;
+
+bool rowIsToggle(int row)   { return row >= FIELD_COUNT; }
+int  rowFeature(int row)    { return row - FIELD_COUNT; }
+const char* rowLabel(int row) {
+    return rowIsToggle(row) ? kGenFeatures[rowFeature(row)].label : kFieldRows[row].label;
+}
+
+enum { FOCUS_TYPE_OLD = ROW_COUNT, FOCUS_TYPE_FLAT,
+       FOCUS_SURVIVAL, FOCUS_CREATIVE, FOCUS_CREATE,
+       FOCUS_BACK, FOCUS_ADVANCED, FOCUS_COUNT };
+
+const float ROW_LABEL_H = 16.0f * PX;
+const float ROW_BOX_H   = 18.0f * PX;
+
+const float LABEL_GAP = 5.0f;
+
+float rowHeight() {
+    return ROW_LABEL_H + ROW_BOX_H + 13.0f * PX;
+}
+
+bool s_advanced = false;
+
+int  s_lastHeader = FOCUS_BACK;
+
+char* rowText(MenuState& s, int row) {
+    return (row == ROW_NAME) ? s.newWorldName : s.newWorldSeed;
+}
+
+bool rowVisible(int row) { return s_advanced || (!rowIsToggle(row) && !kFieldRows[row].advancedOnly); }
+bool rowInLeftColumn(int row) { return !rowIsToggle(row) && row != ROW_SEED; }
+
+bool genFeaturesUsable(const MenuState& s) {
+    return levelSourceFor(s.newWorldType).supportsGenFeatures();
+}
+bool rowFocusable(const MenuState& s, int row) {
+    if (!rowVisible(row)) return false;
+    return !rowIsToggle(row) || genFeaturesUsable(s);
+}
+
+int toggleStep(const MenuState& s, int from, int dir) {
+    for (int r = from + dir; r >= FIELD_COUNT && r < ROW_COUNT; r += dir)
+        if (rowFocusable(s, r)) return r;
+    return -1;
+}
+
+const float TOG_W   = 38.0f * PX;
+const float TOG_H   = 20.0f * PX;
+const float TOG_ROW = ROW_BOX_H + 5.0f * PX;
+
+const char* modeDescription(int gamemode) {
+    return gamemode == 1
+        ? "Easily destroy and place blocks. No damage, flying and other cool stuff."
+        : "Limited resources, you'll need tools. You may get hurt. Watch out for Monsters.";
+}
+
+void drawFieldLabel(Font& font, float x, float widgetY, const char* text) {
+    fontDrawTextShadow(&font, x * UI_SCALE,
+                       widgetY * UI_SCALE - 8.0f * TEXT_S - LABEL_GAP,
+                       text, 0xFFFFFFFFu, TEXT_S);
+}
+
+struct Layout {
+    float headerH, btnH, hdrBtnY, backX, backW, advX, advW;
+    float panelX, panelY, panelW, panelH;
+    float formX, formY, formW, formH, boxW, contentH;
+    float typeY, modeY, pillW, pillH, pill0X, pill1X;
+    float descX, descY, descW;
+    float createX, createY, createW, createH;
+};
+
+Layout layout(MenuState& s) {
+    Layout L;
+
+    L.btnH    = 18.0f * MENU_PX;
+    L.headerH = L.btnH + 8.0f * MENU_PX;
+    L.hdrBtnY = (L.headerH - L.btnH) / 2.0f;
+    L.backW   = menuBarButtonW(s, "Back");
+    L.backX   = 4.0f * MENU_PX;
+    L.advW    = menuBarButtonW(s, "Advanced");
+    L.advX    = VW - L.advW - 4.0f * MENU_PX;
+
+    L.panelX = 5.0f * PX;
+    L.panelY = L.headerH + 8.0f * PX;
+    L.panelW = VW - 10.0f * PX;
+
+    L.panelH = (UI_HINTS_Y / UI_SCALE - 1.0f) - L.panelY;
+
+    L.formX = L.panelX + 5.0f * PX;
+    L.formY = L.panelY + 6.0f * PX;
+    L.boxW  = VW * 0.28f;
+    L.formW = VW * 0.5f - L.formX;
+
+    L.pillH  = 26.0f * PX;
+    L.pillW  = VW * 0.205f;
+    L.pill0X = L.formX;
+    L.pill1X = L.formX + L.pillW + 6.0f * PX;
+
+    L.descX = VW * 0.52f;
+    L.descW = VW * 0.44f;
+
+    L.createW = L.descW;
+    L.createH = 26.0f * PX;
+    L.createX = L.descX;
+
+    if (s_advanced) {
+
+        L.typeY   = L.panelY + L.panelH * 0.42f;
+        L.modeY   = L.panelY + L.panelH * 0.72f;
+        L.createY = L.modeY;
+        L.descY   = 0.0f;
+        L.formH   = L.typeY - LABEL_GAP / UI_SCALE - 4.0f * PX - L.formY;
+    } else {
+        L.typeY   = 0.0f;
+        L.modeY   = L.panelY + L.panelH * 0.52f;
+        L.createY = L.panelY + L.panelH - L.createH - 6.0f * PX;
+        L.descY   = L.modeY;
+        L.formH   = L.modeY - LABEL_GAP / UI_SCALE - 4.0f * PX - L.formY;
+    }
+
+    L.contentH = 0.0f;
+    for (int i = 0; i < ROW_COUNT; i++)
+        if (rowVisible(i) && rowInLeftColumn(i)) L.contentH += rowHeight();
+    return L;
+}
+
+int effectiveGameMode(const MenuState& s) {
+    int forced = levelSourceFor(s.newWorldType).forcedGameType();
+    return (forced >= 0) ? forced : s.newWorldGamemode;
+}
+bool gameModeLocked(const MenuState& s) {
+    return levelSourceFor(s.newWorldType).forcedGameType() >= 0;
+}
+
+}
+
+void CreateScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
+    int& sel = s.createSelected;
+    if (sel < 0 || sel >= FOCUS_COUNT) sel = 0;
+
+    if (pressed & PSP_CTRL_TRIANGLE) {
+        s_advanced = !s_advanced;
+        if (!s_advanced && (sel == ROW_SEED || rowIsToggle(sel) ||
+                            sel == FOCUS_TYPE_OLD || sel == FOCUS_TYPE_FLAT))
+            sel = ROW_NAME;
+    }
+
+    const bool locked = gameModeLocked(s);
+    const int  modePill = effectiveGameMode(s) ? FOCUS_CREATIVE : FOCUS_SURVIVAL;
+    const int  typePill = (s.newWorldType == WORLD_TYPE_FLAT) ? FOCUS_TYPE_FLAT : FOCUS_TYPE_OLD;
+    const bool onHeader = (sel == FOCUS_BACK || sel == FOCUS_ADVANCED);
+    const bool onType   = (sel == FOCUS_TYPE_OLD || sel == FOCUS_TYPE_FLAT);
+    const bool onMode   = (sel == FOCUS_SURVIVAL || sel == FOCUS_CREATIVE);
+
+    const int belowType  = locked ? FOCUS_CREATE : modePill;
+    const int aboveCreate = locked ? (s_advanced ? typePill : ROW_NAME) : modePill;
+
+    const int firstToggle = toggleStep(s, FIELD_COUNT - 1, +1);
+    const bool onToggle   = (sel >= FIELD_COUNT && sel < ROW_COUNT);
 
     if (pressed & PSP_CTRL_DOWN) {
-        if (createSelected == 0) createSelected = 1;
-        else if (createSelected < 4) createSelected++;
+        if (onHeader)                sel = ROW_NAME;
+        else if (sel == ROW_NAME)    sel = s_advanced ? typePill : belowType;
+        else if (sel == ROW_SEED)    sel = (firstToggle >= 0) ? firstToggle : typePill;
+        else if (onToggle)           { int n = toggleStep(s, sel, +1);
+                                       sel = (n >= 0) ? n : typePill; }
+        else if (onType)             sel = belowType;
+        else if (onMode)             sel = FOCUS_CREATE;
     }
     if (pressed & PSP_CTRL_UP) {
-        if (createSelected > 1) createSelected--;
-        else if (createSelected == 1) createSelected = 0;
+        if (sel == FOCUS_CREATE)  sel = aboveCreate;
+        else if (onMode)          sel = s_advanced ? typePill : ROW_NAME;
+        else if (onType)          sel = ROW_NAME;
+        else if (onToggle)        { int p = toggleStep(s, sel, -1);
+                                    sel = (p >= 0) ? p : ROW_SEED; }
+        else if (sel == ROW_SEED) sel = ROW_NAME;
+        else if (sel == ROW_NAME) sel = s_lastHeader;
     }
     if (pressed & PSP_CTRL_RIGHT) {
-        if (createSelected == 1) createSelected = 0;
+        if (sel == FOCUS_BACK)             sel = FOCUS_ADVANCED;
+        else if (sel == ROW_NAME && s_advanced) sel = ROW_SEED;
+        else if (sel == FOCUS_TYPE_OLD)    { sel = FOCUS_TYPE_FLAT; s.newWorldType = WORLD_TYPE_FLAT; }
+        else if (sel == FOCUS_SURVIVAL && !locked) { sel = FOCUS_CREATIVE; s.newWorldGamemode = 1; }
+        else if (sel == FOCUS_CREATIVE || (sel == FOCUS_SURVIVAL && locked)) sel = FOCUS_CREATE;
     }
     if (pressed & PSP_CTRL_LEFT) {
-        if (createSelected == 0) createSelected = 1;
+        if (sel == FOCUS_ADVANCED)       sel = FOCUS_BACK;
+        else if (sel == ROW_SEED)        sel = ROW_NAME;
+        else if (onToggle)               sel = ROW_NAME;
+        else if (sel == FOCUS_TYPE_FLAT) { sel = FOCUS_TYPE_OLD; s.newWorldType = WORLD_TYPE_OLD; }
+        else if (sel == FOCUS_CREATIVE && !locked) { sel = FOCUS_SURVIVAL; s.newWorldGamemode = 0; }
+        else if (sel == FOCUS_CREATE)    sel = aboveCreate;
     }
-    if (pressed & PSP_CTRL_CIRCLE) {
-        screen = SCREEN_WORLDS;
-    }
+    if (sel == FOCUS_BACK || sel == FOCUS_ADVANCED) s_lastHeader = sel;
+
+    if (gameModeLocked(s) && (sel == FOCUS_SURVIVAL || sel == FOCUS_CREATIVE))
+        sel = FOCUS_CREATE;
+
+    if (pressed & PSP_CTRL_CIRCLE) s.screen = SCREEN_WORLDS;
+
     if (pressed & PSP_CTRL_CROSS) {
-        if (createSelected == 0) {
-            screen = SCREEN_WORLDS;
-        } else if (createSelected == 1) {
-            startOsk(1, "Enter World Name:", newWorldName);
-        } else if (createSelected == 2) {
-            startOsk(2, "Enter World Seed:", newWorldSeed);
-        } else if (createSelected == 3) {
-            newWorldGamemode = (newWorldGamemode == 0) ? 1 : 0;
-        } else if (createSelected == 4) {
+        if (sel < ROW_COUNT && rowIsToggle(sel)) {
+            if (genFeaturesUsable(s))
+                s.newWorldGenMask = genFeatureToggled(s.newWorldGenMask, rowFeature(sel));
+        } else if (sel < ROW_COUNT) {
+            const CreateRowDef& row = kFieldRows[sel];
+            startOsk(row.oskTarget, row.oskPrompt, rowText(s, sel));
+        } else if (sel == FOCUS_TYPE_OLD)  { s.newWorldType = WORLD_TYPE_OLD;
+        } else if (sel == FOCUS_TYPE_FLAT) { s.newWorldType = WORLD_TYPE_FLAT;
+        } else if (sel == FOCUS_SURVIVAL)  { if (!locked) s.newWorldGamemode = 0;
+        } else if (sel == FOCUS_CREATIVE)  { if (!locked) s.newWorldGamemode = 1;
+        } else if (sel == FOCUS_BACK)      { s.screen = SCREEN_WORLDS;
+        } else if (sel == FOCUS_ADVANCED)  { s_advanced = !s_advanced;
+        } else if (sel == FOCUS_CREATE) {
             char created[64];
-            long seed = worldSeedFromString(newWorldSeed);
-            if (worldListCreate(&worlds, newWorldName, created, newWorldGamemode, seed)) {
-                snprintf(statusMsg, sizeof(statusMsg), "Loading: %s", created);
-                worldSelected = worlds.count - 1;
-                screen = SCREEN_GAME;
+
+            long seed = worldSeedFromString(s.newWorldSeed);
+            if (worldListCreate(&s.worlds, s.newWorldName, created,
+                                effectiveGameMode(s), seed, s.newWorldType,
+                                s.newWorldGenMask)) {
+                snprintf(s.statusMsg, sizeof(s.statusMsg), "Loading: %s", created);
+                s.worldSelected = s.worlds.count - 1;
+                s.screen = SCREEN_GAME;
             } else {
-                screen = SCREEN_WORLDS;
+                s.screen = SCREEN_WORLDS;
             }
-            uiRow = 1;
+            s.uiRow = 1;
         }
     }
 }
 
-void createRender(MenuState& s) {
-    Font& font = s.font; bool haveFont = s.haveFont;
-    Texture& dirtBg = s.dirtBg; bool haveBg = s.haveBg;
-    Texture& touchGui = s.touchGui; bool haveTouch = s.haveTouch;
-    int& createSelected = s.createSelected;
-    int& newWorldGamemode = s.newWorldGamemode;
-    char (&newWorldName)[64] = s.newWorldName;
-    char (&newWorldSeed)[64] = s.newWorldSeed;
+void CreateScreen::renderContent(MenuState& s) {
+    if (!s.haveFont || !s.haveGui) return;
+    Font& font = s.font;
+    const int sel = s.createSelected;
+    const Layout L = layout(s);
+    const bool locked = gameModeLocked(s);
+    const int  mode   = effectiveGameMode(s);
 
-    if (haveBg) {
-        textureBind(&dirtBg);
-        sceGuDisable(GU_DEPTH_TEST);
-        sceGuTexWrap(GU_REPEAT, GU_REPEAT);
-        float tileScale = (float)dirtBg.realW / (32.0f * UI_SCALE);
-        float bgW = (VW * UI_SCALE) * tileScale;
-        float bgH = (VH * UI_SCALE) * tileScale;
-        spriteDraw(&dirtBg, 0.0f, 0.0f, VW * UI_SCALE, VH * UI_SCALE,
-                   0.0f, 0.0f, bgW, bgH, DIRT_TINT);
-        sceGuTexWrap(GU_CLAMP, GU_CLAMP);
-        sceGuEnable(GU_DEPTH_TEST);
+    sceGuDisable(GU_DEPTH_TEST);
+
+    {
+        float lb = L.backX + L.backW, rb = L.advX;
+        drawMenuHeader(s, "Create a World", 0.0f, VW, L.headerH, MENU_BAR_TEXT, lb, rb - lb);
     }
+    menuBarButton(s, L.backX, L.backW, "Back", sel == FOCUS_BACK);
 
-    if (haveTouch && haveFont) {
-        sceGuDisable(GU_DEPTH_TEST);
-        textureBind(&touchGui);
-        float barBtnH = 26.0f;
-        float btnW = 34.0f;
+    guiTButton(s, L.advX, L.hdrBtnY, L.advW, L.btnH, s_advanced, MENU_BEVEL);
 
-        float hW = VW - btnW;
-        spriteDraw(&touchGui, 0.0f, 0.0f, 2.0f * UI_SCALE, (barBtnH - 1.0f) * UI_SCALE,
-                   150.0f, 26.0f, 2.0f, 25.0f, WHITE);
-        spriteDraw(&touchGui, 2.0f * UI_SCALE, 0.0f, (hW - 4.0f) * UI_SCALE, (barBtnH - 1.0f) * UI_SCALE,
-                   153.0f, 26.0f, 8.0f, 25.0f, WHITE);
-        spriteDraw(&touchGui, (hW - 2.0f) * UI_SCALE, 0.0f, 2.0f * UI_SCALE, (barBtnH - 1.0f) * UI_SCALE,
-                   162.0f, 26.0f, 2.0f, 25.0f, WHITE);
+    guiTButtonLabel(s, L.advX, L.hdrBtnY, L.advW, L.btnH, "Advanced",
+                    sel == FOCUS_ADVANCED, true, MENU_BAR_TEXT);
 
-        spriteDraw(&touchGui, 0.0f, (barBtnH - 1.0f) * UI_SCALE, hW * UI_SCALE, 3.0f * UI_SCALE,
-                   153.0f, 52.0f, 8.0f, 3.0f, WHITE);
+    drawNinePatch(s, GA_SS_PANEL, 3.0f, L.panelX, L.panelY, L.panelW, L.panelH, 3.0f * PX);
 
-        float hw = fontTextWidth(&font, "Create World") * UI_SCALE;
-        fontDrawTextShadow(&font, (hW * UI_SCALE - hw) / 2.0f, (barBtnH - 8.0f) / 2.0f * UI_SCALE, "Create World", 0xFFE0E0E0u, UI_SCALE);
+    float scroll = s.createScroll;
 
-        textureBind(&touchGui);
-        bool backHovered = (createSelected == 0);
+    if (sel < ROW_COUNT && rowInLeftColumn(sel) && rowVisible(sel)) {
+        float selY = 0.0f;
+        for (int i = 0; i < sel; i++)
+            if (rowVisible(i) && rowInLeftColumn(i)) selY += rowHeight();
+        if (selY < scroll) scroll = selY;
+        if (selY + rowHeight() > scroll + L.formH) scroll = selY + rowHeight() - L.formH;
+    }
+    float maxScroll = L.contentH - L.formH;
+    if (maxScroll < 0.0f) maxScroll = 0.0f;
+    if (scroll < 0.0f) scroll = 0.0f; else if (scroll > maxScroll) scroll = maxScroll;
+    s.createScroll = scroll;
+
+    sceGuScissor((int)(L.panelX * UI_SCALE), (int)(L.formY * UI_SCALE),
+                 (int)(L.formW * UI_SCALE), (int)(L.formH * UI_SCALE));
+    {
+        float rowY = L.formY - scroll;
+        for (int i = 0; i < ROW_COUNT; i++) {
+            if (!rowVisible(i) || !rowInLeftColumn(i)) continue;
+            float boxY = rowY + ROW_LABEL_H;
+            drawFieldLabel(font, L.formX, boxY, rowLabel(i));
+            drawTextField(s, L.formX, boxY, L.boxW, ROW_BOX_H,
+                          rowText(s, i), kFieldRows[i].placeholder, sel == i, TEXT_S);
+            rowY += rowHeight();
+        }
+    }
+    sceGuScissor(0, 0, 480, 272);
+
+    guiScrollbar((L.formX + L.boxW + 2.0f) * UI_SCALE, L.formY * UI_SCALE,
+                 2.0f * PX * UI_SCALE, L.formH * UI_SCALE,
+                 L.contentH * UI_SCALE, scroll * UI_SCALE);
+
+    if (s_advanced) {
+
+        drawFieldLabel(font, L.descX, L.formY + ROW_LABEL_H, rowLabel(ROW_SEED));
+        drawTextField(s, L.descX, L.formY + ROW_LABEL_H, L.boxW, ROW_BOX_H,
+                      s.newWorldSeed, kFieldRows[ROW_SEED].placeholder, sel == ROW_SEED, TEXT_S);
+
         {
-            float scale = backHovered ? 0.95f : 1.0f;
-            float drawW = btnW * scale, drawH = barBtnH * scale;
-            float drawX = hW + (btnW - drawW) / 2.0f, drawY = (barBtnH - drawH) / 2.0f;
-            float backU = backHovered ? 184.0f : 150.0f;
-            spriteDraw(&touchGui, drawX * UI_SCALE, drawY * UI_SCALE, drawW * UI_SCALE, drawH * UI_SCALE,
-                       backU, 0.0f, 34.0f, 26.0f, WHITE);
+            const bool genUsable = genFeaturesUsable(s);
+            float togRowY = L.formY + ROW_LABEL_H + ROW_BOX_H + 6.0f * PX;
+            for (int i = FIELD_COUNT; i < ROW_COUNT; i++, togRowY += TOG_ROW) {
+                const bool on = genUsable && genFeatureEnabled(s.newWorldGenMask, rowFeature(i));
+
+                fontDrawTextClipped(&font, L.descX * UI_SCALE,
+                                    (togRowY + (ROW_BOX_H - 8.0f * TEXT_S) / 2.0f) * UI_SCALE,
+                                    rowLabel(i),
+                                    !genUsable ? GUI_DISABLED
+                                               : (sel == i ? 0xFFFFFFFFu : 0xFFE0E0E0u), TEXT_S,
+                                    (L.boxW - TOG_W - 2.0f) * UI_SCALE / TEXT_S);
+                guiOptionSwitch(s, L.descX + L.boxW - TOG_W,
+                                togRowY + (ROW_BOX_H - TOG_H) / 2.0f, TOG_W, TOG_H,
+                                on, sel == i, !genUsable ? GUI_DISABLED : 0xFFFFFFFFu);
+            }
         }
 
-        float tbW = 200.0f;
-        float tbH = 13.0f;
-        float startX = (VW - tbW) / 2.0f;
-        float textYOff = (tbH - 8.0f) / 2.0f;
-
-        float nameY = barBtnH + 10.0f;
-        float seedY = nameY + tbH + 11.0f;
-
-        fontDrawTextShadow(&font, startX * UI_SCALE, (nameY - 8.0f) * UI_SCALE, "World name:", 0xFFCCCCCCu, UI_SCALE);
-        drawRect(startX * UI_SCALE, nameY * UI_SCALE, tbW * UI_SCALE, tbH * UI_SCALE, 0xFF000000u);
-        unsigned int borderCol = (createSelected == 1) ? 0xFFFFFFFFu : 0xFFA0A0A0u;
-        drawRect(startX * UI_SCALE, nameY * UI_SCALE, tbW * UI_SCALE, 1.0f * UI_SCALE, borderCol);
-        drawRect(startX * UI_SCALE, (nameY + tbH - 1.0f) * UI_SCALE, tbW * UI_SCALE, 1.0f * UI_SCALE, borderCol);
-        drawRect(startX * UI_SCALE, nameY * UI_SCALE, 1.0f * UI_SCALE, tbH * UI_SCALE, borderCol);
-        drawRect((startX + tbW - 1.0f) * UI_SCALE, nameY * UI_SCALE, 1.0f * UI_SCALE, tbH * UI_SCALE, borderCol);
-
-        const char* nText = newWorldName[0] ? newWorldName : "New world";
-        unsigned int nColor = newWorldName[0] ? 0xFFFFFFFFu : 0xFF5E5E5Eu;
-        fontDrawTextClipped(&font, (startX + 4.0f) * UI_SCALE, (nameY + textYOff) * UI_SCALE, nText, nColor, UI_SCALE, tbW - 8.0f);
-
-        fontDrawTextShadow(&font, startX * UI_SCALE, (seedY - 8.0f) * UI_SCALE, "World seed:", 0xFFCCCCCCu, UI_SCALE);
-        drawRect(startX * UI_SCALE, seedY * UI_SCALE, tbW * UI_SCALE, tbH * UI_SCALE, 0xFF000000u);
-        borderCol = (createSelected == 2) ? 0xFFFFFFFFu : 0xFFA0A0A0u;
-        drawRect(startX * UI_SCALE, seedY * UI_SCALE, tbW * UI_SCALE, 1.0f * UI_SCALE, borderCol);
-        drawRect(startX * UI_SCALE, (seedY + tbH - 1.0f) * UI_SCALE, tbW * UI_SCALE, 1.0f * UI_SCALE, borderCol);
-        drawRect(startX * UI_SCALE, seedY * UI_SCALE, 1.0f * UI_SCALE, tbH * UI_SCALE, borderCol);
-        drawRect((startX + tbW - 1.0f) * UI_SCALE, seedY * UI_SCALE, 1.0f * UI_SCALE, tbH * UI_SCALE, borderCol);
-        fontDrawTextClipped(&font, (startX + 4.0f) * UI_SCALE, (seedY + textYOff) * UI_SCALE, newWorldSeed, 0xFFFFFFFFu, UI_SCALE, tbW - 8.0f);
-
-        float gmW = 100.0f;
-        float gmH = 19.0f;
-        float gmY = seedY + tbH + 11.0f;
-        float gmX = (VW - gmW) / 2.0f;
-
-        textureBind(&touchGui);
-        bool gmHovered = (createSelected == 3);
-        spriteDraw(&touchGui, gmX * UI_SCALE, gmY * UI_SCALE, gmW * UI_SCALE, gmH * UI_SCALE, gmHovered ? 66.0f : 0.0f, 0.0f, 66.0f, 26.0f, WHITE);
-
-        const char* gmLabel = (newWorldGamemode == 0) ? "Survival" : "Creative";
-        float gw = fontTextWidth(&font, gmLabel) * UI_SCALE;
-        unsigned int gmCol = gmHovered ? 0xFFA0FFFFu : 0xFFE0E0E0u;
-        fontDrawTextShadow(&font, gmX * UI_SCALE + (gmW * UI_SCALE - gw) / 2.0f, (gmY + (gmH - 8.0f) / 2.0f) * UI_SCALE, gmLabel, gmCol, UI_SCALE);
-
-        const char* desc = (newWorldGamemode == 0) ? "Mobs, health and gather resources" : "Unlimited resources and flying";
-        float dw = fontTextWidth(&font, desc) * UI_SCALE;
-        float descY = gmY + gmH + 5.0f;
-        fontDrawTextShadow(&font, (VW * UI_SCALE - dw) / 2.0f, descY * UI_SCALE, desc, 0xFFCCCCCCu, UI_SCALE);
-
-        float cW = 80.0f;
-        float cH = 19.0f;
-        float cY = descY + 8.0f;
-        float cX = (VW - cW) / 2.0f;
-
-        textureBind(&touchGui);
-        bool cHovered = (createSelected == 4);
-        spriteDraw(&touchGui, cX * UI_SCALE, cY * UI_SCALE, cW * UI_SCALE, cH * UI_SCALE, cHovered ? 66.0f : 0.0f, 0.0f, 66.0f, 26.0f, WHITE);
-        float clw = fontTextWidth(&font, "Create") * UI_SCALE;
-        unsigned int cCol = cHovered ? 0xFFA0FFFFu : 0xFFE0E0E0u;
-        fontDrawTextShadow(&font, cX * UI_SCALE + (cW * UI_SCALE - clw) / 2.0f, (cY + (cH - 8.0f) / 2.0f) * UI_SCALE, "Create", cCol, UI_SCALE);
-
-        sceGuEnable(GU_DEPTH_TEST);
+        drawFieldLabel(font, L.formX, L.typeY, "World Type");
+        {
+            const bool flat = (s.newWorldType == WORLD_TYPE_FLAT);
+            guiTButton(s, L.pill0X, L.typeY, L.pillW, L.pillH, !flat, BEVEL);
+            guiTButtonLabel(s, L.pill0X, L.typeY, L.pillW, L.pillH,
+                            levelSourceFor(WORLD_TYPE_OLD).label(),
+                            sel == FOCUS_TYPE_OLD, true, TEXT_S);
+            guiTButton(s, L.pill1X, L.typeY, L.pillW, L.pillH, flat, BEVEL);
+            guiTButtonLabel(s, L.pill1X, L.typeY, L.pillW, L.pillH,
+                            levelSourceFor(WORLD_TYPE_FLAT).label(),
+                            sel == FOCUS_TYPE_FLAT, true, TEXT_S);
+        }
     }
+
+    drawFieldLabel(font, L.formX, L.modeY, "Game Mode");
+    {
+        const bool creative = (mode == 1);
+
+        guiTButton(s, L.pill0X, L.modeY, L.pillW, L.pillH, !creative, BEVEL);
+        guiTButtonLabel(s, L.pill0X, L.modeY, L.pillW, L.pillH, "Survival",
+                        sel == FOCUS_SURVIVAL, !locked, TEXT_S);
+        guiTButton(s, L.pill1X, L.modeY, L.pillW, L.pillH, creative, BEVEL);
+        guiTButtonLabel(s, L.pill1X, L.modeY, L.pillW, L.pillH, "Creative",
+                        sel == FOCUS_CREATIVE, !locked, TEXT_S);
+    }
+
+    if (!s_advanced)
+        fontDrawTextWrapped(&font, L.descX * UI_SCALE, L.descY * UI_SCALE,
+                            modeDescription(mode), 0xFFFFFFFFu, TEXT_S,
+                            L.descW * UI_SCALE / TEXT_S);
+
+    guiTButton(s, L.createX, L.createY, L.createW, L.createH, sel == FOCUS_CREATE, BEVEL);
+    guiTButtonLabel(s, L.createX, L.createY, L.createW, L.createH, "Create World!",
+                    sel == FOCUS_CREATE, true, TEXT_S);
 }
+
+void createFormReset(MenuState& s) {
+    s.createSelected = 0;
+
+    strcpy(s.newWorldName, "My World");
+    s.newWorldSeed[0] = '\0';
+    s.newWorldGamemode = 0;
+    s.newWorldType = WORLD_TYPE_OLD;
+    s.newWorldGenMask = genFeaturesDefaultMask();
+    s.createScroll = 0.0f;
+}
+
+static CreateScreen s_createScreen;
+Screen& createScreen() { return s_createScreen; }

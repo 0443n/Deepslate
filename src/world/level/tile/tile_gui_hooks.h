@@ -11,4 +11,6 @@ void guiOpenChest(ChestTileEntity* te);
 void guiOpenCrafting(bool stonecutter);
 void guiChatMessage(const char* msg);
 
+bool chestGuiSuppressed();
+
 #endif

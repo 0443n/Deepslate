@@ -1,5 +1,6 @@
 #include "world/item/item.h"
 #include "world/item/tile_item.h"
+#include "world/item/bucket_item.h"
 #include "world/item/simple_item.h"
 #include "world/item/digger_item.h"
 #include "world/item/weapon_item.h"
@@ -106,7 +107,8 @@ void Item::initItems() {
     new SimpleItem(ITEM_LEATHER,        ic(7, 6));
     new SimpleItem(ITEM_BRICK,          ic(6, 1));
     new SimpleItem(ITEM_CLAY,           ic(9, 3));
-    new SlabItem(BLOCK_SLAB);
+    new SlabItem(BLOCK_SLAB, BLOCK_DOUBLE_SLAB);
+    new SlabItem(BLOCK_WOOD_SLAB, BLOCK_WOOD_SLAB_DOUBLE);
     new TileItem(ITEM_REEDS, BLOCK_REEDS, ic(11, 1));
     new SimpleItem(ITEM_PAPER,          ic(10, 3));
     new SimpleItem(ITEM_BOOK,           ic(11, 3));
@@ -115,7 +117,10 @@ void Item::initItems() {
     new SimpleItem(ITEM_CLOCK,          ic(6, 4));
     new SimpleItem(ITEM_GLOWSTONE_DUST, ic(9, 4));
     new SimpleItem(ITEM_BONE,           ic(12, 1), 64, 0, true);
+    new BucketItem(ITEM_BUCKET);
     new SimpleItem(ITEM_SUGAR,          ic(13, 0));
+
+    (new TileItem(ITEM_CAKE, BLOCK_CAKE, ic(13, 1)))->maxStackSize = 1;
     new SimpleItem(ITEM_NETHER_BRICK,   ic(5, 9));
     new SimpleItem(ITEM_NETHER_QUARTZ,  ic(5, 10));
 
@@ -149,12 +154,14 @@ void Item::initItems() {
             { ITEM_HOE_WOOD, 2 }, { ITEM_HOE_STONE, 2 }, { ITEM_HOE_IRON, 2 },
             { ITEM_HOE_DIAMOND, 2 }, { ITEM_HOE_GOLD, 2 },
             { ITEM_FLINT_AND_STEEL, 2 }, { ITEM_BOW, 2 }, { ITEM_ARROW, 2 }, { ITEM_COAL, 2 },
+            { ITEM_BUCKET, 2 },
             { ITEM_STRING, 2 }, { ITEM_FEATHER, 2 }, { ITEM_GUNPOWDER, 2 }, { ITEM_FLINT, 2 },
             { ITEM_LEATHER, 2 }, { ITEM_BONE, 2 }, { ITEM_SHEARS, 2 },
             { BLOCK_TNT, 2 }, { BLOCK_TORCH, 2 },
 
             { ITEM_APPLE, 4 }, { ITEM_BOWL, 4 }, { ITEM_MUSHROOM_STEW, 4 },
             { ITEM_WHEAT, 4 }, { ITEM_BREAD, 4 }, { ITEM_SUGAR, 4 }, { ITEM_REEDS, 4 },
+            { ITEM_CAKE, 4 },
             { ITEM_SEEDS_WHEAT, 4 }, { ITEM_SEEDS_MELON, 4 }, { ITEM_MELON, 4 },
             { ITEM_PORKCHOP_RAW, 4 }, { ITEM_PORKCHOP_COOKED, 4 },
             { ITEM_HELMET_CLOTH, 4 }, { ITEM_CHESTPLATE_CLOTH, 4 }, { ITEM_LEGGINGS_CLOTH, 4 }, { ITEM_BOOTS_CLOTH, 4 },
@@ -167,7 +174,7 @@ void Item::initItems() {
             { ITEM_STICK, 1 }, { ITEM_BRICK, 1 }, { ITEM_DOOR_WOOD_ITEM, 1 },
             { ITEM_DOOR_IRON_ITEM, 1 }, { ITEM_BED_ITEM, 1 }, { ITEM_NETHER_BRICK, 1 },
             { BLOCK_STONE, 1 }, { BLOCK_PLANKS, 1 }, { BLOCK_COBBLESTONE, 1 },
-            { BLOCK_SAND, 1 }, { BLOCK_SANDSTONE, 1 }, { BLOCK_WOOL, 1 }, { BLOCK_SLAB, 1 },
+            { BLOCK_SAND, 1 }, { BLOCK_SANDSTONE, 1 }, { BLOCK_WOOL, 1 }, { BLOCK_SLAB, 1 }, { BLOCK_WOOD_SLAB, 1 },
             { BLOCK_BRICKS, 1 }, { BLOCK_GLASS_PANE, 1 }, { BLOCK_FENCE, 1 },
             { BLOCK_FENCE_GATE, 1 }, { BLOCK_SNOW_BLOCK, 1 }, { BLOCK_CLAY, 1 },
             { BLOCK_GLOWSTONE, 1 }, { BLOCK_LADDER, 1 }, { BLOCK_TRAPDOOR, 1 },

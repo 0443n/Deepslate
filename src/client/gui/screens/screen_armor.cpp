@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "client/player/player.h"
+#include "client/gui/screens/screen.h"
 #include "client/gui/hud.h"
 #include "gpu/sprite.h"
 #include "platform/audio/sound.h"
@@ -39,11 +40,7 @@ static void updateItems() {
 
 static void giveBack(const ItemInstance& item) {
     ItemInstance* copy = new ItemInstance(item);
-    if (!g_level.player->inventory->add(copy)) {
-        LocalPlayer* p = g_level.player;
-        if (p) g_level.addEntity(new ItemEntity(&g_level, p->x, p->y, p->z, *copy));
-        delete copy;
-    }
+    if (!g_level.player->inventory->add(copy)) g_level.player->drop(copy);
 }
 
 static void equipSelected() {
@@ -88,8 +85,12 @@ void armorOpen() {
 }
 
 bool armorFocusIsWornSlot() { return s_focus != 0; }
+struct ArmorScreen : ContainerScreen {
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
 
-void armorHandleInput(MenuState& s, unsigned int pressed) {
+void ArmorScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
     (void)s;
     const int cols = 3;
     const int n = (int)s_list.size();
@@ -132,26 +133,13 @@ static void durabilityBar(MenuState& s, ItemInstance* it, float gx, float gy) {
             0xFF000000u | (g << 8) | r);
 }
 
-void armorRender(MenuState& s) {
+void ArmorScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
     LocalPlayer* p = g_level.player;
-    #define G(v) ((v) * UI_SCALE)
 
     sceGuDisable(GU_DEPTH_TEST);
 
-    drawNinePatch(s, GA_SS_WINDOW_X, GA_SS_WINDOW_Y, 16, 16, 4, 0, 0, 240, 136);
-    if (s.haveGui) {
-        textureBind(&s.guiAtlas);
-        spriteDraw(&s.guiAtlas, 0,      0, G(2),       G(23), GA_HDR_LEFT, WHITE);
-        spriteDraw(&s.guiAtlas, G(2),   0, G(240 - 4), G(23), GA_HDR_BODY, WHITE);
-        spriteDraw(&s.guiAtlas, G(238), 0, G(2),       G(23), GA_HDR_RIGHT, WHITE);
-    }
-    if (haveFont) {
-        const char* title = "Armor";
-        float tw = fontTextWidth(&font, title) * UI_SCALE;
-        fontDrawTextShadow(&font, (480.0f - tw) / 2.0f, (G(23) - 8.0f * UI_SCALE) / 2.0f,
-                           title, 0xFFFFFFFFu, UI_SCALE);
-    }
+    drawHeaderTitle(s, "Armor");
 
     const float paneX = 12.0f, paneY = 32.0f;
     const float ItemSize = 32.0f;
@@ -227,5 +215,7 @@ void armorRender(MenuState& s) {
     }
 
     sceGuEnable(GU_DEPTH_TEST);
-    #undef G
 }
+
+static ArmorScreen s_armorScreen;
+Screen& armorScreen() { return s_armorScreen; }

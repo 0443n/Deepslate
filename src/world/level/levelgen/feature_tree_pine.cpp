@@ -2,8 +2,8 @@
 #include "world/level/levelgen/Random.h"
 #include "world/level/world.h"
 
-static inline bool isTreeClear(unsigned char b) {
-    return b == BLOCK_AIR || isLeaf(b);
+static int coneRadiusAt(int layer, int, int arg) {
+    return (layer < (arg >> 8)) ? 0 : (arg & 0xFF);
 }
 
 void treePine(World* w, Random& random, int x, int y, int z) {
@@ -11,15 +11,8 @@ void treePine(World* w, Random& random, int x, int y, int z) {
     int trunkHeight = treeHeight - random.nextInt(2) - 3;
     int topHeight = treeHeight - trunkHeight;
     int topRadius = 1 + random.nextInt(topHeight + 1);
-    if (y < 1 || y + treeHeight + 1 > WORLD_H) return;
-    for (int yy = y; yy <= y + 1 + treeHeight; yy++) {
-        int r = (yy - y < trunkHeight) ? 0 : topRadius;
-        for (int xx = x - r; xx <= x + r; xx++)
-        for (int zz = z - r; zz <= z + r; zz++)
-            if (!isTreeClear(worldBlock(w, xx, yy, zz))) return;
-    }
-    unsigned char below = worldBlock(w, x, y - 1, z);
-    if (below != BLOCK_GRASS && below != BLOCK_DIRT) return;
+
+    if (!treeSpaceClear(w, x, y, z, treeHeight, coneRadiusAt, (trunkHeight << 8) | topRadius)) return;
     setBlock(w, x, y - 1, z, BLOCK_DIRT);
     int currentRadius = 0;
     for (int yy = y + treeHeight; yy >= y + trunkHeight; yy--) {

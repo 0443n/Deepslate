@@ -1,4 +1,7 @@
 #include "client/renderer/entity/entity_render_dispatcher.h"
+#include "world/level/world.h"
+
+extern World g_world;
 #include "client/renderer/entity/entity_renderer.h"
 #include "client/renderer/entity/painting_renderer.h"
 #include "client/renderer/entity/arrow_renderer.h"
@@ -87,6 +90,7 @@ void EntityRenderDispatcher::renderAll(Level* level, float a) {
 
         if (g_photoPending && e == g_photoCamera) continue;
 
+        if (!worldColumnDrawn(&g_world, e->x, e->z)) continue;
         if (level->player) {
             float dx = e->x - level->player->x, dy = e->y - level->player->y, dz = e->z - level->player->z;
             if (dx * dx + dy * dy + dz * dz > entDist2) continue;

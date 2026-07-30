@@ -2,24 +2,58 @@
 #include "world/level/tile/entity/furnace_tile_entity.h"
 #include "world/level/level.h"
 #include "world/level/chunk/chunk.h"
-#include "world/level/tile/tile.h"
+#include "world/level/tile/material.h"
 #include "world/item/item.h"
 #include "nbt/compound_tag.h"
 #include "nbt/list_tag.h"
 
 FurnaceTileEntity::FurnaceTileEntity()
-    : super(TE_FURNACE), litTime(0), litDuration(0), tickCount(0) {
+    : super(TE_FURNACE), Container(ContainerType::FURNACE),
+      litTime(0), litDuration(0), tickCount(0) {
     rendererId = TR_NO_RENDER;
+}
+
+ItemInstance* FurnaceTileEntity::getItem(int slot) {
+    return &items[slot];
+}
+
+void FurnaceTileEntity::setItem(int slot, ItemInstance* item) {
+    items[slot] = *item;
+    if (items[slot].count > getMaxStackSize()) items[slot].count = (short)getMaxStackSize();
+}
+
+ItemInstance FurnaceTileEntity::removeItem(int slot, int count) {
+    if (items[slot].isNull()) return ItemInstance();
+    if (items[slot].count <= count) {
+        ItemInstance item = items[slot];
+        items[slot].setNull();
+        return item;
+    }
+    ItemInstance i = items[slot].remove(count);
+    if (items[slot].count == 0) items[slot].setNull();
+    return i;
 }
 
 int FurnaceTileEntity::getBurnDuration(const ItemInstance& fuel) {
     if (fuel.isNull()) return 0;
     short id = fuel.id;
-    if (id > 0 && id < 256 && Tile::tiles[id] && Tile::tiles[id]->soundType == SOUND_WOOD)
+    if (id > 0 && id < 256 && &materialOf((unsigned char)id) == &Material::wood)
         return BURN_INTERVAL * 3 / 2;
     if (id == ITEM_STICK) return BURN_INTERVAL / 2;
     if (id == ITEM_COAL)  return BURN_INTERVAL * 8;
     return 0;
+}
+
+bool FurnaceTileEntity::isFuel(const ItemInstance& item) {
+    return getBurnDuration(item) > 0;
+}
+
+bool FurnaceTileEntity::isFurnaceItem(const ItemInstance& item) {
+    return !item.isNull() && !furnaceResult(item.id).isNull();
+}
+
+bool FurnaceTileEntity::isSlotEmpty(int slot) const {
+    return items[slot].isNull();
 }
 
 ItemInstance FurnaceTileEntity::furnaceResult(short ingredientId) {
@@ -76,6 +110,13 @@ void FurnaceTileEntity::tick() {
     }
     if (wasLit != (litTime > 0))
         furnaceSetLitBlock(level, x, y, z, litTime > 0);
+}
+
+bool FurnaceTileEntity::shouldSave() {
+    if (litTime > 0) return true;
+    for (int i = 0; i < NUM_ITEMS; ++i)
+        if (!items[i].isNull()) return true;
+    return false;
 }
 
 bool FurnaceTileEntity::save(CompoundTag* tag) {

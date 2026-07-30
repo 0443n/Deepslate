@@ -11,10 +11,16 @@ public:
     virtual int  getMaxHealth() { return 10; }
     virtual void dropDeathLoot();
 
+    virtual void aiStep();
+    virtual bool playerInteract();
+
     virtual const char* getAmbientSound() { return "mob.cow"; }
     virtual const char* getHurtSound()    { return "mob.cowhurt"; }
     virtual const char* getDeathSound()   { return "mob.cowhurt"; }
     virtual float getSoundVolume() { return 0.4f; }
+
+private:
+    int milkedTicks;
 };
 
 #endif

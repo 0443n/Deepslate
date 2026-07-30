@@ -14,6 +14,9 @@ public:
 
     virtual float getHeadHeight() { return 0.12f; }
 
+    void drop(ItemInstance* item);
+    void drop(ItemInstance* item, bool randomly);
+
     Inventory* inventory;
 
     static const int NUM_ARMOR = 4;
@@ -43,6 +46,10 @@ public:
     short sleepCounter;
     int   bedX, bedY, bedZ;
 
+    int   respawnX, respawnY, respawnZ;
+    bool hasRespawnPosition() const { return respawnY >= 0; }
+    void setRespawnPosition(int x, int y, int z) { respawnX = x; respawnY = y; respawnZ = z; }
+
     bool isSleeping() const { return sleeping; }
     bool isSleepingLongEnough() const { return sleeping && sleepCounter >= SLEEP_DURATION; }
     int  startSleepInBed(int x, int y, int z);
@@ -62,7 +69,5 @@ protected:
 struct World;
 extern const int BED_HEAD_OFF[4][2];
 bool bedFindStandUpPosition(World* w, int x, int y, int z, int dir, int* ox, int* oy, int* oz);
-
-extern int g_bedSpawnX, g_bedSpawnY, g_bedSpawnZ;
 
 #endif

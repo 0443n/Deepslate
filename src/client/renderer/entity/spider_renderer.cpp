@@ -44,13 +44,9 @@ void SpiderRenderer::render(Entity* e, float x, float y, float z, float rot, flo
     build();
     Mob* mob = (Mob*)e;
 
-    float dBody = mob->yBodyRot - mob->yBodyRotO;
-    while (dBody > 180.0f) dBody -= 360.0f; while (dBody < -180.0f) dBody += 360.0f;
-    float ibody = mob->yBodyRotO + dBody * a;
-    float dHead = rot - ibody; while (dHead > 180.0f) dHead -= 360.0f; while (dHead < -180.0f) dHead += 360.0f;
-    float ipitch = mob->xRotO + (mob->xRot - mob->xRotO) * a;
-    float r = mob->walkAnimSpeedO + (mob->walkAnimSpeed - mob->walkAnimSpeedO) * a; if (r > 1.0f) r = 1.0f;
-    float time = mob->walkAnimPos - mob->walkAnimSpeed * (1.0f - a);
+    MobAnim m = mobAnimSetup(mob, rot, a);
+    float ibody = m.bodyRot, dHead = m.headYaw, ipitch = m.pitch;
+    float r = m.speed, time = m.pos;
 
     parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = -dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
     parts[P_BODY0].xRot = parts[P_BODY0].yRot = parts[P_BODY0].zRot = 0;

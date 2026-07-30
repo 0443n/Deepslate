@@ -7,11 +7,13 @@
 #include <algorithm>
 
 #include "client/player/player.h"
+#include "client/gui/screens/screen.h"
 #include "client/gui/hud.h"
 #include "gpu/sprite.h"
 #include "platform/audio/sound.h"
 #include "world/item/crafting/recipes.h"
 #include "world/item/item.h"
+#include "world/item/bucket_item.h"
 #include "world/level/level.h"
 #include "world/entity/item_entity.h"
 #include "world/entity/local_player.h"
@@ -126,14 +128,14 @@ static void craftSelectedItem() {
             toRemove.data = Recipe::ANY_AUX_VALUE;
         }
         if (toRemove.count > 0) g_level.player->inventory->removeResource(toRemove);
+
+        if (toRemove.id == ITEM_BUCKET && toRemove.data != BUCKET_EMPTY && toRemove.count > 0)
+        {   ItemInstance* back = new ItemInstance(ITEM_BUCKET, toRemove.count, BUCKET_EMPTY);
+            if (!g_level.player->inventory->add(back)) g_level.player->drop(back); }
     }
 
     ItemInstance* res = new ItemInstance(result.id, result.count, result.data);
-    if (!g_level.player->inventory->add(res)) {
-        LocalPlayer* p = g_level.player;
-        if (p) g_level.addEntity(new ItemEntity(&g_level, p->x, p->y, p->z, *res));
-        delete res;
-    }
+    if (!g_level.player->inventory->add(res)) g_level.player->drop(res);
     soundPlay("random.click", 1.0f, 1.0f);
     s_pressAnim = 8;
     recheckRecipes();
@@ -190,8 +192,13 @@ void craftOpen(int craftingSize, int filterMode) {
     g_craftOpen = true;
     soundPlay("random.click", 1.0f, 1.0f);
 }
+struct CraftScreen : Screen {
+    void renderBackground(MenuState& s);
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
 
-void craftHandleInput(MenuState& s, unsigned int pressed) {
+void CraftScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
     (void)s;
 
     if (g_level.player && g_level.player->hurtTime > 0) { g_craftOpen = false; return; }
@@ -199,8 +206,13 @@ void craftHandleInput(MenuState& s, unsigned int pressed) {
     int before = s_focus * 1000 + s_curCat * 100 + s_cursor;
 
     s_focus = 1;
-    if ((pressed & PSP_CTRL_LTRIGGER) && s_curCat > 0)                   { s_curCat--; s_cursor = 0; s_scrollY = 0; }
-    if ((pressed & PSP_CTRL_RTRIGGER) && s_curCat < numCategories() - 1) { s_curCat++; s_cursor = 0; s_scrollY = 0; }
+
+    if (pressed & (PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER)) {
+        int n = numCategories();
+        s_curCat += (pressed & PSP_CTRL_LTRIGGER) ? -1 : 1;
+        if (s_curCat < 0) s_curCat = n - 1; else if (s_curCat >= n) s_curCat = 0;
+        s_cursor = 0; s_scrollY = 0;
+    }
     const int rows = (int)s_cat[s_curCat].size();
     if ((pressed & PSP_CTRL_UP)   && s_cursor > 0)        s_cursor--;
     if ((pressed & PSP_CTRL_DOWN) && s_cursor + 1 < rows) s_cursor++;
@@ -215,13 +227,15 @@ void craftHandleInput(MenuState& s, unsigned int pressed) {
     }
 }
 
-void craftRender(MenuState& s) {
+void CraftScreen::renderBackground(MenuState& s) {
+    sceGuDisable(GU_DEPTH_TEST);
+    drawNinePatch(s, GA_SS_WINDOW_X, GA_SS_WINDOW_Y, 16, 16, 4, 0, 0, VW, VH);
+}
+
+void CraftScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
-    #define G(v) ((v) * UI_SCALE)
 
     sceGuDisable(GU_DEPTH_TEST);
-
-    drawNinePatch(s, GA_SS_WINDOW_X, GA_SS_WINDOW_Y, 16, 16, 4, 0, 0, 240, 136);
 
     const float catH = (136.0f - 16.0f) / 4.0f;
     for (int i = 0; i < numCategories(); ++i) {
@@ -293,17 +307,8 @@ void craftRender(MenuState& s) {
     guiFillGradient(G(paneX), G(paneY + paneH - 14.0f), G(paneW), G(14), 0x00000000u, 0xBB000000u);
     sceGuScissor(0, 0, 480, 272);
 
-    if (n > visRows) {
-        const float sbX = paneX + paneW + 2.0f, sbW = 2.0f;
-        float contentH = n * RowH;
-        float thumbH = paneH * (paneH / contentH); if (thumbH < 8.0f) thumbH = 8.0f;
-        float maxScrollPx = contentH - paneH;
-        float frac = maxScrollPx > 0.0f ? s_scrollY / maxScrollPx : 0.0f;
-        if (frac < 0.0f) frac = 0.0f; else if (frac > 1.0f) frac = 1.0f;
-        float thumbY = paneY + frac * (paneH - thumbH);
-        guiFill(G(sbX), G(paneY), G(sbW), G(paneH), 0x66000000u);
-        guiFill(G(sbX), G(thumbY), G(sbW), G(thumbH), 0xFFC0C0C0u);
-    }
+    guiScrollbar(G(paneX + paneW + 2.0f), G(paneY), G(2.0f), G(paneH),
+                 G(n * RowH), G(s_scrollY));
 
     const float craftW = 88.0f, craftH = 62.0f;
     const float craftX = 240.0f - 100.0f + (100.0f - craftW) / 2.0f - 1.0f;
@@ -348,5 +353,7 @@ void craftRender(MenuState& s) {
     }
 
     sceGuEnable(GU_DEPTH_TEST);
-    #undef G
 }
+
+static CraftScreen s_craftScreen;
+Screen& craftScreen() { return s_craftScreen; }

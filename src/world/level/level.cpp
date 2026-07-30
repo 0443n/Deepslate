@@ -13,11 +13,14 @@
 #include "platform/audio/sound.h"
 #include "util/mth.h"
 
-Level::Level(World* world) : w(world), player(0), isClientSide(false) {
+Level::Level(World* world) : w(world), player(0), isClientSide(false),
+                             spawnX(WORLD_W / 2), spawnY(64), spawnZ(WORLD_D / 2) {
     entities.reserve(Entity::ENTITY_POOL + 16);
     boxes.reserve(64);
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) chunkEntityHead[i] = 0;
 }
+
+void Level::validateSpawn() { worldValidateSpawn(w, &spawnX, &spawnY, &spawnZ); }
 
 static inline int colOf(float x, float z) {
     int cx = (int)(x) >> 4, cz = (int)(z) >> 4;
@@ -118,8 +121,29 @@ bool Level::containsAnyLiquid(const AABB& box) const {
     return false;
 }
 
+bool Level::containsFireTile(const AABB& box) const {
+    int x0 = Mth::floor(box.x0), x1 = Mth::floor(box.x1 + 1);
+    int y0 = Mth::floor(box.y0), y1 = Mth::floor(box.y1 + 1);
+    int z0 = Mth::floor(box.z0), z1 = Mth::floor(box.z1 + 1);
+    if (box.x0 < 0) x0--;
+    if (box.y0 < 0) y0--;
+    if (box.z0 < 0) z0--;
+    for (int x = x0; x < x1; x++)
+        for (int y = y0; y < y1; y++)
+            for (int z = z0; z < z1; z++) {
+                unsigned char id = (unsigned char)worldBlock(w, x, y, z);
+                if (id == BLOCK_FIRE || isLavaId(id)) return true;
+            }
+    return false;
+}
+
+void Level::handleFallOn(int x, int y, int z, Entity* e, float dist) const {
+    int t = getTile(x, y, z);
+    if (t > 0) Tile::tiles[t]->fallOn(w, x, y, z, e, dist);
+}
+
 bool Level::isSolidTile(int x, int y, int z) const {
-    return isSolidMaterial((unsigned char)worldBlock(w, x, y, z));
+    return materialOf((unsigned char)worldBlock(w, x, y, z)).isSolid();
 }
 
 std::vector<AABB>& Level::getCubes(Entity* , const AABB& box) {

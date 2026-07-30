@@ -8,6 +8,8 @@ OBJS = \
 	src/world/entity/player.o \
 	src/world/entity/local_player.o \
 	src/world/level/tile/tile.o \
+	src/world/level/tile/material.o \
+	src/world/level/tile/tile_shapes.o \
 	src/client/renderer/render.o \
 	src/client/renderer/particle.o \
 	src/client/renderer/water_anim.o \
@@ -16,13 +18,15 @@ OBJS = \
 	src/client/gui/gen_screen.o \
 	src/client/gui/hud.o \
 	src/client/gui/inventory_ui.o \
-	src/client/gui/screens/menu_common.o \
+	src/client/gui/screens/menu_common.o src/client/gui/screens/panorama.o \
+	src/client/gui/screens/screen.o \
 	src/client/gui/screens/screen_title.o \
 	src/client/gui/screens/screen_worlds.o \
+	src/client/gui/screens/world_icons.o \
 	src/client/gui/screens/screen_delete.o \
 	src/client/gui/screens/screen_create.o \
 	src/client/gui/screens/screen_join.o \
-	src/client/gui/screens/screen_joinip.o \
+	src/client/gui/screens/screen_addserver.o \
 	src/client/gui/screens/screen_options.o \
 	src/client/gui/screens/screen_pause.o \
 	src/client/gui/screens/screen_dead.o \
@@ -48,10 +52,12 @@ OBJS = \
 	src/platform/png_loader.o \
 	src/platform/malloc_lock.o \
 	src/platform/audio/sound.o \
+	src/world/level/storage/external_servers.o \
 	src/world/level/storage/worldlist.o \
 	src/world/level/storage/region_file.o \
 	src/world/level/storage/level_storage.o \
 	src/util/data_io.o \
+	src/util/prof.o \
 	src/nbt/tag.o \
 	src/world/level/chunk/chunk.o \
 	src/world/level/chunk/chunk_build.o \
@@ -69,7 +75,7 @@ OBJS = \
 	src/world/level/tile/entity/tile_entity_factory.o \
 	src/world/item/item.o \
 	src/world/item/item_instance.o \
-	src/world/item/tile_item.o \
+	src/world/item/tile_item.o src/world/item/bucket_item.o \
 	src/world/item/hoe_item.o \
 	src/world/item/seed_item.o \
 	src/world/item/hanging_entity_item.o \
@@ -121,7 +127,7 @@ OBJS = \
 	src/client/renderer/entity/creeper_renderer.o \
 	src/client/renderer/entity/spider_renderer.o \
 	src/client/renderer/entity/player_model.o \
-	src/client/renderer/tileentity/sign_renderer.o \
+	src/client/renderer/tileentity/sign_renderer.o src/client/renderer/tileentity/chest_renderer.o \
 	src/world/inventory/filling_container.o \
 	src/world/inventory/inventory.o \
 	src/client/renderer/tile/mesh_block.o \
@@ -151,6 +157,8 @@ OBJS = \
 	src/world/level/levelgen/PerlinNoise.o \
 	src/world/level/levelgen/biome.o \
 	src/world/level/levelgen/mcpegen.o \
+	src/world/level/levelgen/level_source.o \
+	src/world/level/levelgen/gen_features.o \
 	src/world/level/levelgen/features_common.o \
 	src/world/level/levelgen/feature_tree_oak.o \
 	src/world/level/levelgen/feature_tree_birch.o \

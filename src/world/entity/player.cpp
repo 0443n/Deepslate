@@ -1,6 +1,7 @@
 #include "world/entity/player.h"
 #include "world/inventory/inventory.h"
 #include "world/entity/entity_types.h"
+#include "world/entity/item_entity.h"
 #include "world/level/level.h"
 #include "world/difficulty.h"
 #include "client/gamemode/gamemode.h"
@@ -11,6 +12,7 @@ Player::Player(Level* level)
     : Mob(level), inventory(new Inventory(true)),
       bob(0), oBob(0), tilt(0), oTilt(0), bowPull(0), bowTimeHeld(0),
       eatAnim(0), sleeping(false), sleepCounter(0), bedX(0), bedY(0), bedZ(0),
+      respawnX(0), respawnY(-1), respawnZ(0),
       score(0) {}
 
 Player::~Player() { delete inventory; }
@@ -41,13 +43,32 @@ void Player::causeFallDamage(float dist) {
     if (t > 0) level->playLandSound(this, xt, yt, zt, t);
     hurt(0, dmg);
 }
+
+void Player::drop(ItemInstance* item) { drop(item, false); }
+
+void Player::drop(ItemInstance* item, bool randomly) {
+    if (item == 0) return;
+    if (item->isNull()) { delete item; return; }
+
+    ItemEntity* thrown = new ItemEntity(level, x, y - 0.3f + getHeadHeight(), z, *item);
+    delete item;
+    thrown->throwTime = 20 * 2;
+
+    if (randomly) {
+        float pow = sharedRandom.nextFloat() * 0.5f;
+        float dir = sharedRandom.nextFloat() * Mth::PI * 2.0f;
+        thrown->xd = -sinf(dir) * pow;
+        thrown->zd =  cosf(dir) * pow;
+        thrown->yd = 0.2f;
+    }
+    level->addEntity(thrown);
+}
+
 void Player::addAdditonalSaveData(CompoundTag* ) {}
 void Player::readAdditionalSaveData(CompoundTag* ) {}
 
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
-
-int g_bedSpawnX = 0, g_bedSpawnY = -1, g_bedSpawnZ = 0;
 
 const int BED_HEAD_OFF[4][2] = { { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 0 } };
 
@@ -117,7 +138,7 @@ void Player::stopSleepInBed(bool forcefulWakeUp, bool ) {
         }
         setPos(sx + 0.5f, sy + 0.1f + heightOffset, sz + 0.5f);
 
-        g_bedSpawnX = sx; g_bedSpawnY = sy; g_bedSpawnZ = sz;
+        setRespawnPosition(sx, sy, sz);
     }
     sleeping = false;
     sleepCounter = forcefulWakeUp ? 0 : SLEEP_DURATION;

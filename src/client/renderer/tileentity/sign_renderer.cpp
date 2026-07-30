@@ -4,7 +4,11 @@
 #include "world/entity/local_player.h"
 #include "world/level/level.h"
 #include "world/level/chunk/chunk.h"
+#include "world/level/world.h"
+
+extern World g_world;
 #include "world/level/tile/entity/sign_tile_entity.h"
+#include "world/level/tile/entity/chest_tile_entity.h"
 #include "gpu/texture.h"
 #include "gpu/gu.h"
 #include "gpu/font.h"
@@ -179,17 +183,28 @@ static void renderSign(SignTileEntity* sign, float a) {
 
 void renderAllTileEntities(Level* level, float a) {
     if (!level) return;
+
     const float CULL2 = 64.0f * 64.0f;
     std::vector<TileEntity*>& list = level->tileEntities;
     for (size_t i = 0; i < list.size(); i++) {
         TileEntity* te = list[i];
         if (!te || te->removed) continue;
-        if (te->rendererId != TR_SIGN_RENDERER) continue;
 
-        if (!isSign(level->getTile(te->x, te->y, te->z))) { te->removed = true; continue; }
+        int tile = level->getTile(te->x, te->y, te->z);
+        switch (te->rendererId) {
+            case TR_SIGN_RENDERER:
+                if (!isSign(tile)) { te->removed = true; continue; }
+                break;
+            case TR_CHEST_RENDERER:
+                if (tile != BLOCK_CHEST) { te->removed = true; continue; }
+                break;
+            default: continue;
+        }
+        if (!worldColumnDrawn(&g_world, (float)te->x + 0.5f, (float)te->z + 0.5f)) continue;
         float dx = (te->x + 0.5f) - g_level.player->x, dy = (te->y + 0.5f) - g_level.player->y, dz = (te->z + 0.5f) - g_level.player->z;
         if (dx*dx + dy*dy + dz*dz > CULL2) continue;
-        renderSign((SignTileEntity*)te, a);
+        if (te->rendererId == TR_SIGN_RENDERER) renderSign((SignTileEntity*)te, a);
+        else                                    renderChestTile((ChestTileEntity*)te, a);
     }
 
     for (size_t i = 0; i < list.size(); ) {

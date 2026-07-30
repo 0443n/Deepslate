@@ -5,14 +5,19 @@
 #include <cstring>
 
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/screen.h"
 #include "client/renderer/tileentity/tile_entity_renderer.h"
 #include "gpu/sprite.h"
 #include "platform/audio/sound.h"
 #include "world/level/tile/entity/sign_tile_entity.h"
 
 SignTileEntity* g_signEditing = 0;
+struct SignScreen : Screen {
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
 
-void signHandleInput(MenuState& s, unsigned int pressed) {
+void SignScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
     (void)s;
     SignTileEntity* ste = g_signEditing;
     if (!ste) return;
@@ -33,12 +38,11 @@ void signHandleInput(MenuState& s, unsigned int pressed) {
     }
 }
 
-void signRender(MenuState& s) {
+void SignScreen::renderContent(MenuState& s) {
     SignTileEntity* ste = g_signEditing;
     if (!ste) return;
 
     sceGuDisable(GU_DEPTH_TEST);
-    drawRect(0.0f, 0.0f, 480.0f, 272.0f, 0x80000000u);
 
     const float scale = ((272.0f / 2.0f) / 32.0f) * 0.9f;
     const float bx = 480.0f / 2.0f - 32.0f * scale;
@@ -84,3 +88,6 @@ void signRender(MenuState& s) {
 
     sceGuEnable(GU_DEPTH_TEST);
 }
+
+static SignScreen s_signScreen;
+Screen& signScreen() { return s_signScreen; }

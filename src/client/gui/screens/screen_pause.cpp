@@ -1,24 +1,67 @@
 
 #include <pspctrl.h>
 #include <pspgu.h>
+#include <psputility.h>
 #include <cstdio>
+#include <cstring>
 
 #include "client/player/player.h"
+#include "client/gui/screens/screen.h"
 #include "gpu/sprite.h"
 #include "platform/audio/sound.h"
 #include "gpu/gui_atlas.h"
 
 bool g_paused        = false;
 int  g_pauseSel      = 0;
-bool g_muted         = false;
-bool g_serverVisible = true;
 bool g_thirdPerson   = false;
 bool g_quitConfirm   = false;
 int  g_quitConfirmSel = 1;
+bool g_optionsOpen   = false;
 
-static const int PAUSE_SLOTS = 6;
+static const char* const kPauseButtons[] = {
+    "Back to game", "Options", "Save", "Quit to title",
+};
+static const int PAUSE_BUTTONS = (int)(sizeof(kPauseButtons) / sizeof(kPauseButtons[0]));
 
-void pauseHandleInput(MenuState& s, unsigned int pressed) {
+static const float PAUSE_V2    = VW / 20.0f;
+static const float PAUSE_BTN_W = 8.0f * PAUSE_V2;
+static const float PAUSE_BTN_H = 20.0f;
+static const float PAUSE_PITCH = 25.0f;
+static const float PAUSE_BTN_Y = 24.0f;
+static const float PAUSE_LIST_W = 8.0f * PAUSE_V2;
+static const float PAUSE_LIST_X = VW - PAUSE_LIST_W - PAUSE_V2;
+static const float PAUSE_LIST_Y = VH / 10.0f;
+static const float PAUSE_LIST_H = 8.0f * (VH / 10.0f);
+
+static const float PAUSE_ROW_H   = 15.0f;
+static const float PAUSE_ROW_Y0  = 2.0f;
+static const float PAUSE_NAME_X  = 3.0f;
+static const float PAUSE_NAME_Y  = 4.0f;
+
+const char* pausePlayerName() {
+    static char s_name[64];
+    static bool s_read = false;
+    if (!s_read) {
+        s_read = true;
+        s_name[0] = '\0';
+        sceUtilityGetSystemParamString(PSP_SYSTEMPARAM_ID_STRING_NICKNAME, s_name, sizeof(s_name));
+        if (!s_name[0]) std::snprintf(s_name, sizeof(s_name), "Player");
+    }
+    return s_name;
+}
+
+int pausePlayerList(const char** outNames, bool* outIsLocal, int max) {
+    if (max <= 0) return 0;
+    outNames[0] = pausePlayerName();
+    outIsLocal[0] = true;
+    return 1;
+}
+struct PauseScreen : Screen {
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
+
+void PauseScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
 
     if (g_quitConfirm) {
         int before = g_quitConfirmSel;
@@ -35,27 +78,9 @@ void pauseHandleInput(MenuState& s, unsigned int pressed) {
         return;
     }
 
-    static int lastBtn = 0;
-
     const int selBefore = g_pauseSel;
-    bool onIcons = (g_pauseSel >= 4);
-    if (pressed & PSP_CTRL_LEFT) {
-        if (!onIcons)               { lastBtn = g_pauseSel; g_pauseSel = 5; }
-        else if (g_pauseSel == 5)   g_pauseSel = 4;
-
-    }
-    if (pressed & PSP_CTRL_RIGHT) {
-        if (onIcons) {
-            if (g_pauseSel == 4)    g_pauseSel = 5;
-            else                    g_pauseSel = lastBtn;
-        }
-    }
-    if (pressed & PSP_CTRL_UP) {
-        if (!onIcons) { if (g_pauseSel > 0) g_pauseSel--; }
-    }
-    if (pressed & PSP_CTRL_DOWN) {
-        if (!onIcons) { if (g_pauseSel < 3) g_pauseSel++; }
-    }
+    if ((pressed & PSP_CTRL_UP)   && g_pauseSel > 0)                  g_pauseSel--;
+    if ((pressed & PSP_CTRL_DOWN) && g_pauseSel < PAUSE_BUTTONS - 1)  g_pauseSel++;
     if (g_pauseSel != selBefore) soundPlay("random.click", 1.0f, 1.0f);
 
     if (pressed & PSP_CTRL_CIRCLE) {
@@ -67,73 +92,85 @@ void pauseHandleInput(MenuState& s, unsigned int pressed) {
         soundPlay("random.click", 1.0f, 1.0f);
         switch (g_pauseSel) {
             case 0: g_paused = false; break;
-            case 1: g_saveRequested = true; g_paused = false; break;
-            case 2: g_quitConfirm = true; g_quitConfirmSel = 1; break;
-            case 3: g_serverVisible = !g_serverVisible; break;
-            case 4: g_muted = !g_muted; break;
-            case 5: g_thirdPerson = !g_thirdPerson;
-                    optionsSetThirdPerson(g_thirdPerson); break;
+            case 1:
+
+                g_optionsOpen = true;
+                g_paused = false;
+                break;
+            case 2: g_saveRequested = true; g_paused = false; break;
+            case 3: g_quitConfirm = true; g_quitConfirmSel = 1; break;
         }
     }
 }
 
-void pauseRender(MenuState& s) {
+void guiTButton(MenuState& s, float x, float y, float w, float h, bool pressed,
+                float destCorner) {
+    drawNinePatch(s, GA_SS_SLOT_X + (pressed ? 0.0f : 8.0f), GA_SS_SLOT_Y,
+                  8.0f, 8.0f, 2.0f, x, y, w, h, destCorner);
+}
+
+void guiTButtonLabel(MenuState& s, float x, float y, float w, float h,
+                     const char* label, bool hovered, bool active, float scale) {
+    if (!s.haveFont) return;
+
+    unsigned int col = !active ? GUI_DISABLED : hovered ? 0xFFA0FFFFu : 0xFFE0E0E0u;
+    float lw = fontTextWidth(&s.font, label) * scale;
+    fontDrawTextShadow(&s.font, x * UI_SCALE + (w * UI_SCALE - lw) / 2.0f,
+                       (y + h / 2.0f) * UI_SCALE - 4.0f * scale, label, col, scale);
+}
+
+void PauseScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
-    bool haveTouch = s.haveGui;
+    bool haveGui = s.haveGui;
 
     sceGuDisable(GU_DEPTH_TEST);
 
-    drawRect(0.0f, 0.0f, 480.0f, 272.0f, 0x80000000u);
+    if (haveGui && haveFont) {
 
-    if (haveFont) {
         const char* title = "Game menu";
         float tw = fontTextWidth(&font, title) * UI_SCALE;
-        fontDrawTextShadow(&font, (VW * UI_SCALE - tw) / 2.0f, 6.0f * UI_SCALE,
-                           title, 0xFFFFFFFFu, UI_SCALE);
-    }
+        fontDrawTextShadow(&font,
+                           (PAUSE_V2 + PAUSE_BTN_W / 2.0f) * UI_SCALE - tw / 2.0f,
+                           (PAUSE_BTN_Y - 11.0f) * UI_SCALE, title, 0xFFFFFFFFu, UI_SCALE);
 
-    if (haveTouch && haveFont) {
-        const float btnW = 100.0f, btnH = 20.0f, gap = 4.0f;
-        const float startX = (VW - btnW) / 2.0f;
-        const float startY = 24.0f;
-        const char* serverMsg = g_serverVisible ? "Server is visible" : "Server is invisible";
-        const char* labels[4] = { "Back to game", "Save", "Quit", serverMsg };
-
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < PAUSE_BUTTONS; i++) {
             bool hover = (g_pauseSel == i);
-            float bx = startX, by = startY + i * (btnH + gap);
+            float by = PAUSE_BTN_Y + i * PAUSE_PITCH;
+            guiTButton(s, PAUSE_V2, by, PAUSE_BTN_W, PAUSE_BTN_H, hover);
+            guiTButtonLabel(s, PAUSE_V2, by, PAUSE_BTN_W, PAUSE_BTN_H,
+                            kPauseButtons[i], hover, true);
+        }
 
-            textureBind(&s.guiAtlas);
+        const unsigned int LIST_EDGE = 0x69000000u;
+        const unsigned int LIST_FILL = 0x452D2D2Du;
+        drawRect(PAUSE_LIST_X * UI_SCALE, PAUSE_LIST_Y * UI_SCALE,
+                 PAUSE_LIST_W * UI_SCALE, PAUSE_LIST_H * UI_SCALE, LIST_EDGE);
+        drawRect((PAUSE_LIST_X + 1.0f) * UI_SCALE, (PAUSE_LIST_Y + 1.0f) * UI_SCALE,
+                 (PAUSE_LIST_W - 2.0f) * UI_SCALE, (PAUSE_LIST_H - 2.0f) * UI_SCALE, LIST_FILL);
 
-            float bu = hover ? 60.0f : 0.0f;
-            spriteDraw(&s.guiAtlas, bx * UI_SCALE, by * UI_SCALE, btnW * UI_SCALE, btnH * UI_SCALE,
-                       GA_BTN_PAIR_X + bu, GA_BTN_PAIR_Y, 60.0f, 20.0f, WHITE);
+        const char* names[16]; bool isLocal[16];
+        int n = pausePlayerList(names, isLocal, 16);
+        for (int i = 0; i < n; i++) {
+            float ry = PAUSE_LIST_Y + PAUSE_ROW_Y0 + i * PAUSE_ROW_H;
+            if (ry + PAUSE_ROW_H > PAUSE_LIST_Y + PAUSE_LIST_H) break;
 
-            float lw = fontTextWidth(&font, labels[i]) * UI_SCALE;
-            unsigned int lcol = hover ? 0xFFA0FFFFu : 0xFFE0E0E0u;
-            fontDrawTextShadow(&font, bx * UI_SCALE + (btnW * UI_SCALE - lw) / 2.0f,
-                               (by + 6.0f) * UI_SCALE, labels[i], lcol, UI_SCALE);
+            drawRect(PAUSE_LIST_X * UI_SCALE, ry * UI_SCALE,
+                     PAUSE_LIST_W * UI_SCALE, PAUSE_ROW_H * UI_SCALE, LIST_FILL);
+            drawRect(PAUSE_LIST_X * UI_SCALE, ry * UI_SCALE,
+                     1.0f * UI_SCALE, PAUSE_ROW_H * UI_SCALE, LIST_EDGE);
+            drawRect((PAUSE_LIST_X + PAUSE_LIST_W - 1.0f) * UI_SCALE, ry * UI_SCALE,
+                     1.0f * UI_SCALE, PAUSE_ROW_H * UI_SCALE, LIST_EDGE);
+            drawRect(PAUSE_LIST_X * UI_SCALE, (ry + PAUSE_ROW_H - 1.0f) * UI_SCALE,
+                     PAUSE_LIST_W * UI_SCALE, 1.0f * UI_SCALE, LIST_EDGE);
+
+            unsigned int col = isLocal[i] ? 0xFFFFFFFFu : 0xFF777777u;
+            fontDrawTextClipped(&font, (PAUSE_LIST_X + PAUSE_NAME_X) * UI_SCALE,
+                                (ry + PAUSE_NAME_Y) * UI_SCALE, names[i], col, UI_SCALE,
+                                PAUSE_LIST_W - PAUSE_NAME_X * 2.0f);
         }
     }
 
-    if (haveTouch) {
-        const float SU = GA_SWITCH_X, SW = 39.0f, SH = 31.0f;
-        const float iw = SW * 0.6667f * UI_SCALE, ih = SH * 0.6667f * UI_SCALE;
-        struct { float sv; bool rightCell; int slot; } icons[2] = {
-            { GA_SWITCH_Y +  0.0f, !g_muted,       4 },
-            { GA_SWITCH_Y + 31.0f, g_thirdPerson,  5 },
-        };
-        textureBind(&s.guiAtlas);
-        for (int i = 0; i < 2; ++i) {
-            float dx = (4.0f + i * (SW * 0.6667f + 4.0f)) * UI_SCALE;
-            float dy = 8.0f * UI_SCALE;
-            float su = icons[i].rightCell ? SU + SW : SU;
-            unsigned int tint = (g_pauseSel == icons[i].slot) ? 0xFFA0FFFFu : 0xFFFFFFFFu;
-            spriteDraw(&s.guiAtlas, dx, dy, iw, ih, su, icons[i].sv, SW, SH, tint);
-        }
-    }
-
-    if (g_quitConfirm && haveTouch && haveFont) {
+    if (g_quitConfirm && haveGui && haveFont) {
         drawRect(0.0f, 0.0f, 480.0f, 272.0f, 0xB0000000u);
         const char* line = "Are you sure you want to exit without saving?";
         float lw = fontTextWidth(&font, line) * UI_SCALE;
@@ -147,13 +184,8 @@ void pauseRender(MenuState& s) {
         for (int i = 0; i < 2; ++i) {
             bool hover = (g_quitConfirmSel == i);
             float bx = bx0 + i * (btnW + gap);
-            textureBind(&s.guiAtlas);
-            spriteDraw(&s.guiAtlas, bx * UI_SCALE, by * UI_SCALE, btnW * UI_SCALE, btnH * UI_SCALE,
-                       GA_BTN_PAIR_X + (hover ? 60.0f : 0.0f), GA_BTN_PAIR_Y, 60.0f, 20.0f, WHITE);
-            float cw = fontTextWidth(&font, clabels[i]) * UI_SCALE;
-            unsigned int col = hover ? 0xFFA0FFFFu : 0xFFE0E0E0u;
-            fontDrawTextShadow(&font, bx * UI_SCALE + (btnW * UI_SCALE - cw) / 2.0f,
-                               (by + 6.0f) * UI_SCALE, clabels[i], col, UI_SCALE);
+            guiTButton(s, bx, by, btnW, btnH, hover);
+            guiTButtonLabel(s, bx, by, btnW, btnH, clabels[i], hover, true);
         }
     }
 
@@ -168,3 +200,6 @@ void pauseRender(MenuState& s) {
 
     sceGuEnable(GU_DEPTH_TEST);
 }
+
+static PauseScreen s_pauseScreen;
+Screen& pauseScreen() { return s_pauseScreen; }

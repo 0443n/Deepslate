@@ -56,13 +56,17 @@ void chunkDrawLeavesSection(const ChunkSection* s) {
     }
 }
 
-void chunkDrawNoMipSection(const ChunkSection* s) {
-    if (s->noMipCount > 0 && s->noMip) {
-        chunkSetModel(s, SEAM_OVERSCALE_OPAQUE);
-        sceGumDrawArray(GU_TRIANGLES,
-                        GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D,
-                        s->noMipCount, 0, s->noMip);
-    }
+void chunkDrawNoMipSection(const ChunkSection* s, int part) {
+    if (s->noMipCount <= 0 || !s->noMip) return;
+
+    int first = 0, count = s->noMipCount;
+    if (part == NOMIP_NO_LAVA) count = s->noMipLavaStart;
+    else if (part == NOMIP_LAVA) { first = s->noMipLavaStart; count = s->noMipCount - first; }
+    if (count <= 0) return;
+    chunkSetModel(s, SEAM_OVERSCALE_OPAQUE);
+    sceGumDrawArray(GU_TRIANGLES,
+                    GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D,
+                    count, 0, s->noMip + first);
 }
 
 void chunkFreeMesh(ChunkMesh* c) {
@@ -73,5 +77,6 @@ void chunkFreeMesh(ChunkMesh* c) {
         if (s->leaves) { free(s->leaves); s->leaves = 0; }
         if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
+        s->noMipLavaStart = 0;
     }
 }

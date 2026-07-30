@@ -4,6 +4,7 @@
 #include "world/level/chunk/chunk.h"
 #include "gpu/texture.h"
 #include "gpu/gu.h"
+#include "client/renderer/tileentity/tile_entity_renderer.h"
 #include <pspgu.h>
 #include <pspgum.h>
 #include <pspkernel.h>
@@ -22,7 +23,8 @@ bool ItemModelRenderer::build(short id, unsigned char data, int bowStage) {
                          : itemBuildBlockMesh(id, data, m_base);
 
         m_tex = m_flat ? itemFlatTexture(id, data)
-                       : (g_haveTerrain ? &g_terrain : (const Texture*)0);
+              : (id == BLOCK_CHEST) ? chestModelTexture()
+              : (g_haveTerrain ? &g_terrain : (const Texture*)0);
     }
     return m_count > 0;
 }

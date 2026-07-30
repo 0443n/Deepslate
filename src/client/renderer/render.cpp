@@ -20,11 +20,14 @@
 #include "client/renderer/particle.h"
 #include "world/level/storage/level_storage.h"
 #include "world/entity/tripod_camera.h"
+#include "util/prof.h"
 #include <cstring>
 
 #include <stdio.h>
 #include <pspctrl.h>
 #include <cmath>
+#include <malloc.h>
+#include "world/level/levelgen/Random.h"
 #include <cstdlib>
 #include <pspgu.h>
 #include <pspgum.h>
@@ -63,11 +66,20 @@ bool    g_haveGuiBlocks = false;
 
 Texture g_clouds;
 bool    g_haveClouds = false;
+Texture g_sun;
+bool    g_haveSun = false;
+Texture g_moon;
+bool    g_haveMoon = false;
 Texture g_particles;
 bool    g_haveParticles = false;
+Texture g_fireAtlas;
+bool    g_haveFireAtlas = false;
 
-extern int g_fancyGraphics;
 extern int g_cloudTicks;
+
+int g_beautifulSkies = 0;
+int g_animateTextures = 1;
+int g_hideGui = 0;
 
 static bool loadTexMip(Texture* out, int level, const char* rel) {
     return textureLoadMipLevel(out, level, assetPath(rel)) || textureLoadMipLevel(out, level, rel);
@@ -86,6 +98,7 @@ static bool loadTex16(Texture* out, const char* rel, int psm) {
 }
 
 float g_camX = 0.0f, g_camY = 0.0f, g_camZ = 0.0f;
+float g_nearZPlane = 0.25f;
 
 enum WorldGenStage { GS_IDLE, GS_SHOW, GS_TERRAIN, GS_TERRAIN_WAIT, GS_MESHING };
 
@@ -119,6 +132,38 @@ static unsigned int scaleABGR(unsigned int c, float fr, float fg, float fb) {
     return (c & 0xFF000000u) | (b << 16) | (g << 8) | r;
 }
 
+static inline float skySunAngle(float alpha) {
+    return worldTimeOfDay(g_world.dayTime, alpha) * 2.0f * 3.14159265f;
+}
+
+static bool skySunriseColor(float alpha, float* rr, float* gg, float* bb, float* aa) {
+    float td = worldTimeOfDay(g_world.dayTime, alpha);
+    float c = cosf(td * 2.0f * 3.14159265f);
+    if (c < -0.4f || c > 0.4f) return false;
+    float t = (c / 0.4f) * 0.5f + 0.5f;
+    float a = 1.0f - (1.0f - sinf(t * 3.14159265f)) * 0.99f;
+    *rr = t * 0.3f + 0.7f;
+    *gg = t * t * 0.7f + 0.2f;
+    *bb = 0.2f;
+    *aa = a * a;
+    return true;
+}
+
+static float skySunIntensity(float alpha, float yawDeg, float pitchDeg, float minDot) {
+    float sunA = skySunAngle(alpha);
+
+    float sx = 0.25f, sy = cosf(sunA), sz = sinf(sunA);
+
+    const float D2R = 3.14159265f / 180.0f;
+    float cp = cosf(pitchDeg * D2R), sp = sinf(pitchDeg * D2R);
+    float lx = cp * sinf(yawDeg * D2R), ly = sp, lz = cp * cosf(yawDeg * D2R);
+    float d = (lx * sx + ly * sy + lz * sz + 1.0f) * 0.5f;
+    if (d > 1.0f) d = 1.0f; else if (d <= minDot) d = minDot;
+    return (d - minDot) / (1.0f - minDot);
+}
+
+static float g_camYawNow = 0.0f, g_camPitchNow = 0.0f;
+
 static void updateDayColors(float alpha) {
     float td = worldTimeOfDay(g_world.dayTime, alpha);
     float c = cosf(td * 2.0f * 3.14159265f);
@@ -132,14 +177,167 @@ static void updateDayColors(float alpha) {
     g_skyDomeColorNow = scaleABGR(SKY_DOME_COLOR, sb, sb, sb);
     g_skyColorNow     = scaleABGR(SKY_COLOR, fb*0.94f+0.06f, fb*0.94f+0.06f, fb*0.91f+0.09f);
     g_cloudColorNow   = scaleABGR(0xCCFFFFFFu, fb*0.90f+0.10f, fb*0.90f+0.10f, fb*0.85f+0.15f);
+
+    float sr, sg, sb2, sa;
+    if (skySunriseColor(alpha, &sr, &sg, &sb2, &sa)) {
+        float w = skySunIntensity(alpha, g_camYawNow, g_camPitchNow, 0.35f) * sa;
+        if (w > 0.0f) {
+            float inv = 1.0f - w;
+            unsigned int fr = ( g_skyColorNow        & 0xFF);
+            unsigned int fg = ((g_skyColorNow >> 8)  & 0xFF);
+            unsigned int fbb= ((g_skyColorNow >> 16) & 0xFF);
+            unsigned int nr = (unsigned int)(sr * 255.0f * w + fr  * inv);
+            unsigned int ng = (unsigned int)(sg * 255.0f * w + fg  * inv);
+            unsigned int nb = (unsigned int)(sb2 * 255.0f * w + fbb * inv);
+            if (nr > 255) nr = 255; if (ng > 255) ng = 255; if (nb > 255) nb = 255;
+            g_skyColorNow = (g_skyColorNow & 0xFF000000u) | (nb << 16) | (ng << 8) | nr;
+        }
+    }
+}
+
+static inline int skyMoonPhase() {
+    return (int)((g_world.dayTime / TICKS_PER_DAY) % 8);
+}
+
+static float skyStarBrightness(float alpha) {
+    float td = worldTimeOfDay(g_world.dayTime, alpha);
+    float v = 1.0f - (2.0f * cosf(td * 2.0f * 3.14159265f) + 0.75f);
+    if (v < 0.0f) v = 0.0f; else if (v > 1.0f) v = 1.0f;
+    return v * v * 0.5f;
+}
+
+struct SkyVertex { float u, v; float x, y, z; };
+struct StarVertex { float x, y, z; };
+
+static void renderSunOrMoon(float alpha, bool isSun, float px, float py, float pz) {
+    const Texture* tex = isSun ? &g_sun : &g_moon;
+    if (isSun ? !g_haveSun : !g_haveMoon) return;
+
+    float deg = fmodf((isSun ? 0.0f : 180.0f) + skySunAngle(alpha) / 6.2832f * 360.0f, 360.0f);
+    if (deg > 105.0f && deg < 255.0f) return;
+
+    float u0 = 1.0f, u1 = 0.0f, v0 = 0.0f, v1 = 1.0f, size = 30.0f;
+    if (!isSun) {
+        int p = skyMoonPhase();
+        int col = p % 4, row = (p / 4) % 2;
+        u0 = (col + 1) * 0.25f; u1 = col * 0.25f;
+        v0 = row * 0.5f;        v1 = (row + 1) * 0.5f;
+        size = 20.0f;
+    }
+
+    textureBind(tex);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0xFFFFFFFF, 0xFFFFFFFF);
+    sceGuDisable(GU_ALPHA_TEST);
+    sceGuDisable(GU_CULL_FACE);
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDisable(GU_FOG);
+
+    sceGumPushMatrix();
+    sceGumLoadIdentity();
+    ScePspFVector3 c = { px, py, pz };
+    sceGumTranslate(&c);
+    sceGumRotateX(deg * (3.14159265f / 180.0f));
+
+    SkyVertex* q = (SkyVertex*)sceGuGetMemory(6 * sizeof(SkyVertex));
+    const float y = 120.0f;
+    q[0].u=u0; q[0].v=v0; q[0].x=-size; q[0].y=y; q[0].z=-size;
+    q[1].u=u1; q[1].v=v0; q[1].x= size; q[1].y=y; q[1].z=-size;
+    q[2].u=u1; q[2].v=v1; q[2].x= size; q[2].y=y; q[2].z= size;
+    q[3].u=u0; q[3].v=v0; q[3].x=-size; q[3].y=y; q[3].z=-size;
+    q[4].u=u1; q[4].v=v1; q[4].x= size; q[4].y=y; q[4].z= size;
+    q[5].u=u0; q[5].v=v1; q[5].x=-size; q[5].y=y; q[5].z= size;
+    sceGuColor(0xFFFFFFFFu);
+    sceGumDrawArray(GU_TRIANGLES, GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 6, 0, q);
+
+    sceGumPopMatrix();
+    sceGuEnable(GU_FOG);
+    sceGuEnable(GU_CULL_FACE);
+}
+
+#define STAR_COUNT 1500
+
+#define STAR_SIZE_SCALE 1.5f
+static StarVertex* g_stars = 0;
+static int g_starVerts = 0;
+
+void skyBuildStars(void) {
+    if (g_stars) return;
+    g_stars = (StarVertex*)memalign(16, STAR_COUNT * 6 * sizeof(StarVertex));
+    if (!g_stars) return;
+    Random rng(10842);
+    int n = 0;
+    for (int i = 0; i < STAR_COUNT; i++) {
+
+        float x = rng.nextFloat() * 2.0f - 1.0f;
+        float y = rng.nextFloat() * 2.0f - 1.0f;
+        float z = rng.nextFloat() * 2.0f - 1.0f;
+        float sz = (rng.nextFloat() * 0.1f + 0.15f) * STAR_SIZE_SCALE;
+        float d2 = x * x + y * y + z * z;
+        if (d2 >= 1.0f || d2 <= 0.01f) continue;
+        float inv = 1.0f / sqrtf(d2);
+        x *= inv; y *= inv; z *= inv;
+        float cx = x * 100.0f, cy = y * 100.0f, cz = z * 100.0f;
+
+        float a1 = atan2f(x, z),                       s1 = sinf(a1), c1 = cosf(a1);
+        float a2 = atan2f(sqrtf(x * x + z * z), y),    s2 = sinf(a2), c2 = cosf(a2);
+        float a3 = rng.nextFloat() * 2.0f * 3.14159265f, s3 = sinf(a3), c3 = cosf(a3);
+
+        StarVertex corner[4];
+        for (int k = 0; k < 4; k++) {
+            float p = (float)((k & 2) - 1) * sz;
+            float q = (float)((((k + 1) & 2)) - 1) * sz;
+            float A = p * c3 - q * s3;
+            float B = p * s3 + q * c3;
+            corner[k].x = cx - A * c2 * s1 - B * c1;
+            corner[k].y = cy + A * s2;
+            corner[k].z = cz - A * c2 * c1 + B * s1;
+        }
+        g_stars[n++] = corner[0]; g_stars[n++] = corner[1]; g_stars[n++] = corner[2];
+        g_stars[n++] = corner[0]; g_stars[n++] = corner[2]; g_stars[n++] = corner[3];
+    }
+    g_starVerts = n;
+}
+
+void skyFreeStars(void) { free(g_stars); g_stars = 0; g_starVerts = 0; }
+
+static void renderStars(float alpha, float px, float py, float pz) {
+    float sb = skyStarBrightness(alpha);
+    if (sb <= 0.0f || !g_stars || !g_starVerts) return;
+
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0xFFFFFFFF, 0xFFFFFFFF);
+    sceGuDisable(GU_ALPHA_TEST);
+    sceGuDisable(GU_CULL_FACE);
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDisable(GU_FOG);
+
+    sceGumPushMatrix();
+    sceGumLoadIdentity();
+    ScePspFVector3 eye = { px, py, pz };
+    sceGumTranslate(&eye);
+    sceGumRotateX(skySunAngle(alpha));
+
+    unsigned int c = (unsigned int)(sb * 255.0f);
+    if (c > 255) c = 255;
+    sceGuColor(0xFF000000u | (c << 16) | (c << 8) | c);
+    sceGumDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                    g_starVerts, 0, g_stars);
+    sceGuColor(0xFFFFFFFFu);
+
+    sceGumPopMatrix();
+    sceGuEnable(GU_FOG);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuEnable(GU_TEXTURE_2D);
 }
 
 static void renderSky(float px, float py, float pz) {
     sceGuDisable(GU_TEXTURE_2D);
     sceGuDisable(GU_BLEND);
     sceGuDisable(GU_CULL_FACE);
-
-    sceGuShadeModel(GU_SMOOTH);
 
     sceGuDisable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_TRUE);
@@ -169,7 +367,6 @@ static void renderSky(float px, float py, float pz) {
 
     sceGuDepthMask(GU_FALSE);
     sceGuEnable(GU_DEPTH_TEST);
-    sceGuShadeModel(GU_FLAT);
     sceGuEnable(GU_TEXTURE_2D);
 }
 
@@ -183,7 +380,6 @@ static void renderClouds(float alpha, float px, float py, float pz) {
     sceGuDisable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_TRUE);
     sceGuDisable(GU_CULL_FACE);
-    sceGuShadeModel(GU_SMOOTH);
     sceGuTexWrap(GU_REPEAT, GU_REPEAT);
 
     const int s = 32;
@@ -226,7 +422,6 @@ static void renderClouds(float alpha, float px, float py, float pz) {
     sceGuEnable(GU_CULL_FACE);
     sceGuDepthMask(GU_FALSE);
     sceGuEnable(GU_DEPTH_TEST);
-    sceGuShadeModel(GU_FLAT);
     sceGuEnable(GU_ALPHA_TEST);
     sceGuDisable(GU_BLEND);
 }
@@ -260,9 +455,10 @@ static void fireScreenEffect() {
     const float size = 1.0f, z0 = -0.5f;
     const float x0 = -size / 2, x1 = x0 + size, y0 = -size / 2, y1 = y0 + size;
 
+    const float T = 1.0f / 16.0f, HT = T / 32.0f;
     for (int i = 0; i < 2; i++) {
-        const float u0 = 15.0f / 16.0f, u1 = 16.0f / 16.0f;
-        const float v0 = (1 + i) / 16.0f, v1 = (2 + i) / 16.0f;
+        const float u0 = 15.0f * T + HT, u1 = 16.0f * T - HT;
+        const float v0 = (1 + i) * T + HT, v1 = (2 + i) * T - HT;
         sceGumMatrixMode(GU_MODEL);
         sceGumLoadIdentity();
         ScePspFVector3 tr = { -(i * 2 - 1) * 0.24f, -0.3f, 0.0f };
@@ -521,7 +717,18 @@ bool gameProgressScreenUp() { return g_saveRequested || !g_worldBuilt; }
 
 void gameRender(MenuState& s) {
 
-    if (g_worldBuilt && g_saveRequested) {
+    static bool s_iconShotDone = false;
+    if (g_worldBuilt && g_saveRequested && !s_iconShotDone && !g_photoPending) {
+        s_iconShotDone = true;
+        const char* iconDir = LevelStorage::getActiveDir();
+        if (iconDir && iconDir[0] != '\0') {
+            snprintf(g_photoIconPath, sizeof(g_photoIconPath), "%s/icon.png", iconDir);
+            g_photoPending = true;
+            g_photoIsIcon  = true;
+
+        }
+    }
+    if (g_worldBuilt && g_saveRequested && !g_photoPending) {
         static int saveStage = 0;
         struct SaveArgs { World* w; long seed; int gamemode; char dir[320]; char name[64]; };
         static SaveArgs sArgs;
@@ -567,6 +774,7 @@ void gameRender(MenuState& s) {
         if (g_saveThreadDone) {
 
             g_saveRequested = false; saveStage = 0;
+            s_iconShotDone = false;
             g_terrainProgress = 0;
             extern MiningState g_mining;
             g_mining.active = false; g_mining.progress = 0.0f;
@@ -602,24 +810,37 @@ void gameRender(MenuState& s) {
                 g_haveGuiBlocks = loadTex16(&g_guiBlocks, "data/images/gui/gui_blocks.png", GU_PSM_5551);
             if (!g_haveClouds)
                 g_haveClouds = loadTex16(&g_clouds, "data/images/environment/clouds.png", GU_PSM_5551);
+
+            if (!g_haveSun)
+                g_haveSun = loadTex(&g_sun, "data/images/environment/sun.png");
+            if (!g_haveMoon)
+                g_haveMoon = loadTex(&g_moon, "data/images/environment/moon_phases.png");
+            skyBuildStars();
             if (!g_haveParticles)
                 g_haveParticles = loadTex(&g_particles, "data/images/particles.png");
+            if (!g_haveFireAtlas)
+                g_haveFireAtlas = loadTex(&g_fireAtlas, "data/images/fire_atlas.png");
 
             bool sel = (s.worldSelected >= 0 && s.worldSelected < s.worlds.count);
             long seedVal = sel ? s.worlds.seeds[s.worldSelected] : 0;
 
-            struct TerrainArgs { World* w; long seed; int gamemode; char dir[320]; char name[64]; };
+            struct TerrainArgs { World* w; long seed; int gamemode; int worldType; int genMask;
+                                 char dir[320]; char name[64]; };
             static TerrainArgs tArgs;
             tArgs.w = &g_world;
             tArgs.seed = seedVal;
             tArgs.gamemode = sel ? s.worlds.gameModes[s.worldSelected] : 1;
+            tArgs.worldType = sel ? s.worlds.worldTypes[s.worldSelected] : WORLD_TYPE_OLD;
+
+            tArgs.genMask = sel ? s.worlds.genMasks[s.worldSelected] : GEN_FEATURES_ALL_ON;
             char rel[320];
             snprintf(rel, sizeof(rel), "saves/%s", sel ? s.worlds.names[s.worldSelected] : "world");
             strncpy(tArgs.dir, assetPath(rel), sizeof(tArgs.dir) - 1);
             tArgs.dir[sizeof(tArgs.dir) - 1] = '\0';
             strncpy(tArgs.name, sel ? s.worlds.displayNames[s.worldSelected] : "World", sizeof(tArgs.name) - 1);
             tArgs.name[sizeof(tArgs.name) - 1] = '\0';
-            LevelStorage::setActiveWorld(tArgs.dir, tArgs.seed, tArgs.gamemode, tArgs.name);
+            LevelStorage::setActiveWorld(tArgs.dir, tArgs.seed, tArgs.gamemode, tArgs.name,
+                                         tArgs.worldType, tArgs.genMask);
             worldListTouch(tArgs.dir);
 
             playerSpawnEnsure();
@@ -635,7 +856,7 @@ void gameRender(MenuState& s) {
                     if (!LevelStorage::load(a->w, a->dir, &s2, &gt)) g_worldAllocFailed = true;
                     g_loadedFromDisk = true;
                 } else {
-                    if (!worldInitTerrain(a->w, a->seed)) g_worldAllocFailed = true;
+                    if (!worldInitTerrain(a->w, a->seed, a->worldType)) g_worldAllocFailed = true;
 
                     { int sx, sz, feetY; worldFindSpawn(a->w, &sx, &sz, &feetY);
                       g_level.player->x = sx + 0.5f; g_level.player->z = sz + 0.5f;
@@ -661,7 +882,8 @@ void gameRender(MenuState& s) {
                     if (!LevelStorage::load(&g_world, tArgs.dir, &s2, &gt)) g_worldAllocFailed = true;
                     g_loadedFromDisk = true;
                 } else {
-                    if (!worldInitTerrain(&g_world, seedVal)) g_worldAllocFailed = true;
+                    if (!worldInitTerrain(&g_world, seedVal, LevelStorage::getActiveWorldType()))
+                        g_worldAllocFailed = true;
 
                     { int sx, sz, feetY; worldFindSpawn(&g_world, &sx, &sz, &feetY);
                       g_level.player->x = sx + 0.5f; g_level.player->z = sz + 0.5f;
@@ -713,12 +935,17 @@ void gameRender(MenuState& s) {
 
                     int sx, sz, feetY;
                     worldFindSpawn(&g_world, &sx, &sz, &feetY);
+
+                    g_level.setSpawnPos(sx, feetY + 1, sz);
                     g_level.player->x = sx + 0.5f; g_level.player->z = sz + 0.5f;
                     playerSpawnAt(feetY + PLAYER_EYE);
                 }
 
                 int gamemode = (s.worldSelected >= 0 && s.worldSelected < s.worlds.count)
                              ? s.worlds.gameModes[s.worldSelected] : 1;
+
+                int forced = activeLevelSource().forcedGameType();
+                if (forced >= 0) gamemode = forced;
                 gameModeInit(gamemode);
 
                 if (g_loadedFromDisk) LevelStorage::applyLoadedHotbar();
@@ -762,7 +989,7 @@ void gameRender(MenuState& s) {
         }
     }
 
-    if (g_photoPending) {
+    if (g_photoPending && !g_photoIsIcon) {
         ix = g_photoX; iy = g_photoY; iz = g_photoZ;
         iyaw = g_photoYaw; ipitch = g_photoPitch;
     }
@@ -882,6 +1109,8 @@ void gameRender(MenuState& s) {
     }
     float NEAR_Z = s_nearZ;
 
+    g_nearZPlane = NEAR_Z;
+
     guPerspective(fov, NEAR_Z, g_viewDist);
 
     float roll = 0.0f, rgxUp = 0.0f, rgzUp = 0.0f;
@@ -928,9 +1157,11 @@ void gameRender(MenuState& s) {
     worldSetFrustumCamera(ex, ey, ez, ifx, ify, ifz, iyaw, fov,
                           (float)GU_SCR_WIDTH / (float)GU_SCR_HEIGHT, NEAR_Z, g_viewDist);
 
+    g_camYawNow = iyaw; g_camPitchNow = ipitch;
     updateDayColors(a);
 
-    if (g_fancyGraphics) {
+    profBegin(PROF_SKY);
+    if (g_beautifulSkies) {
 
         sceGumMatrixMode(GU_PROJECTION);
         sceGumPushMatrix();
@@ -942,6 +1173,10 @@ void gameRender(MenuState& s) {
 
         sceGuFog(0.0f, 150.0f, g_skyColorNow);
         renderSky(px0, py0, pz0);
+
+        renderSunOrMoon(a, true,  px0, py0, pz0);
+        renderSunOrMoon(a, false, px0, py0, pz0);
+        renderStars(a, px0, py0, pz0);
         sceGumMatrixMode(GU_PROJECTION);
         sceGumPopMatrix();
 
@@ -963,10 +1198,12 @@ void gameRender(MenuState& s) {
         sceGumLoadIdentity();
         sceGuEnable(GU_DEPTH_TEST);
     }
+    profEnd(PROF_SKY);
 
     loadWorldView(ex, ey, ez, ctrX, ctrY, ctrZ, roll, g_relBaseX, g_relBaseY, g_relBaseZ);
 
-    animateWaterTexture();
+    if (g_animateTextures)
+        animateWaterTexture();
 
     if (g_haveTerrain) {
 
@@ -1008,33 +1245,45 @@ void gameRender(MenuState& s) {
         sceGuFog(vdEff * 0.6f, vdEff, g_skyColorNow);
     }
 
-    sceGuFrontFace(GU_CCW);
-    worldDraw(&g_world, px0, py0, pz0, vdEff, g_haveTerrain ? &g_terrain : 0);
+    extern bool g_eyeInLava;
+    g_eyeInLava = isLavaId(eyeBlk);
 
-    renderMiningCrack(px0, py0, pz0);
+    sceGuFrontFace(GU_CCW);
+    profBegin(PROF_WORLD);
+    worldDraw(&g_world, px0, py0, pz0, vdEff, g_haveTerrain ? &g_terrain : 0);
+    profEnd(PROF_WORLD);
 
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    profBegin(PROF_ENTITY);
     EntityRenderDispatcher::getInstance()->renderAll(&g_level, a);
     renderAllTileEntities(&g_level, a);
 
+    renderMiningCrack(px0, py0, pz0);
+
     extern bool g_thirdPerson;
 
-    if (g_photoPending ||
+    if ((g_photoPending && !g_photoIsIcon) ||
         (g_thirdPerson && !(g_level.player && g_level.player->isSleeping())))
         playerModelRender(a);
+    profEnd(PROF_ENTITY);
 
     if (g_haveTerrain) { if (g_noMipmap) textureBindNoMip(&g_terrain); else textureBind(&g_terrain); }
     sceGuDepthMask(GU_TRUE);
-    sceGuDisable(GU_CULL_FACE);
+    if (isWaterId(eyeBlk)) sceGuFrontFace(GU_CW);
 
+    profBegin(PROF_WATER);
     worldDrawWater(&g_world, px0, py0, pz0, g_viewDist);
-    sceGuEnable(GU_CULL_FACE);
+    profEnd(PROF_WATER);
+    if (isWaterId(eyeBlk)) sceGuFrontFace(GU_CCW);
 
+    profBegin(PROF_PART);
     if (g_haveParticles)
         particlesRender(&g_world, iyaw, ipitch, a,
                         g_haveTerrain ? &g_terrain : 0, &g_particles,
-                        g_haveGuiBlocks ? &g_guiBlocks : 0);
+                        g_haveGuiBlocks ? &g_guiBlocks : 0,
+                        g_haveFireAtlas ? &g_fireAtlas : 0);
+    profEnd(PROF_PART);
 
     sceGuDepthMask(GU_FALSE);
 
@@ -1045,9 +1294,11 @@ void gameRender(MenuState& s) {
     extern bool g_thirdPerson;
 
     if (!g_thirdPerson && g_level.player && g_level.player->health > 0 &&
-        !g_level.player->isSleeping() && !g_photoPending) itemHandDraw(a, bs, bc);
+        !g_level.player->isSleeping() && !g_photoPending && !g_hideGui) itemHandDraw(a, bs, bc);
 
     if (g_worldBuilt) fireScreenEffect();
+
+    profBegin(PROF_HUD);
 
     guOrtho();
 
@@ -1065,7 +1316,7 @@ void gameRender(MenuState& s) {
     if (g_worldBuilt && g_level.player && g_level.player->isSleeping())
         inBedRenderFade(s);
 
-    if (g_worldBuilt && !g_photoPending) {
+    if (g_worldBuilt && !g_photoPending && !g_hideGui) {
         if (g_invOpen) inventoryDraw(s);
         hotbarDraw(s);
     }

@@ -10,11 +10,6 @@ static const int REQUIRED_WOOD_RANGE = 4;
 #define WW (W * W)
 static int g_leafBuf[W * W * W];
 
-static inline int decayDelay(int x, int y, int z) {
-    unsigned int h = (unsigned int)(x * 1327 + y * 8501 + z * 57);
-    return 100 + (int)(h % 400);
-}
-
 void leafFlagNeighbors(World* w, int x, int y, int z) {
     for (int xo = -1; xo <= 1; xo++)
     for (int yo = -1; yo <= 1; yo++)

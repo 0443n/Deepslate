@@ -4,9 +4,14 @@
 #include <cstdio>
 
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/screen.h"
 #include "gpu/sprite.h"
+struct DeleteScreen : Screen {
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
 
-void deleteHandleInput(MenuState& s, unsigned int pressed) {
+void DeleteScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
     int& deleteSelected = s.deleteSelected;
     WorldList& worlds = s.worlds;
     int& worldSelected = s.worldSelected;
@@ -38,26 +43,12 @@ void deleteHandleInput(MenuState& s, unsigned int pressed) {
     }
 }
 
-void deleteRender(MenuState& s) {
+void DeleteScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
-    Texture& dirtBg = s.dirtBg; bool haveBg = s.haveBg;
     Texture& touchGui = s.touchGui; bool haveTouch = s.haveTouch;
     WorldList& worlds = s.worlds;
     int& worldSelected = s.worldSelected;
     int& deleteSelected = s.deleteSelected;
-
-    if (haveBg) {
-        textureBind(&dirtBg);
-        sceGuDisable(GU_DEPTH_TEST);
-        sceGuTexWrap(GU_REPEAT, GU_REPEAT);
-        float tileScale = (float)dirtBg.realW / (32.0f * UI_SCALE);
-        float bgW = (VW * UI_SCALE) * tileScale;
-        float bgH = (VH * UI_SCALE) * tileScale;
-        spriteDraw(&dirtBg, 0.0f, 0.0f, VW * UI_SCALE, VH * UI_SCALE,
-                   0.0f, 0.0f, bgW, bgH, DIRT_TINT);
-        sceGuTexWrap(GU_CLAMP, GU_CLAMP);
-        sceGuEnable(GU_DEPTH_TEST);
-    }
 
     if (haveFont) {
         const char* t1 = "Are you sure you want to delete this world?";
@@ -108,3 +99,6 @@ void deleteRender(MenuState& s) {
         }
     }
 }
+
+static DeleteScreen s_deleteScreen;
+Screen& deleteScreen() { return s_deleteScreen; }

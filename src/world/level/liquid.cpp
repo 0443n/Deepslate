@@ -12,6 +12,8 @@ extern Level g_level;
 
 #include <stdlib.h>
 #include <math.h>
+#include <pspkernel.h>
+#include "util/prof.h"
 
 static bool isWaterBlocking(const World* w, int x, int y, int z) {
     unsigned char id = worldBlock(w, x, y, z);
@@ -212,7 +214,6 @@ static void neighborChanged(World* w, int x, int y, int z) {
     unsigned char nb = worldBlock(w, x, y, z);
     if (isLiquidId(nb)) wakeLiquid(w, x, y, z, dynOf(nb));
     tileNeighborChanged(w, x, y, z);
-    farmlandCheckDry(w, x, y, z);
 }
 
 void worldUpdateNeighbors(World* w, int x, int y, int z, unsigned char liquidId) {
@@ -233,8 +234,6 @@ void worldNotifyNeighborsChanged(World* w, int x, int y, int z) {
     neighborChanged(w, x, y + 1, z);
     neighborChanged(w, x, y, z - 1);
     neighborChanged(w, x, y, z + 1);
-    leafFlagNeighbors(w, x, y, z);
-
     leafFlagNeighbors(w, x, y, z);
 
     unsigned char here = worldBlock(w, x, y, z);
@@ -306,7 +305,7 @@ static void tickLiquid(World* w, int x, int y, int z, unsigned char id) {
                 worldUpdateNeighbors(w, x, y, z, id);
             } else {
                 worldSetData(w, x, y, z, depth);
-                worldScheduleTick(w, x, y, z, id, isWaterId(id) ? 5 : 30);
+                worldScheduleTick(w, x, y, z, id, liquidTickDelay(id));
                 worldUpdateNeighbors(w, x, y, z, id);
             }
         } else {
@@ -404,34 +403,33 @@ void worldTick(World* w) {
 
     if (worldNightModeTick(w)) {}
     else if (!g_level.player->inventory->isCreative()) w->dayTime++;
-    else if (w->dayTime != 0) w->dayTime = 0;
+    else if (w->dayTime != CREATIVE_STOP_TIME) w->dayTime = CREATIVE_STOP_TIME;
     worldUpdateSkyDarken(w);
 
+    profBegin(PROF_TRAND);
     tileRandomTick(w);
+    profEnd(PROF_TRAND);
 
-    int count = w->tickNextTickList.size();
-    if (count == 0) return;
+    profAdd(PROFC_PENDLIST, (int)w->tickNextTickList.size());
+    if (w->tickNextTickList.empty()) return;
 
-    std::vector<TickNextTickData> toProcess;
+    const unsigned int TICK_BUDGET_US = 4000;
 
-    const int TICK_CAP = 512;
+    static size_t cursor = 0;
+    profBegin(PROF_TPEND);
+    unsigned int tStart = sceKernelGetSystemTimeLow();
+    size_t pass = w->tickNextTickList.size();
+    for (size_t scanned = 0; scanned < pass; scanned++) {
+        if (cursor >= w->tickNextTickList.size()) cursor = 0;
+        if (w->tickNextTickList.empty()) break;
+        TickNextTickData td = w->tickNextTickList[cursor];
+        if (td.delay > w->time) { cursor++; continue; }
 
-    int remaining = 0;
-    for (int i = 0; i < count; i++) {
-        if (w->tickNextTickList[i].delay <= w->time && (int)toProcess.size() < TICK_CAP) {
-            toProcess.push_back(w->tickNextTickList[i]);
-        } else {
-            w->tickNextTickList[remaining++] = w->tickNextTickList[i];
-        }
-    }
+        w->tickNextTickList[cursor] = w->tickNextTickList.back();
+        w->tickNextTickList.pop_back();
 
-    w->tickNextTickList.resize(remaining);
+        w->tickSet.erase((unsigned int)worldIndex(td.x, td.y, td.z));
 
-    for (size_t i = 0; i < toProcess.size(); i++)
-        w->tickSet.erase((unsigned int)worldIndex(toProcess[i].x, toProcess[i].y, toProcess[i].z));
-
-    for (size_t i = 0; i < toProcess.size(); i++) {
-        TickNextTickData& td = toProcess[i];
         unsigned char currentId = worldBlock(w, td.x, td.y, td.z);
         if (currentId == td.tileId) {
             if (isLeaf(currentId))         leafDecayTick(w, td.x, td.y, td.z);
@@ -440,5 +438,7 @@ void worldTick(World* w) {
             else if (currentId == BLOCK_FIRE) fireTileTick(w, td.x, td.y, td.z);
             else                           tickLiquid(w, td.x, td.y, td.z, currentId);
         }
+        if (sceKernelGetSystemTimeLow() - tStart >= TICK_BUDGET_US) break;
     }
+    profEnd(PROF_TPEND);
 }

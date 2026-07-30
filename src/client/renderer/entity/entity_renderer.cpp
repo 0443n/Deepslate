@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/entity_renderer.h"
+#include "client/renderer/particle.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include "world/entity/entity.h"
@@ -40,7 +41,7 @@ static void renderTileShadow(float x, float y, float z, int xt, int yt, int zt,
 
     float x0 = xt + xo;
     float x1 = xt + 1.0f + xo;
-    float y0 = yt + yo + 1.0f / 16.0f;
+    float y0 = yt + yo + 1.0f / 64.0f;
     float z0 = zt + zo;
     float z1 = zt + 1.0f + zo;
 
@@ -92,6 +93,8 @@ void renderEntityShadow(float x, float y, float z, float off, float radius, floa
     sceGuDepthMask(GU_TRUE);
     sceGuDisable(GU_CULL_FACE);
 
+    sceGuDepthOffset(80);
+
     sceGumMatrixMode(GU_MODEL);
     sceGumPushMatrix();
     sceGumLoadIdentity();
@@ -102,6 +105,7 @@ void renderEntityShadow(float x, float y, float z, float off, float radius, floa
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     s_vcount, 0, v);
     sceGumPopMatrix();
+    sceGuDepthOffset(0);
 
     sceGuEnable(GU_CULL_FACE);
     sceGuTexWrap(GU_REPEAT, GU_REPEAT);
@@ -109,6 +113,10 @@ void renderEntityShadow(float x, float y, float z, float off, float radius, floa
 }
 
 void EntityRenderer::postRender(Entity* entity, float x, float y, float z, float a) {
+
+    if (entity->isOnFire())
+        particlesEntityFlame(entity->entityId, x, y - entity->heightOffset, z,
+                             entity->bbWidth, entity->bbHeight, entity->xd, entity->zd);
     if (shadowRadius <= 0.0f) return;
     float dx = entity->x - g_level.player->x, dy = entity->y - g_level.player->y, dz = entity->z - g_level.player->z;
     float dist = dx * dx + dy * dy + dz * dz;

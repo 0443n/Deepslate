@@ -14,10 +14,6 @@
 static const float RAD = 180.0f / Mth::PI;
 static const float DEG = Mth::PI / 180.0f;
 
-static inline bool solidAt(World* w, float x, float y, float z) {
-    return isSolidPhys(worldBlock(w, Mth::floor(x), Mth::floor(y), Mth::floor(z)));
-}
-
 void Throwable::configure(int t) {
     type = t;
     setSize(0.25f, 0.25f);
@@ -63,17 +59,17 @@ void Throwable::shoot(float dx, float dy, float dz, float power) {
     xRot = xRotO = atan2f(yd, sd) * RAD;
 }
 
-void Throwable::onHit(float hx, float hy, float hz) {
+void Throwable::onHit() {
     if (type == EntityTypes::IdThrownEgg && sharedRandom.nextInt(8) == 0) {
         int count = sharedRandom.nextInt(32) == 0 ? 4 : 1;
         for (int i = 0; i < count; i++) {
             Chicken* c = new Chicken(level);
-            c->moveTo(hx, hy, hz, yRot, 0.0f);
+            c->setAge(-24000);
+            c->moveTo(x, y, z, yRot, 0.0f);
             level->addEntity(c);
         }
     }
-    Item* it = Item::items[itemId];
-    particlesThrowPoof(hx, hy, hz, itemFlatIcon(itemId, 0));
+    particlesThrowPoof(x, y, z, itemFlatIcon(itemId, 0));
     remove();
 }
 
@@ -81,14 +77,22 @@ void Throwable::tick() {
     xOld = x; yOld = y; zOld = z;
     baseTick();
 
-    float dist = Mth::sqrt(xd * xd + yd * yd + zd * zd);
+    float nx = x + xd, ny = y + yd, nz = z + zd;
+    BlockHit tileHit = worldClip(level->w, x, y, z, nx, ny, nz, false, true);
+    if (tileHit.hit) {
+        nx = tileHit.x + tileHit.clickX;
+        ny = tileHit.y + tileHit.clickY;
+        nz = tileHit.z + tileHit.clickZ;
+    }
+    float sxd = nx - x, syd = ny - y, szd = nz - z;
+    float dist = Mth::sqrt(sxd * sxd + syd * syd + szd * szd);
     int steps = (int)(dist / 0.1f) + 1;
 
     static EntityList candidates;
     level->getEntities(this, bb.expand(xd, yd, zd).grow(0.3f, 0.3f, 0.3f), candidates);
     for (int i = 1; i <= steps; i++) {
         float t = (float)i / steps;
-        float sx = x + xd * t, sy = y + yd * t, sz = z + zd * t;
+        float sx = x + sxd * t, sy = y + syd * t, sz = z + szd * t;
 
         for (size_t ei = 0; ei < candidates.size(); ei++) {
             Entity* e = candidates[ei];
@@ -97,18 +101,13 @@ void Throwable::tick() {
                 sy > e->bb.y0 - 0.3f && sy < e->bb.y1 + 0.3f &&
                 sz > e->bb.z0 - 0.3f && sz < e->bb.z1 + 0.3f) {
                 e->hurt(this, 0);
-                onHit(sx, sy, sz);
+                onHit();
                 return;
             }
         }
 
-        if (solidAt(level->w, sx, sy, sz)) {
-
-            float tp = (float)(i - 1) / steps;
-            onHit(x + xd * tp, y + yd * tp, z + zd * tp);
-            return;
-        }
     }
+    if (tileHit.hit) { onHit(); return; }
 
     x += xd; y += yd; z += zd;
     float sd = Mth::sqrt(xd * xd + zd * zd);

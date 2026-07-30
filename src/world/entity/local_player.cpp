@@ -16,6 +16,7 @@ extern World g_world;
 
 int   g_autoJump = 1;
 float g_sensitivity = 1.0f;
+int   g_invertY = 0;
 
 LocalPlayer::LocalPlayer(Level* level) : Player(level) {
     setSize(PLAYER_W, PLAYER_H);
@@ -54,13 +55,9 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
         int efx = (int)floorf(x), efz = (int)floorf(z);
         int efy = (int)floorf(y - PLAYER_EYE);
         unsigned char feet = worldBlock(&g_world, efx, efy, efz);
-        if (isWaterId(feet)) { fallDistance = 0.0f; onFire = 0; }
-        if (isLavaId(feet))  { fallDistance = 0.0f; lavaHurt(); }
+        if (isWaterId(feet) || isLavaId(feet)) fallDistance = 0.0f;
+        if (isLavaId(feet)) lavaHurt();
 
-        if (feet == BLOCK_FIRE || worldBlock(&g_world, efx, efy + 1, efz) == BLOCK_FIRE) {
-            onFire = 160;
-            hurt(0, 1);
-        }
         if (onFire > 0) { if (onFire % 20 == 0) hurt(0, 1); onFire--; }
 
         if (isAlive() && isInWall()) hurt(0, 1);
@@ -75,8 +72,9 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
 
     if (btn & PSP_CTRL_SQUARE)   yRot += LOOK;
     if (btn & PSP_CTRL_CIRCLE)   yRot -= LOOK;
-    if (btn & PSP_CTRL_TRIANGLE) xRot += LOOK;
-    if (btn & PSP_CTRL_CROSS)    xRot -= LOOK;
+    const float PITCH = g_invertY ? -LOOK : LOOK;
+    if (btn & PSP_CTRL_TRIANGLE) xRot += PITCH;
+    if (btn & PSP_CTRL_CROSS)    xRot -= PITCH;
     if (xRot >  89.0f) xRot =  89.0f;
     if (xRot < -89.0f) xRot = -89.0f;
 
@@ -199,7 +197,6 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     }
 
     static bool s_wasInWater = false;
-    int feetY = (int)floorf(y - PLAYER_EYE);
     bool inWater = false;
     {
         int bx0 = (int)floorf(bb.x0), bx1 = (int)floorf(bb.x1);
@@ -210,30 +207,20 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
                 for (int bz = bz0; bz <= bz1 && !inWater; ++bz)
                     if (isWaterId(worldBlock(&g_world, bx, by, bz))) inWater = true;
     }
-    if (inWater && !s_wasInWater) {
-
-        float speed = sqrtf(xd * xd * 0.2f + yd * yd + zd * zd * 0.2f) * 0.2f;
-        if (speed > 1.0f) speed = 1.0f;
-
-        if (speed < 0.5f) speed = 0.5f;
-        level->playSound(this, "random.splash", speed,
-                         1.0f + (sharedRandom.nextFloat() - sharedRandom.nextFloat()) * 0.4f);
-
-        float surf = feetY + 1.0f;
-        int n = 1 + (int)(bbWidth * 20.0f);
-        for (int i = 0; i < n; i++) {
-            float rx = ((float)rand() / RAND_MAX * 2 - 1) * bbWidth;
-            float rz = ((float)rand() / RAND_MAX * 2 - 1) * bbWidth;
-
-            particlesBubble(x + rx, surf, z + rz, xd, yd - (float)rand() / RAND_MAX * 0.2f, zd);
-        }
-        for (int i = 0; i < n; i++) {
-            float rx = ((float)rand() / RAND_MAX * 2 - 1) * bbWidth;
-            float rz = ((float)rand() / RAND_MAX * 2 - 1) * bbWidth;
-            particlesSplash(x + rx, surf, z + rz, xd, 0.0f, zd);
-        }
-    }
+    if (inWater && !s_wasInWater) doWaterSplashEffect();
     s_wasInWater = inWater;
+}
+
+void LocalPlayer::doWaterSplashEffect() {
+    Entity::doWaterSplashEffect();
+
+    float surf = floorf(bb.y0) + 1.0f;
+    int n = 1 + (int)(bbWidth * 20.0f);
+    for (int i = 0; i < n; i++) {
+        float xo = (sharedRandom.nextFloat() * 2.0f - 1.0f) * bbWidth;
+        float zo = (sharedRandom.nextFloat() * 2.0f - 1.0f) * bbWidth;
+        particlesSplash(x + xo, surf, z + zo, xd, 0.0f, zd);
+    }
 }
 
 #include "world/entity/item_entity.h"
@@ -244,16 +231,7 @@ void LocalPlayer::die(Entity* source) {
 
     stopSleepInBed(true, false);
 
-    auto dropOnDeath = [this](const ItemInstance& it) {
-        ItemEntity* e = new ItemEntity(&g_level, x, y - 0.3f, z, it);
-        e->throwTime = 40;
-        float pow = sharedRandom.nextFloat() * 0.5f;
-        float dir = sharedRandom.nextFloat() * Mth::PI * 2.0f;
-        e->xd = -sinf(dir) * pow;
-        e->zd =  cosf(dir) * pow;
-        e->yd = 0.2f;
-        g_level.addEntity(e);
-    };
+    auto dropOnDeath = [this](const ItemInstance& it) { drop(new ItemInstance(it), true); };
     if (!inventory->isCreative()) {
 
         for (int i = inventory->firstGridSlot(); i < inventory->getContainerSize(); ++i) {

@@ -197,6 +197,8 @@ static const int GEN_CREATURE_CAP = 40;
 void populateInitial(Level* level) {
 
     if (g_level.player->inventory->isCreative()) return;
+
+    if (!activeLevelSource().spawnsMobs()) return;
     const float CREATURE_PROBABILITY = 0.08f;
     const int NCHUNKS = (WORLD_W / 16) * (WORLD_D / 16);
 
@@ -249,6 +251,8 @@ void populateInitial(Level* level) {
 void tick(Level* level, bool spawnEnemies, bool spawnFriendlies) {
 
     if (g_level.player->inventory->isCreative()) return;
+
+    if (!activeLevelSource().spawnsMobs()) return;
 
     if (spawnFriendlies) spawnCreatures(level);
     if (spawnEnemies)    spawnMonsters(level);

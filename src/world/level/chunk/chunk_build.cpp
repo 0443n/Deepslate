@@ -34,7 +34,9 @@ static bool meshHeapReserveOk() {
 }
 
 static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer,
-                       DrawVertex** outMesh, int* outCount, bool leavesOpaque, bool leavesCull, bool* oom) {
+                       DrawVertex** outMesh, int* outCount, bool leavesOpaque, bool leavesCull, bool* oom,
+                       int* lavaStart = 0) {
+    if (lavaStart) *lavaStart = 0;
     if (!meshHeapReserveOk()) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     if (!g_scratch)
         g_scratch = (ChunkVertex*)memalign(16, SCRATCH_VERTS * sizeof(ChunkVertex));
@@ -43,7 +45,7 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
 #if MESH_PROFILE
         unsigned int t0 = sceKernelGetSystemTimeLow();
 #endif
-        int n = meshPass(w, ox, oz, y0, y1, g_scratch, layer, SCRATCH_VERTS, leavesOpaque, leavesCull);
+        int n = meshPass(w, ox, oz, y0, y1, g_scratch, layer, SCRATCH_VERTS, leavesOpaque, leavesCull, lavaStart);
 #if MESH_PROFILE
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
 #endif
@@ -69,7 +71,7 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
     if (count == 0) { *outMesh = 0; *outCount = 0; return; }
     ChunkVertex* m = (ChunkVertex*)memalign(16, count * sizeof(ChunkVertex));
     if (!m) { *outMesh = 0; *outCount = 0; *oom = true; return; }
-    meshPass(w, ox, oz, y0, y1, m, layer, 0x7fffffff, leavesOpaque, leavesCull);
+    meshPass(w, ox, oz, y0, y1, m, layer, 0x7fffffff, leavesOpaque, leavesCull, lavaStart);
     DrawVertex* d = chunkPack(m, count, ox, y0, oz);
     free(m);
     if (!d) { *outMesh = 0; *outCount = 0; *oom = true; return; }
@@ -110,6 +112,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     if (s->water)  { free(s->water);  s->water = 0; }
     if (s->leaves) { free(s->leaves); s->leaves = 0; }
     if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
+    s->noMipLavaStart = 0;
 
     bool leavesOpaque = leafOpaqueBand(c, y0, y1, g_camX, g_camY, g_camZ, g_fancyGraphics != 0);
     bool leavesCull   = leafCullBand(c, y0, y1, g_camX, g_camY, g_camZ, g_fancyGraphics != 0);
@@ -122,13 +125,13 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     bool oom = false;
     bool fast = g_scratch && g_scratchW && g_scratchL && g_scratchN;
     if (fast) {
-        int n0, n1, n2, n3;
+        int n0, n1, n2, n3, nLava;
 #if MESH_PROFILE
         unsigned int t0 = sceKernelGetSystemTimeLow();
 #endif
         int rc = meshSection(w, ox, oz, y0, y1, g_scratch, g_scratchW, g_scratchL, g_scratchN,
                              SCRATCH_VERTS, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL,
-                             &n0, &n1, &n2, &n3, leavesOpaque, leavesCull);
+                             &n0, &n1, &n2, &n3, &nLava, leavesOpaque, leavesCull);
 #if MESH_PROFILE
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
 #endif
@@ -137,6 +140,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
             s->water  = n1 ? chunkPack(g_scratchW, n1, ox, y0, oz) : 0; s->waterCount  = s->water  ? n1 : 0;
             s->leaves = n2 ? chunkPack(g_scratchL, n2, ox, y0, oz) : 0; s->leavesCount = s->leaves ? n2 : 0;
             s->noMip  = n3 ? chunkPack(g_scratchN, n3, ox, y0, oz) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
+            s->noMipLavaStart = s->noMip ? nLava : 0;
 
             oom = (n0 && !s->mesh) || (n1 && !s->water) || (n2 && !s->leaves) || (n3 && !s->noMip);
 #if MESH_PROFILE
@@ -152,7 +156,8 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  leavesOpaque, leavesCull, &oom);
         buildLayer(w, ox, oz, y0, y1, 2, &s->leaves, &s->leavesCount, leavesOpaque, leavesCull, &oom);
 
-        buildLayer(w, ox, oz, y0, y1, 3, &s->noMip,  &s->noMipCount,  leavesOpaque, leavesCull, &oom);
+        buildLayer(w, ox, oz, y0, y1, 3, &s->noMip,  &s->noMipCount,  leavesOpaque, leavesCull, &oom,
+                   &s->noMipLavaStart);
     }
     s->leavesOpaqueBand = leavesOpaque;
     s->leavesCullBand = leavesCull;

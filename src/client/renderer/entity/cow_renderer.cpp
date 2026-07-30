@@ -47,14 +47,9 @@ void CowRenderer::render(Entity* e, float x, float y, float z, float rot, float 
     build();
     Mob* mob = (Mob*)e;
 
-    float dBody = mob->yBodyRot - mob->yBodyRotO;
-    while (dBody > 180.0f) dBody -= 360.0f; while (dBody < -180.0f) dBody += 360.0f;
-    float ibody = mob->yBodyRotO + dBody * a;
-    float dHead = rot - ibody; while (dHead > 180.0f) dHead -= 360.0f; while (dHead < -180.0f) dHead += 360.0f;
-    float ipitch = mob->xRotO + (mob->xRot - mob->xRotO) * a;
-    float ws = mob->walkAnimSpeedO + (mob->walkAnimSpeed - mob->walkAnimSpeedO) * a; if (ws > 1.0f) ws = 1.0f;
-    float wp = mob->walkAnimPos - mob->walkAnimSpeed * (1.0f - a);
-    if (mob->isBaby()) wp *= 3.0f;
+    MobAnim m = mobAnimSetup(mob, rot, a);
+    float ibody = m.bodyRot, dHead = m.headYaw, ipitch = m.pitch;
+    float ws = m.speed, wp = m.pos;
     float pend = cosf(wp * 0.6662f) * 1.4f * ws;
 
     float hx = -ipitch * DEG2RAD, hy = -dHead * DEG2RAD;

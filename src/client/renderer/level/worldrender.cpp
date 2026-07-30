@@ -2,6 +2,7 @@
 #include "world/level/world.h"
 
 #include "gpu/texture.h"
+#include "util/prof.h"
 
 #include <stdlib.h>
 #include <malloc.h>
@@ -18,6 +19,7 @@ static inline void streamFreeSection(ChunkSection* s) {
     if (s->leaves) { free(s->leaves); s->leaves = 0; }
     if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
     s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
+    s->noMipLavaStart = 0;
     s->dirty = true;
 }
 
@@ -53,14 +55,26 @@ static const float MIP_BLOCKS_PER_LEVEL = 16.0f;
 static int s_terrainMipCount = 0;
 
 float g_fogCullDist = 0.0f;
+
+bool g_eyeInLava = false;
 static inline float drawCull(float viewDist) {
     return (g_fogCullDist > 0.0f && g_fogCullDist < viewDist) ? g_fogCullDist : viewDist;
+}
+
+bool worldColumnDrawn(const World* w, float x, float z) {
+    int cx = (int)(x) / CHUNK_SX, cz = (int)(z) / CHUNK_SZ;
+    if (x < 0 || z < 0 || cx < 0 || cx >= WORLD_CHUNKS_X || cz < 0 || cz >= WORLD_CHUNKS_Z)
+        return false;
+    return w->chunks[cz * WORLD_CHUNKS_X + cx].drawn;
 }
 
 void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float viewDist) {
     World* w = (World*)cw;
 
+    profBegin(PROF_LIGHT);
     worldUpdateLights(w);
+    profEnd(PROF_LIGHT);
+    profBegin(PROF_REBUILD);
 
     static const int MAX_HELD_FRAMES = 12;
     static int s_heldFrames = 0;
@@ -80,6 +94,7 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     static const unsigned int TIME_BUDGET_US = 2000;
     float buildD2 = viewDist * viewDist;
 
+    profBegin(PROF_RSCAN);
     struct Cand { ChunkMesh* c; int si; float d; } cand[MAX_CAND];
     int nc = 0; float worst = 1e30f;
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
@@ -105,13 +120,19 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
             }
         }
     }
+    profEnd(PROF_RSCAN);
+    profBegin(PROF_RBUILD);
     unsigned int tStart = sceKernelGetSystemTimeLow();
+    int built = 0;
     for (int k = 0; k < nc; k++) {
         chunkBuildSection(cand[k].c, w, cand[k].si);
+        built++;
         if (sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US) break;
     }
+    profAdd(PROFC_SECTIONS, built);
+    profEnd(PROF_RBUILD);
     }
-
+    profEnd(PROF_REBUILD);
 }
 
 void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDist, const Texture* terrain) {
@@ -131,6 +152,8 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
     worldRebuildStep(w, camX, camY, camZ, viewDist);
 
+    profBegin(PROF_CULL);
+
     float keepD2 = (viewDist + 32.0f) * (viewDist + 32.0f);
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
         ChunkMesh* c = &w->chunks[i];
@@ -148,11 +171,14 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         ChunkMesh* c = &w->chunks[i];
         float dx = c->cx - camX, dz = c->cz - camZ;
         bool off = (dx * dx + dz * dz > maxD2 || !columnVisible(c));
+
+        c->drawn = (dx * dx + dz * dz <= maxD2);
         for (int si = 0; si < N_SECTIONS; si++) {
             ChunkSection* s = &c->sec[si];
             s->visible = off ? false : sectionVisible(c, s);
         }
     }
+    profEnd(PROF_CULL);
 
     int nOpaque = 0;
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
@@ -213,8 +239,23 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
                     if (lvl < 0.0f) lvl = 0.0f; else if (lvl > maxLvl) lvl = maxLvl;
                     sceGuTexLevelMode(GU_TEXTURE_CONST, lvl);
                 }
-                chunkDrawNoMipSection(s);
+                chunkDrawNoMipSection(s, g_eyeInLava ? NOMIP_NO_LAVA : NOMIP_ALL);
             }
+        }
+
+        if (g_eyeInLava) {
+
+            if (distMip) sceGuTexLevelMode(GU_TEXTURE_CONST, 0.0f);
+            sceGuFrontFace(GU_CW);
+            for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
+                const ChunkMesh* c = &w->chunks[i];
+                for (int si = 0; si < N_SECTIONS; si++) {
+                    const ChunkSection* s = &c->sec[si];
+                    if (s->noMipCount == 0 || !s->visible) continue;
+                    chunkDrawNoMipSection(s, NOMIP_LAVA);
+                }
+            }
+            sceGuFrontFace(GU_CCW);
         }
         if (distMip) textureMipAuto();
         if (any) {

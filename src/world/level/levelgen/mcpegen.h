@@ -3,7 +3,7 @@
 
 struct World;
 
-void worldGenerateMCPE(World* w, long seed);
+void worldGenerateMCPE(World* w, long seed, int genMask);
 
 void worldPlaceMushrooms(World* w);
 

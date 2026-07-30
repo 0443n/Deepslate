@@ -2,6 +2,8 @@
 #ifndef MCPSP_WORLD_WORLD_H
 #define MCPSP_WORLD_WORLD_H
 
+#include "world/level/levelgen/level_source.h"
+
 #include "world/level/chunk/chunk.h"
 #include <stdlib.h>
 #include <vector>
@@ -81,13 +83,15 @@ struct World {
 extern volatile int g_terrainProgress;
 extern volatile bool g_terrainThreadDone;
 
-bool worldInitTerrain(World* w, long seed);
+bool worldInitTerrain(World* w, long seed, int worldType = WORLD_TYPE_OLD);
 
 bool worldAllocArrays(World* w);
 
 int worldBuildMeshesStep(World* w, int maxChunks);
 
 void worldFindSpawn(World* w, int* outX, int* outZ, int* outFeetY);
+
+void worldValidateSpawn(World* w, int* x, int* y, int* z);
 
 void worldFree(World* w);
 
@@ -235,6 +239,8 @@ static inline void lightBlockSet(World* w, int x, int y, int z, int v) {
 
 #define TICKS_PER_DAY 19200
 
+#define CREATIVE_STOP_TIME 5000
+
 extern int g_skyDarken;
 
 float worldTimeOfDay(long dayTime, float a);
@@ -261,7 +267,7 @@ static inline int lightRawAtNoProp(const World* w, int x, int y, int z) {
 
 static inline int lightRawAt(const World* w, int x, int y, int z) {
     unsigned char id = worldBlock(w, x, y, z);
-    if (id == BLOCK_SLAB || id == BLOCK_FARMLAND) {
+    if (isSlab(id) || id == BLOCK_FARMLAND) {
         int br = lightRawAtNoProp(w, x, y + 1, z);
         int b1 = lightRawAtNoProp(w, x + 1, y, z); if (b1 > br) br = b1;
         int b2 = lightRawAtNoProp(w, x - 1, y, z); if (b2 > br) br = b2;
@@ -280,6 +286,47 @@ static inline int lightLazy(const World* w, unsigned char* cache, int i, int x, 
     return v;
 }
 
+extern bool g_smoothLighting;
+
+static inline void smoothFaceLight(const World* w, const unsigned char* lc,
+                                   unsigned char* llc, int nbi, int nx, int ny, int nz,
+                                   int f, float br[2][2]) {
+
+    static const int kAxisStride[3] = { 18 * 18, 1, 18 };
+    const int a  = f >> 1;
+    const int a1 = (a + 1) % 3, a2 = (a + 2) % 3;
+    const int s1 = kAxisStride[a1], s2 = kAxisStride[a2];
+    const int p0[3] = { nx, ny, nz };
+    const float mid = g_brightRamp[lightLazy(w, llc, nbi, nx, ny, nz)];
+    if (!g_smoothLighting) {
+        br[0][0] = br[0][1] = br[1][0] = br[1][1] = mid;
+        return;
+    }
+    for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 2; j++) {
+        const int d1 = i ? 1 : -1, d2 = j ? 1 : -1;
+        const int i1 = nbi + d1 * s1, i2 = nbi + d2 * s2;
+        int p[3] = { p0[0], p0[1], p0[2] };
+        p[a1] += d1;
+        const float b1 = g_brightRamp[lightLazy(w, llc, i1, p[0], p[1], p[2])];
+        p[a1] -= d1; p[a2] += d2;
+        const float b2 = g_brightRamp[lightLazy(w, llc, i2, p[0], p[1], p[2])];
+        float bc = b1;
+        if (!isOpaque(lc[i1]) || !isOpaque(lc[i2])) {
+            p[a1] += d1;
+            bc = g_brightRamp[lightLazy(w, llc, i1 + d2 * s2, p[0], p[1], p[2])];
+        }
+        br[i][j] = (mid + b1 + b2 + bc) * 0.25f;
+    }
+}
+
+static inline unsigned int brightColorF(float b) {
+    int c = (int)(b * 255.0f + 0.5f);
+    if (c > 255) c = 255;
+    if (c < 0) c = 0;
+    return 0xFF000000u | ((unsigned)c << 16) | ((unsigned)c << 8) | (unsigned)c;
+}
+
 static inline bool worldCanSeeSky(const World* w, int x, int y, int z) {
     if (y >= WORLD_H) return true;
     if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return false;
@@ -289,6 +336,7 @@ static inline bool worldCanSeeSky(const World* w, int x, int y, int z) {
 void worldInitLight(World* w);
 void worldRecalcHeightmap(World* w);
 void worldUpdateLights(World* w);
+void worldMarkAllDirty(World* w);
 
 bool worldSettleLights(World* w);
 void worldRemoveBlockLight(World* w, int x, int y, int z);
@@ -331,8 +379,6 @@ void tileRandomTick(World* w);
 
 void heavyTileTick(World* w, int x, int y, int z, unsigned char id);
 
-void farmlandCheckDry(World* w, int x, int y, int z);
-
 void leafFlagNeighbors(World* w, int x, int y, int z);
 void leafDecayTick(World* w, int x, int y, int z);
 
@@ -348,7 +394,12 @@ void worldRebuildStep(const World* w, float camX, float camY, float camZ, float 
 void worldDrawWater(const World* w, float camX, float camY, float camZ, float viewDist);
 
 struct BlockHit { bool hit; int x, y, z; int face; float clickX, clickY, clickZ; };
-BlockHit worldPick(const World* w, float px, float py, float pz, float yaw, float pitch, float range);
+
+BlockHit worldClip(const World* w, float ax, float ay, float az,
+                   float bx, float by, float bz, bool clipLiquids, bool solidOnly = false);
+
+BlockHit worldPick(const World* w, float px, float py, float pz, float yaw, float pitch, float range,
+                   bool clipLiquids = false);
 
 int worldSelectionBoxes(const World* w, int x, int y, int z, float boxes[3][6]);
 

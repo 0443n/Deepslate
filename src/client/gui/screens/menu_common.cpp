@@ -1,11 +1,14 @@
 
 #include <pspgu.h>
+#include <pspkernel.h>
 #include <pspctrl.h>
 #include <psputility.h>
 #include <cstdio>
 #include <cstring>
 
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/panorama.h"
+#include "client/gui/hud.h"
 #include "gpu/gu.h"
 #include "gpu/button_icons.h"
 #include "world/level/tile/entity/sign_tile_entity.h"
@@ -17,49 +20,158 @@ unsigned int menuSelectionSig(const MenuState& s) {
     const int fields[] = {
         (int)s.screen, s.worldSelected, s.deleteSelected, s.createSelected,
         s.newWorldGamemode, s.uiRow, s.topSelected, s.selected,
-        s.joinListSelected, s.joinIpSelected,
+        s.joinUiRow, s.joinBarSel, s.joinRow, s.joinEditMode, s.addSelected,
         s.optFocus, s.optCategory, s.optTabHighlight, s.optItemHighlight,
-        s.optEditingRow,
     };
     for (unsigned i = 0; i < sizeof(fields) / sizeof(fields[0]); i++)
         h = (h ^ (unsigned int)fields[i]) * 16777619u;
     return (h ^ optionsValueSig()) * 16777619u;
 }
 
-struct ColorVertex {
-    unsigned int color;
-    float x, y, z;
-};
-
 void drawRect(float x, float y, float w, float h, unsigned int color) {
-    sceGuDisable(GU_TEXTURE_2D);
-    ColorVertex* vertices = (ColorVertex*)sceGuGetMemory(2 * sizeof(ColorVertex));
-    vertices[0].color = color;
-    vertices[0].x = x;
-    vertices[0].y = y;
-    vertices[0].z = 0.0f;
-    vertices[1].color = color;
-    vertices[1].x = x + w;
-    vertices[1].y = y + h;
-    vertices[1].z = 0.0f;
+    guiFill(x, y, w, h, color);
+}
 
-    sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, 0, vertices);
-    sceGuEnable(GU_TEXTURE_2D);
+void uiDraw(MenuState& s, float x, float y, float w, float h,
+            float tsx, float tsy, float asx, float asy,
+            float sw, float sh, unsigned int tint) {
+
+    Texture* tex = s.haveTouch ? &s.touchGui : &s.guiAtlas;
+    float sx = s.haveTouch ? tsx : asx, sy = s.haveTouch ? tsy : asy;
+    textureBind(tex);
+    spriteDraw(tex, x, y, w, h, sx, sy, sw, sh, tint);
+}
+
+void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,
+                     bool on, bool hovered, unsigned int tint) {
+    float scale = hovered ? 0.95f : 1.0f;
+    float drawW = w * scale, drawH = h * scale;
+    float drawX = x + (w - drawW) / 2.0f, drawY = y + (h - drawH) / 2.0f;
+    float onOff = on ? 38.0f : 0.0f;
+    uiDraw(s, drawX * UI_SCALE, drawY * UI_SCALE, drawW * UI_SCALE, drawH * UI_SCALE,
+           160.0f + onOff, 206.0f, GA_SS_TOGGLE_X + onOff, GA_SS_TOGGLE_Y, 38.0f, 20.0f, tint);
+}
+
+void drawMenuHeader(MenuState& s, const char* title, float x, float w, float h, float textScale,
+                    float titleX, float titleW) {
+    uiDraw(s, x * UI_SCALE, 0.0f, 2.0f * UI_SCALE, (h - 1.0f) * UI_SCALE,
+           150.0f, 26.0f, GA_HDR_LEFT_X, GA_HDR_LEFT_Y, 2.0f, 25.0f, WHITE);
+    uiDraw(s, (x + 2.0f) * UI_SCALE, 0.0f, (w - 4.0f) * UI_SCALE, (h - 1.0f) * UI_SCALE,
+           153.0f, 26.0f, GA_HDR_BODY_X, GA_HDR_BODY_Y, 8.0f, 25.0f, WHITE);
+    uiDraw(s, (x + w - 2.0f) * UI_SCALE, 0.0f, 2.0f * UI_SCALE, (h - 1.0f) * UI_SCALE,
+           162.0f, 26.0f, GA_HDR_RIGHT_X, GA_HDR_RIGHT_Y, 2.0f, 25.0f, WHITE);
+    uiDraw(s, x * UI_SCALE, (h - 1.0f) * UI_SCALE, w * UI_SCALE, 3.0f * UI_SCALE,
+           153.0f, 52.0f, GA_HDR_SHADOW_X, GA_HDR_SHADOW_Y, 8.0f, 3.0f, WHITE);
+    if (!title || !s.haveFont) return;
+
+    if (titleW <= 0.0f) { titleX = x; titleW = w; }
+    float tw = fontTextWidth(&s.font, title) * textScale;
+
+    while (textScale > 1.0f && tw > titleW * UI_SCALE) {
+        textScale -= 1.0f;
+        tw = fontTextWidth(&s.font, title) * textScale;
+    }
+    fontDrawTextShadow(&s.font, (titleX + titleW / 2.0f) * UI_SCALE - tw / 2.0f,
+                       h / 2.0f * UI_SCALE - 4.0f * textScale, title, 0xFFE0E0E0u, textScale);
+}
+
+float menuBarButtonW(MenuState& s, const char* label) {
+    if (!s.haveFont) return 38.0f * MENU_PX;
+
+    return (fontTextWidth(&s.font, label) * MENU_BAR_TEXT + 14.0f) * MENU_PX;
+}
+
+void menuBarButton(MenuState& s, float x, float w, const char* label, bool hovered) {
+    guiTButton(s, x, MENU_BAR_BTNY, w, MENU_BAR_BTNH, hovered, MENU_BEVEL);
+    guiTButtonLabel(s, x, MENU_BAR_BTNY, w, MENU_BAR_BTNH, label, hovered, true, MENU_BAR_TEXT);
+}
+
+void drawTextField(MenuState& s, float x, float y, float w, float h,
+                   const char* text, const char* placeholder, bool focused, float scale) {
+    const unsigned int FILL   = 0xFF353737u;
+    const unsigned int BORDER = 0xFF606067u;
+    drawRect(x * UI_SCALE, y * UI_SCALE, w * UI_SCALE, h * UI_SCALE, FILL);
+
+    unsigned int edge = focused ? 0xFFFFFFFFu : BORDER;
+    drawRect(x * UI_SCALE, y * UI_SCALE, w * UI_SCALE, UI_SCALE, edge);
+    drawRect(x * UI_SCALE, (y + h - 1.0f) * UI_SCALE, w * UI_SCALE, UI_SCALE, edge);
+    drawRect(x * UI_SCALE, y * UI_SCALE, UI_SCALE, h * UI_SCALE, edge);
+    drawRect((x + w - 1.0f) * UI_SCALE, y * UI_SCALE, UI_SCALE, h * UI_SCALE, edge);
+    if (!s.haveFont) return;
+    bool empty = !text || !text[0];
+    const char* shown = empty ? placeholder : text;
+    if (!shown || !shown[0]) return;
+
+    fontDrawTextClipped(&s.font, (x + 5.0f) * UI_SCALE, (y + h / 2.0f) * UI_SCALE - 4.0f * scale,
+                        shown, empty ? 0xFF808080u : 0xFFFFFFFFu, scale,
+                        (w - 10.0f) * UI_SCALE / scale);
+}
+
+void drawWindowFrame(MenuState& s) {
+    drawNinePatch(s, GA_SS_WINDOW_X, GA_SS_WINDOW_Y, 16, 16, 4, 0, 0, VW, VH);
+    if (!s.haveGui) return;
+    textureBind(&s.guiAtlas);
+    spriteDraw(&s.guiAtlas, 0,             0, G(2),      G(HEADER_H), GA_HDR_LEFT,  0xFFFFFFFFu);
+    spriteDraw(&s.guiAtlas, G(2),          0, G(VW - 4), G(HEADER_H), GA_HDR_BODY,  0xFFFFFFFFu);
+    spriteDraw(&s.guiAtlas, G(VW - 2),     0, G(2),      G(HEADER_H), GA_HDR_RIGHT, 0xFFFFFFFFu);
+}
+
+void drawHeaderTitle(MenuState& s, const char* title, unsigned int color,
+                     float centreX, float width) {
+    if (!s.haveFont) return;
+    float tw = fontTextWidth(&s.font, title) * UI_SCALE;
+    fontDrawTextShadow(&s.font, G(centreX) + (G(width) - tw) / 2.0f,
+                       (G(HEADER_H) - 8.0f * UI_SCALE) / 2.0f, title, color, UI_SCALE);
+}
+
+void drawDirtBackground(MenuState& s, float y, float h, float uOffset, unsigned int tint) {
+    if (!s.haveBg) return;
+    if (h < 0.0f) h = VH * UI_SCALE - y;
+    textureBind(&s.dirtBg);
+    sceGuTexWrap(GU_REPEAT, GU_REPEAT);
+    float tileScale = (float)s.dirtBg.realW / (32.0f * UI_SCALE);
+    spriteDraw(&s.dirtBg, 0.0f, y, VW * UI_SCALE, h,
+               uOffset * tileScale, 0.0f, (VW * UI_SCALE) * tileScale, h * tileScale, tint);
+    sceGuTexWrap(GU_CLAMP, GU_CLAMP);
+}
+
+int holdChargeUpdate(HoldCharge& c, int slotKey, int count, bool crossHeld) {
+    const int MIN_CHARGE_MS = 200;
+    if (crossHeld && count > 0) {
+        unsigned int now = sceKernelGetSystemTimeLow();
+        if (c.key != slotKey) { c.key = slotKey; c.start = now; }
+        int heldMs = (int)((now - c.start) / 1000);
+        float share = (heldMs - MIN_CHARGE_MS) / (700.0f + 10.0f * count);
+        c.share = share < 0.0f ? 0.0f : (share > 1.0f ? 1.0f : share);
+        if (count > 1 && c.share >= 1.0f) { c.reset(); return count; }
+        return 0;
+    }
+    if (c.key == slotKey && count > 0) {
+        int heldMs = (int)((sceKernelGetSystemTimeLow() - c.start) / 1000);
+        int want = (int)(count * c.share);
+        if (want < 1 || heldMs < MIN_CHARGE_MS) want = 1;
+        c.reset();
+        return want;
+    }
+    c.reset();
+    return 0;
 }
 
 #include "gpu/sprite.h"
 #include "gpu/gui_atlas.h"
 
 void drawNinePatch(MenuState& s, float sx, float sy, float sw, float sh, float corner,
-                   float gx, float gy, float gw, float gh) {
+                   float gx, float gy, float gw, float gh, float destCorner) {
     if (!s.haveGui) {
         drawRect(gx * UI_SCALE, gy * UI_SCALE, gw * UI_SCALE, gh * UI_SCALE, 0xFF444444u);
         return;
     }
+
     const float c = corner, S = UI_SCALE;
-    const float xs[4] = { 0, c, gw - c, gw };
+    const float dc = (destCorner < 0.0f) ? corner : destCorner;
+    const float xs[4] = { 0, dc, gw - dc, gw };
     const float us[4] = { 0, c, sw - c, sw };
-    const float ys[4] = { 0, c, gh - c, gh };
+    const float ys[4] = { 0, dc, gh - dc, gh };
     const float vs[4] = { 0, c, sh - c, sh };
     textureBind(&s.guiAtlas);
     for (int j = 0; j < 3; ++j)
@@ -129,7 +241,6 @@ static int oskTarget = 0;
 
 static SignTileEntity* g_oskSign = 0;
 static int g_oskSignLine = 0;
-static const int OSK_TARGET_SIGN = 4;
 static unsigned short oskDesc[128];
 static unsigned short oskInText[128];
 static unsigned short oskOutText[128];
@@ -212,9 +323,18 @@ bool menuOskUpdate(MenuState& s) {
             return true;
         }
 
-        char* targetStr = (oskTarget == 1) ? s.newWorldName : (oskTarget == 2) ? s.newWorldSeed : s.joinIp;
+        char* targetStr = 0;
+        int   targetCap = 0;
+        switch (oskTarget) {
+            case OSK_TARGET_WORLD_NAME: targetStr = s.newWorldName; targetCap = sizeof(s.newWorldName); break;
+            case OSK_TARGET_WORLD_SEED: targetStr = s.newWorldSeed; targetCap = sizeof(s.newWorldSeed); break;
+            case OSK_TARGET_SRV_NAME:   targetStr = s.addName;      targetCap = sizeof(s.addName);      break;
+            case OSK_TARGET_SRV_ADDR:   targetStr = s.addAddr;      targetCap = sizeof(s.addAddr);      break;
+            case OSK_TARGET_SRV_PORT:   targetStr = s.addPort;      targetCap = sizeof(s.addPort);      break;
+            default: return true;
+        }
 
-        for (int i = 0; i < 63 && oskOutText[i]; i++) {
+        for (int i = 0; i < targetCap - 1 && oskOutText[i]; i++) {
             targetStr[i] = (char)oskOutText[i];
             targetStr[i+1] = 0;
         }
@@ -249,26 +369,42 @@ void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y, floa
     }
 }
 
+bool optionsScreenUp(const MenuState& s) {
+    extern bool g_optionsOpen;
+    return s.screen == SCREEN_OPTIONS || g_optionsOpen;
+}
+
 void menuHintsDraw(MenuState& s) {
-    ButtonHint hints[4];
+    ButtonHint hints[6];
     int n = 0;
-    hints[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Select" };
+    const bool onOptions = optionsScreenUp(s);
+
+    hints[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,
+                               onOptions ? "Toggle" : "Select" };
     if (s.screen != SCREEN_TITLE)
         hints[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Back" };
-    if (s.screen == SCREEN_OPTIONS) {
+
+    if (s.screen == SCREEN_CREATE)
+        hints[n++] = (ButtonHint){ BTN_ICON_TRIANGLE, PSP_CTRL_TRIANGLE, "Advanced" };
+    if (onOptions) {
+        hints[n++] = (ButtonHint){ BTN_ICON_LEFT,  PSP_CTRL_LEFT,  "" };
+        hints[n++] = (ButtonHint){ BTN_ICON_RIGHT, PSP_CTRL_RIGHT, "Change" };
         hints[n++] = (ButtonHint){ BTN_ICON_L, PSP_CTRL_LTRIGGER, "" };
-        hints[n++] = (ButtonHint){ BTN_ICON_R, PSP_CTRL_RTRIGGER, "Change Group" };
+        hints[n++] = (ButtonHint){ BTN_ICON_R, PSP_CTRL_RTRIGGER, "Group" };
     }
     buttonHintsDraw(s, hints, n);
 }
 
 #include "world/level/tile/tile_gui_hooks.h"
+#include "client/gamemode/gamemode.h"
 #include "world/item/crafting/recipe.h"
 #include "client/gui/hud.h"
 
 void guiOpenSignEditor(SignTileEntity* te) { if (te) signStartEdit(te); }
 void guiOpenFurnace(FurnaceTileEntity* te) { if (te) furnaceOpen(te); }
 void guiOpenChest(ChestTileEntity* te)     { if (te) chestOpen(te); }
+
+bool chestGuiSuppressed() { return g_gameMode && g_gameMode->isCreative(); }
 void guiOpenCrafting(bool stonecutter) {
     craftOpen(Recipe::SIZE_3X3, stonecutter ? CRAFT_STONECUTTER : CRAFT_WORKBENCH);
 }

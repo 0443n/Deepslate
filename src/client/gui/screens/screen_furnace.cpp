@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "client/player/player.h"
+#include "client/gui/screens/screen.h"
 #include "client/gui/hud.h"
 #include "gpu/sprite.h"
 #include "platform/audio/sound.h"
@@ -26,18 +27,14 @@ static int s_cursor = 0;
 static int s_slotSel = 0;
 static int s_focus = 0;
 
-static const int   MIN_CHARGE_MS = 200;
-static int         s_chargeKey    = -1;
-static unsigned int s_chargeStart = 0;
-static float       s_barShare     = 0.0f;
+static HoldCharge  s_charge;
 
 static void updateItems() {
     s_list.clear();
     for (int i = 0; i < g_level.player->inventory->getContainerSize(); ++i) {
         ItemInstance* it = g_level.player->inventory->getItem(i);
         if (!it || it->isNull()) continue;
-        if (FurnaceTileEntity::getBurnDuration(*it) > 0 ||
-            !FurnaceTileEntity::furnaceResult(it->id).isNull())
+        if (FurnaceTileEntity::isFuel(*it) || FurnaceTileEntity::isFurnaceItem(*it))
             s_list.push_back(i);
     }
     if (s_cursor >= (int)s_list.size()) s_cursor = (int)s_list.size() - 1;
@@ -46,9 +43,9 @@ static void updateItems() {
 
 static bool allowedInSlot(const ItemInstance& it, int slot) {
     if (slot == FurnaceTileEntity::SLOT_FUEL)
-        return FurnaceTileEntity::getBurnDuration(it) > 0;
+        return FurnaceTileEntity::isFuel(it);
     if (slot == FurnaceTileEntity::SLOT_INGREDIENT)
-        return !FurnaceTileEntity::furnaceResult(it.id).isNull();
+        return FurnaceTileEntity::isFurnaceItem(it);
     return false;
 }
 
@@ -88,11 +85,7 @@ static void takeSlot(int slot, int n = 0) {
     if (n <= 0 || n > it.count) n = it.count;
     ItemInstance* copy = new ItemInstance(it);
     copy->count = n;
-    if (!g_level.player->inventory->add(copy)) {
-        LocalPlayer* p = g_level.player;
-        if (p) g_level.addEntity(new ItemEntity(&g_level, p->x, p->y, p->z, *copy));
-        delete copy;
-    }
+    if (!g_level.player->inventory->add(copy)) g_level.player->drop(copy);
     it.count -= n;
     if (it.count <= 0) it.setNull();
     soundPlay("random.click", 1.0f, 1.0f);
@@ -118,10 +111,18 @@ void furnaceOpen(FurnaceTileEntity* fe) {
     g_furnaceOpen = true;
     soundPlay("random.click", 1.0f, 1.0f);
 }
+struct FurnaceScreen : ContainerScreen {
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
 
-void furnaceHandleInput(MenuState& s, unsigned int pressed, unsigned int held) {
+void FurnaceScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int held) {
     (void)s;
     if (!s_furnace) { g_furnaceOpen = false; return; }
+
+    if (!s_furnace->stillValid(g_level.player)) {
+        s_furnace = nullptr; g_furnaceOpen = false; return;
+    }
     const int cols = 3;
     const int n = (int)s_list.size();
     int before = s_focus * 1000 + s_cursor + s_slotSel * 100;
@@ -138,39 +139,24 @@ void furnaceHandleInput(MenuState& s, unsigned int pressed, unsigned int held) {
         ItemInstance* src = (n > 0) ? g_level.player->inventory->getItem(s_list[s_cursor]) : nullptr;
         int count = (src && !src->isNull()) ? src->count : 0;
         if (g_level.player->inventory->isCreative()) {
+
             if ((pressed & PSP_CTRL_CROSS) && n > 0) moveToFurnace(s_list[s_cursor], 1);
-        } else if ((held & PSP_CTRL_CROSS) && count > 0) {
-            unsigned int now = sceKernelGetSystemTimeLow();
-            if (s_chargeKey != s_cursor) { s_chargeKey = s_cursor; s_chargeStart = now; }
-            int heldMs = (int)((now - s_chargeStart) / 1000);
-            float maxHold = 700.0f + 10.0f * count;
-            float share = (heldMs - MIN_CHARGE_MS) / maxHold;
-            s_barShare = share < 0.0f ? 0.0f : (share > 1.0f ? 1.0f : share);
-            if (count > 1 && s_barShare >= 1.0f) {
-                moveToFurnace(s_list[s_cursor], count);
-                s_chargeKey = -1; s_barShare = 0.0f;
-            }
-        } else if (s_chargeKey == s_cursor && n > 0) {
-            int heldMs = (int)((sceKernelGetSystemTimeLow() - s_chargeStart) / 1000);
-            int want = (int)(count * s_barShare);
-            if (want < 1 || heldMs < MIN_CHARGE_MS) want = 1;
-            moveToFurnace(s_list[s_cursor], want);
-            s_chargeKey = -1; s_barShare = 0.0f;
-        } else {
-            s_chargeKey = -1; s_barShare = 0.0f;
+        } else if (int move = holdChargeUpdate(s_charge, s_cursor, count,
+                                               (held & PSP_CTRL_CROSS) != 0)) {
+            moveToFurnace(s_list[s_cursor], move);
         }
 
         if (n > 0 && count > 0) {
             if (pressed & PSP_CTRL_TRIANGLE) {
                 moveToFurnace(s_list[s_cursor], count);
-                s_chargeKey = -1; s_barShare = 0.0f;
+                s_charge.reset();
             } else if (pressed & PSP_CTRL_SQUARE) {
                 moveToFurnace(s_list[s_cursor], (count + 1) / 2);
-                s_chargeKey = -1; s_barShare = 0.0f;
+                s_charge.reset();
             }
         }
     } else {
-        s_chargeKey = -1; s_barShare = 0.0f;
+        s_charge.reset();
 
         if (pressed & PSP_CTRL_UP) {
             if (s_slotSel == FurnaceTileEntity::SLOT_FUEL) s_slotSel = FurnaceTileEntity::SLOT_INGREDIENT;
@@ -205,33 +191,18 @@ static void drawFurnaceSlot(MenuState& s, int slot, float gx, float gy) {
     drawNinePatch(s, GA_SS_SLOT_X, GA_SS_SLOT_Y, 8, 8, 2, gx, gy, 20, 20);
     ItemInstance& it = s_furnace->items[slot];
     if (!it.isNull()) {
-        drawBlockIcon(it.id, (unsigned char)(it.data < 0 ? 0 : it.data),
-                      (gx + 2) * UI_SCALE, (gy + 2) * UI_SCALE, 16 * UI_SCALE, 0xFFFFFFFFu);
-        if (it.count > 1 && s.haveFont)
-            drawStackCount(s.font, it.count, (gx + 2) * UI_SCALE, (gy + 2) * UI_SCALE, 16 * UI_SCALE);
+
+        drawGuiItem(s.font, it, G(gx + 2), G(gy + 2), G(16), 0xFFFFFFFFu, s.haveFont);
     }
 }
 
-void furnaceRender(MenuState& s) {
+void FurnaceScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
-    #define G(v) ((v) * UI_SCALE)
     if (!s_furnace) return;
 
     sceGuDisable(GU_DEPTH_TEST);
 
-    drawNinePatch(s, GA_SS_WINDOW_X, GA_SS_WINDOW_Y, 16, 16, 4, 0, 0, 240, 136);
-    if (s.haveGui) {
-        textureBind(&s.guiAtlas);
-        spriteDraw(&s.guiAtlas, 0,      0, G(2),       G(23), GA_HDR_LEFT, WHITE);
-        spriteDraw(&s.guiAtlas, G(2),   0, G(240 - 4), G(23), GA_HDR_BODY, WHITE);
-        spriteDraw(&s.guiAtlas, G(238), 0, G(2),       G(23), GA_HDR_RIGHT, WHITE);
-    }
-    if (haveFont) {
-        const char* title = "Furnace";
-        float tw = fontTextWidth(&font, title) * UI_SCALE;
-        fontDrawTextShadow(&font, (480.0f - tw) / 2.0f, (G(23) - 8.0f * UI_SCALE) / 2.0f,
-                           title, 0xFFFFFFFFu, UI_SCALE);
-    }
+    drawHeaderTitle(s, "Furnace");
 
     const float paneX = 12.0f, paneY = 32.0f;
     const float ItemSize = 32.0f;
@@ -253,11 +224,7 @@ void furnaceRender(MenuState& s) {
         }
         ItemInstance* it = g_level.player->inventory->getItem(s_list[i]);
         if (it && !it->isNull()) {
-            drawBlockIcon(it->id, (unsigned char)(it->data < 0 ? 0 : it->data),
-                          G(cx + 8), G(cy + 8), G(16), WHITE);
-            if (it->count > 1 && haveFont)
-                drawStackCount(font, it->count, G(cx + 8), G(cy + 8), G(16));
-            drawDurabilityBar(it->id, it->data, G(cx + 8), G(cy + 8), G(16));
+            drawGuiItem(font, *it, G(cx + 8), G(cy + 8), G(16), WHITE, haveFont);
         }
     }
     sceGuScissor(0, 0, 480, 272);
@@ -268,10 +235,10 @@ void furnaceRender(MenuState& s) {
         textureBind(&s.guiAtlas);
         spriteDraw(&s.guiAtlas, G(cx - 2), G(cy - 2), G(ItemSize + 4), G(ItemSize + 5), GA_SEL_FRAME, tint);
 
-        if (s_focus == 0 && s_barShare > 0.0f) {
+        if (s_focus == 0 && s_charge.share > 0.0f) {
             float bw = ItemSize - 8.0f;
             guiFill(G(cx + 4), G(cy + ItemSize - 7), G(bw),              G(4), 0xFF404040u);
-            guiFill(G(cx + 4), G(cy + ItemSize - 7), G(bw * s_barShare), G(4), 0xFF00FF00u);
+            guiFill(G(cx + 4), G(cy + ItemSize - 7), G(bw * s_charge.share), G(4), 0xFF00FF00u);
         }
     }
     if (n == 0 && haveFont)
@@ -311,5 +278,7 @@ void furnaceRender(MenuState& s) {
     }
 
     sceGuEnable(GU_DEPTH_TEST);
-    #undef G
 }
+
+static FurnaceScreen s_furnaceScreen;
+Screen& furnaceScreen() { return s_furnaceScreen; }

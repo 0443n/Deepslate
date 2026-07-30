@@ -37,13 +37,9 @@ void CreeperRenderer::render(Entity* e, float x, float y, float z, float rot, fl
     Creeper* cr = (Creeper*)e;
     Mob* mob = (Mob*)e;
 
-    float dBody = mob->yBodyRot - mob->yBodyRotO;
-    while (dBody > 180.0f) dBody -= 360.0f; while (dBody < -180.0f) dBody += 360.0f;
-    float ibody = mob->yBodyRotO + dBody * a;
-    float dHead = rot - ibody; while (dHead > 180.0f) dHead -= 360.0f; while (dHead < -180.0f) dHead += 360.0f;
-    float ipitch = mob->xRotO + (mob->xRot - mob->xRotO) * a;
-    float ws = mob->walkAnimSpeedO + (mob->walkAnimSpeed - mob->walkAnimSpeedO) * a; if (ws > 1.0f) ws = 1.0f;
-    float wp = mob->walkAnimPos - mob->walkAnimSpeed * (1.0f - a);
+    MobAnim m = mobAnimSetup(mob, rot, a);
+    float ibody = m.bodyRot, dHead = m.headYaw, ipitch = m.pitch;
+    float ws = m.speed, wp = m.pos;
     float t = wp * 0.6662f;
     float sA = cosf(t) * 1.4f * ws, sB = cosf(t + PIF) * 1.4f * ws;
 

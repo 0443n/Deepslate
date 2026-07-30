@@ -8,7 +8,6 @@
 #include <cmath>
 
 #include "platform/path.h"
-#include "client/player/player.h"
 
 #define SAMPLE_RATE   44100
 #define SAMPLE_COUNT   1024
@@ -134,7 +133,8 @@ static int mixerThread(SceSize , void* ) {
     int buf = 0;
     for (;;) {
         soundMixBlock(out[buf]);
-        int vol = g_muted ? 0 : (int)(g_master * PSP_AUDIO_VOLUME_MAX);
+
+        int vol = (int)(g_master * PSP_AUDIO_VOLUME_MAX);
         sceAudioOutputPannedBlocking(g_channel, vol, vol, out[buf]);
         buf ^= 1;
     }
@@ -178,7 +178,7 @@ float soundAttenuate(float distSq, float volume) {
 }
 
 void soundPlay(const char* name, float volume, float pitch) {
-    if (g_channel < 0 || !name || !name[0] || g_muted || g_master <= 0.0f) return;
+    if (g_channel < 0 || !name || !name[0] || g_master <= 0.0f) return;
     if (volume <= 0.0f) return;
 
     int first = findFirst(name);

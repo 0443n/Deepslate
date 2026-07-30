@@ -1,5 +1,6 @@
 
 #include "client/player/player.h"
+#include "client/gui/screens/screen.h"
 #include "client/renderer/render.h"
 
 #include "world/level/world.h"
@@ -16,6 +17,7 @@
 #include "world/level/tile/redstone_ore.h"
 #include "world/item/crafting/recipe.h"
 #include "client/gui/hud.h"
+#include "util/prof.h"
 
 #include <cmath>
 #include <cstdio>
@@ -71,17 +73,13 @@ void playerRespawn() {
     p->deathTime = 0; p->hurtTime = 0; p->invulnerableTime = 0;
     p->onFire = 0;
 
-    if (g_bedSpawnY >= 0 &&
-        worldBlock(&g_world, g_bedSpawnX, g_bedSpawnY, g_bedSpawnZ) == BLOCK_AIR &&
-        worldBlock(&g_world, g_bedSpawnX, g_bedSpawnY + 1, g_bedSpawnZ) == BLOCK_AIR) {
-        p->x = g_bedSpawnX + 0.5f; p->z = g_bedSpawnZ + 0.5f;
-        playerSpawnAt(g_bedSpawnY + PLAYER_EYE);
-        return;
-    }
-    int sx, sz, feetY;
-    worldFindSpawn(&g_world, &sx, &sz, &feetY);
+    g_level.validateSpawn();
+    int sx = p->hasRespawnPosition() ? p->respawnX : g_level.spawnX;
+    int sy = p->hasRespawnPosition() ? p->respawnY : g_level.spawnY;
+    int sz = p->hasRespawnPosition() ? p->respawnZ : g_level.spawnZ;
     p->x = sx + 0.5f; p->z = sz + 0.5f;
-    playerSpawnAt(feetY + PLAYER_EYE);
+    playerSpawnAt(sy + 1.0f);
+    p->resetPos(true);
 }
 
 void quitToMenuNoSave(MenuState& s) {
@@ -91,7 +89,7 @@ void quitToMenuNoSave(MenuState& s) {
     g_craftOpen = false;
     g_armorOpen = false;
     g_furnaceOpen = false;
-    g_chestOpen = false;
+    chestClose();
     g_signEditing = 0;
     g_deadScreen = false;
     g_paused = false;
@@ -99,6 +97,8 @@ void quitToMenuNoSave(MenuState& s) {
     extern MiningState g_mining;
     g_mining.active = false; g_mining.progress = 0.0f;
 
+    extern void skyFreeStars(void);
+    skyFreeStars();
     worldFree(&g_world);
     g_level.removeAllEntities();
     g_level.removeAllTileEntities();
@@ -126,13 +126,24 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
     if (ticks > MAX_TICKS_PER_UPDATE) ticks = MAX_TICKS_PER_UPDATE;
     g_timerAlpha = g_timerPassed;
 
+    profBegin(PROF_TICK);
     for (int i = 0; i < ticks; i++) {
+        profBegin(PROF_TPLAYER);
         if (g_level.player) g_level.player->aiStep(btn, lx, ly);
+        profEnd(PROF_TPLAYER);
+        profBegin(PROF_TWORLD);
         if (g_worldBuilt)
             worldTick(&g_world);
+        profEnd(PROF_TWORLD);
+        profBegin(PROF_TENT);
         if (g_worldBuilt) g_level.tickEntities();
+        profEnd(PROF_TENT);
+        profBegin(PROF_TTE);
         if (g_worldBuilt) g_level.tickTileEntities();
+        profEnd(PROF_TTE);
+        profBegin(PROF_TPART);
         if (g_worldBuilt && g_level.player) particlesTick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z);
+        profEnd(PROF_TPART);
 
         if (g_worldBuilt && g_autosave > 0) {
             ++g_autosaveTick;
@@ -146,14 +157,16 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
             if (g_autosaveTick >= g_autosave) { g_autosaveTick = 0; g_saveRequested = true; }
         }
         if (g_invFlashTicks > 0) g_invFlashTicks--;
+        if (g_useItemDelay > 0) g_useItemDelay--;
         g_cloudTicks++;
     }
+    profEnd(PROF_TICK);
 }
 
 void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
 
     if (g_signEditing) {
-        signHandleInput(s, pressed);
+        signScreen().handleInput(s, pressed, pad.Buttons);
         float now = nowSeconds();
         g_timerLast = now; g_timerPassed = 0.0f; g_timerAlpha = 0.0f;
         return;
@@ -168,41 +181,48 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
     if (g_worldBuilt && g_level.player && g_level.player->health <= 0 && !g_deadScreen)
         deadScreenOpen();
     if (g_deadScreen) {
-        deadHandleInput(s, pressed);
+        deadScreen().handleInput(s, pressed, pad.Buttons);
 
         runTicks(s, 0, 128, 128);
         return;
     }
     if (g_paused) {
-        pauseHandleInput(s, pressed);
+        pauseScreen().handleInput(s, pressed, pad.Buttons);
+        float now = nowSeconds();
+        g_timerLast = now; g_timerPassed = 0.0f; g_timerAlpha = 0.0f;
+        return;
+    }
+
+    if (g_optionsOpen) {
+        optionsScreen().handleInput(s, pressed, pad.Buttons);
         float now = nowSeconds();
         g_timerLast = now; g_timerPassed = 0.0f; g_timerAlpha = 0.0f;
         return;
     }
 
     if (g_worldBuilt && g_level.player && g_level.player->isSleeping()) {
-        inBedHandleInput(s, pressed);
+        inBedScreen().handleInput(s, pressed, pad.Buttons);
         runTicks(s, 0, 128, 128);
         return;
     }
 
     if (g_craftOpen) {
-        craftHandleInput(s, pressed);
+        craftScreen().handleInput(s, pressed, pad.Buttons);
         runTicks(s, 0, 128, 128);
         return;
     }
     if (g_armorOpen) {
-        armorHandleInput(s, pressed);
+        armorScreen().handleInput(s, pressed, pad.Buttons);
         runTicks(s, 0, 128, 128);
         return;
     }
     if (g_furnaceOpen) {
-        furnaceHandleInput(s, pressed, pad.Buttons);
+        furnaceScreen().handleInput(s, pressed, pad.Buttons);
         runTicks(s, 0, 128, 128);
         return;
     }
     if (g_chestOpen) {
-        chestHandleInput(s, pressed, pad.Buttons);
+        chestScreen().handleInput(s, pressed, pad.Buttons);
         runTicks(s, 0, 128, 128);
         return;
     }
@@ -285,6 +305,11 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
     if (pressed & PSP_CTRL_LEFT)  { if (g_level.player->inventory->selected > 0) g_level.player->inventory->selected--; else g_level.player->inventory->selected = HOTBAR_SLOTS; }
     if (pressed & PSP_CTRL_RIGHT) { if (g_level.player->inventory->selected < HOTBAR_SLOTS) g_level.player->inventory->selected++; else g_level.player->inventory->selected = 0; }
 
+    if ((pressed & PSP_CTRL_UP) && g_level.player->inventory->selected == HOTBAR_SLOTS) {
+        optionsToggleThirdPerson();
+        soundPlay("random.click", 1.0f, 1.0f);
+    }
+
     {
         const float DROP_TAP = 0.22f;
         const float DROP_FULL = 1.0f;
@@ -334,7 +359,6 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
 
 void playerSpawnEnsure() {
 
-    g_bedSpawnY = -1;
     if (!g_level.player) {
         g_level.player = new LocalPlayer(&g_level);
         g_level.player->x = WORLD_W * 0.5f;
@@ -354,6 +378,9 @@ void playerSpawnAt(float eyeY) {
     p->xd = p->yd = p->zd = 0.0f;
     p->onGround = true;
     p->flying = false;
+
+    p->fallDistance = 0.0f;
+    p->onFire = 0;
     p->xo = p->xOld = p->x; p->yo = p->yOld = p->y; p->zo = p->zOld = p->z;
     p->yRotO = p->yRot; p->xRotO = p->xRot;
 }

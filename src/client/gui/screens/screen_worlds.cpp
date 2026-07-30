@@ -2,20 +2,25 @@
 #include <pspctrl.h>
 #include <pspgu.h>
 #include <cstdio>
+#include <cstring>
 
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/screen.h"
+#include "world/level/levelgen/level_source.h"
 #include "gpu/sprite.h"
+#include "client/gui/screens/world_icons.h"
 
-void worldsHandleInput(MenuState& s, unsigned int pressed) {
+struct WorldsScreen : Screen {
+    void renderContent(MenuState& s);
+    void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
+};
+
+void WorldsScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
     WorldList& worlds = s.worlds;
     int& worldSelected = s.worldSelected;
     int& uiRow = s.uiRow;
     int& topSelected = s.topSelected;
     int& deleteSelected = s.deleteSelected;
-    int& createSelected = s.createSelected;
-    int& newWorldGamemode = s.newWorldGamemode;
-    char (&newWorldName)[64] = s.newWorldName;
-    char (&newWorldSeed)[64] = s.newWorldSeed;
     char (&statusMsg)[128] = s.statusMsg;
     AppScreen& screen = s.screen;
 
@@ -49,10 +54,7 @@ void worldsHandleInput(MenuState& s, unsigned int pressed) {
         if (uiRow == 0) {
             if (topSelected == 0) screen = SCREEN_TITLE;
             else {
-                createSelected = 1;
-                newWorldName[0] = '\0';
-                newWorldSeed[0] = '\0';
-                newWorldGamemode = 0;
+                createFormReset(s);
                 screen = SCREEN_CREATE;
             }
         } else if (uiRow == 1) {
@@ -60,10 +62,7 @@ void worldsHandleInput(MenuState& s, unsigned int pressed) {
                 snprintf(statusMsg, sizeof(statusMsg), "Loading: %s", worlds.names[worldSelected]);
                 screen = SCREEN_GAME;
             } else {
-                createSelected = 1;
-                newWorldName[0] = '\0';
-                newWorldSeed[0] = '\0';
-                newWorldGamemode = 0;
+                createFormReset(s);
                 screen = SCREEN_CREATE;
             }
         } else if (uiRow == 2) {
@@ -73,10 +72,10 @@ void worldsHandleInput(MenuState& s, unsigned int pressed) {
     }
 }
 
-void worldsRender(MenuState& s) {
+void WorldsScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
     bool haveGui = s.haveGui;
-    Texture& dirtBg = s.dirtBg; bool haveBg = s.haveBg;
+    bool haveBg = s.haveBg;
     Texture& touchGui = s.touchGui; bool haveTouch = s.haveTouch;
     Texture& defaultWorld = s.defaultWorld; bool haveDefaultWorld = s.haveDefaultWorld;
     WorldList& worlds = s.worlds;
@@ -88,9 +87,6 @@ void worldsRender(MenuState& s) {
     if (haveGui && haveTouch && haveFont && haveDefaultWorld && haveBg) {
         sceGuDisable(GU_DEPTH_TEST);
 
-        float barBtnW = 66.0f;
-        float barBtnH = 26.0f;
-
         const float listScale = 0.88f;
         const float itemWidthV = 120.0f * listScale;
         float targetScrollX = worldSelected * itemWidthV;
@@ -98,16 +94,6 @@ void worldsRender(MenuState& s) {
         if (listScrollX > targetScrollX - 0.5f && listScrollX < targetScrollX + 0.5f) {
             listScrollX = targetScrollX;
         }
-
-        textureBind(&dirtBg);
-        sceGuTexWrap(GU_REPEAT, GU_REPEAT);
-        float tileScale = (float)dirtBg.realW / (32.0f * UI_SCALE);
-        float bgU = (listScrollX / listScale) * tileScale;
-        float bgW = (VW * UI_SCALE) * tileScale;
-        float bgH = ((VH - barBtnH) * UI_SCALE) * tileScale;
-        spriteDraw(&dirtBg, 0.0f, barBtnH * UI_SCALE, VW * UI_SCALE, (VH - barBtnH) * UI_SCALE,
-                   bgU, 0.0f, bgW, bgH, 0xFF202020u);
-        sceGuTexWrap(GU_CLAMP, GU_CLAMP);
 
         int numEntries = worlds.count + 1;
         float rowY = 42.0f;
@@ -136,25 +122,37 @@ void worldsRender(MenuState& s) {
                 float y1V = rowY + 92.0f * listScale;
                 unsigned int borderRGB = isHovered ? 0xFFFFFFu : 0x808080u;
                 unsigned int borderColor = (alpha << 24) | borderRGB;
-                unsigned int bgColor     = (alpha << 24) | 0x000000u;
 
-                drawRect((xV - 1.0f) * UI_SCALE, y0V * UI_SCALE, (itemWidthV + 2.0f) * UI_SCALE, (y1V - y0V) * UI_SCALE, borderColor);
+                const unsigned int ROW_FILL_ALPHA = 0xC8;
+                unsigned int bgColor = ((alpha * ROW_FILL_ALPHA / 255) << 24) | 0x2D2D2Du;
 
-                drawRect(xV * UI_SCALE, (y0V + 1.0f) * UI_SCALE, itemWidthV * UI_SCALE, (y1V - y0V - 2.0f) * UI_SCALE, bgColor);
+                const float bw = 1.0f;
+                const float cx = xV - bw, cy = y0V;
+                const float cw = itemWidthV + bw * 2.0f, ch = y1V - y0V;
+                drawRect(cx * UI_SCALE, cy * UI_SCALE, cw * UI_SCALE, bw * UI_SCALE, borderColor);
+                drawRect(cx * UI_SCALE, (cy + ch - bw) * UI_SCALE, cw * UI_SCALE, bw * UI_SCALE, borderColor);
+                drawRect(cx * UI_SCALE, cy * UI_SCALE, bw * UI_SCALE, ch * UI_SCALE, borderColor);
+                drawRect((cx + cw - bw) * UI_SCALE, cy * UI_SCALE, bw * UI_SCALE, ch * UI_SCALE, borderColor);
+
+                drawRect(xV * UI_SCALE, (y0V + bw) * UI_SCALE, itemWidthV * UI_SCALE,
+                         (ch - bw * 2.0f) * UI_SCALE, bgColor);
             }
 
             if (i < worlds.count) {
 
-                textureBind(&defaultWorld);
+                int iconDist = i > worldSelected ? i - worldSelected : worldSelected - i;
+                Texture* img = iconDist <= 1 ? worldIcon(worlds.names[i]) : 0;
+                if (!img) img = &defaultWorld;
+                textureBind(img);
                 float imgW = 64.0f * listScale, imgH = 48.0f * listScale;
                 float imgX = xCenterV - imgW / 2.0f;
                 float imgY = rowY - 8.0f * listScale;
 
-                float srcY = defaultWorld.realH * 0.125f;
-                float srcH = defaultWorld.realH * 0.75f;
+                float srcY = img->realH * 0.125f;
+                float srcH = img->realH * 0.75f;
 
-                spriteDraw(&defaultWorld, imgX * UI_SCALE, imgY * UI_SCALE, imgW * UI_SCALE, imgH * UI_SCALE,
-                           0.0f, srcY, (float)defaultWorld.realW, srcH, colWhite);
+                spriteDraw(img, imgX * UI_SCALE, imgY * UI_SCALE, imgW * UI_SCALE, imgH * UI_SCALE,
+                           0.0f, srcY, (float)img->realW, srcH, colWhite);
 
                 float xText = xCenterV - 55.0f * listScale;
 
@@ -207,45 +205,23 @@ void worldsRender(MenuState& s) {
                        trashU, 0.0f, 34.0f, 26.0f, WHITE);
         }
 
-        textureBind(&touchGui);
+        {
 
-        bool backHovered = (uiRow == 0 && topSelected == 0);
-        spriteDraw(&touchGui, 0.0f, 0.0f, barBtnW * UI_SCALE, barBtnH * UI_SCALE,
-                   backHovered ? 66.0f : 0.0f, 0.0f, 66.0f, 26.0f, WHITE);
-        unsigned int backCol = backHovered ? 0xFFA0FFFFu : 0xFFE0E0E0u;
-        float bw = fontTextWidth(&font, "Back") * UI_SCALE;
-        fontDrawTextShadow(&font, (barBtnW * UI_SCALE - bw) / 2.0f, (barBtnH - 8.0f) / 2.0f * UI_SCALE, "Back", backCol, UI_SCALE);
-
-        textureBind(&touchGui);
-        bool createHovered = (uiRow == 0 && topSelected == 1);
-        float createX = VW - barBtnW;
-        spriteDraw(&touchGui, createX * UI_SCALE, 0.0f, barBtnW * UI_SCALE, barBtnH * UI_SCALE,
-                   createHovered ? 66.0f : 0.0f, 0.0f, 66.0f, 26.0f, WHITE);
-        unsigned int createCol = createHovered ? 0xFFA0FFFFu : 0xFFE0E0E0u;
-        float cw = fontTextWidth(&font, "Create new") * UI_SCALE;
-        fontDrawTextShadow(&font, createX * UI_SCALE + (barBtnW * UI_SCALE - cw) / 2.0f, (barBtnH - 8.0f) / 2.0f * UI_SCALE, "Create new", createCol, UI_SCALE);
-
-        textureBind(&touchGui);
-        float hX = barBtnW;
-        float hW = VW - barBtnW * 2.0f;
-        float hY = 0.0f;
-
-        spriteDraw(&touchGui, hX * UI_SCALE, hY * UI_SCALE, 2.0f * UI_SCALE, (barBtnH - 1.0f) * UI_SCALE,
-                   150.0f, 26.0f, 2.0f, 25.0f, WHITE);
-
-        spriteDraw(&touchGui, (hX + 2.0f) * UI_SCALE, hY * UI_SCALE, (hW - 3.0f) * UI_SCALE, (barBtnH - 1.0f) * UI_SCALE,
-                   153.0f, 26.0f, 8.0f, 25.0f, WHITE);
-
-        spriteDraw(&touchGui, (hX + hW - 2.0f) * UI_SCALE, hY * UI_SCALE, 2.0f * UI_SCALE, (barBtnH - 1.0f) * UI_SCALE,
-                   162.0f, 26.0f, 2.0f, 25.0f, WHITE);
-
-        spriteDraw(&touchGui, hX * UI_SCALE, (hY + barBtnH - 1.0f) * UI_SCALE, hW * UI_SCALE, 3.0f * UI_SCALE,
-                   153.0f, 52.0f, 8.0f, 3.0f, WHITE);
-
-        const char* header = "Select world";
-        float hw = fontTextWidth(&font, header) * UI_SCALE;
-        fontDrawTextShadow(&font, (VW * UI_SCALE - hw) / 2.0f, (barBtnH - 8.0f) / 2.0f * UI_SCALE, header, 0xFFE0E0E0u, UI_SCALE);
+            float lb = 4.0f * MENU_PX + menuBarButtonW(s, "Back");
+            float rb = VW - 4.0f * MENU_PX - menuBarButtonW(s, "Create new");
+            drawMenuHeader(s, "Select world", 0.0f, VW, MENU_BAR_H, MENU_BAR_TEXT, lb, rb - lb);
+        }
+        {
+            float bw = menuBarButtonW(s, "Back");
+            menuBarButton(s, 4.0f * MENU_PX, bw, "Back", uiRow == 0 && topSelected == 0);
+            float cw = menuBarButtonW(s, "Create new");
+            menuBarButton(s, VW - cw - 4.0f * MENU_PX, cw, "Create new",
+                          uiRow == 0 && topSelected == 1);
+        }
 
         sceGuEnable(GU_DEPTH_TEST);
     }
 }
+
+static WorldsScreen s_worldsScreen;
+Screen& worldsScreen() { return s_worldsScreen; }

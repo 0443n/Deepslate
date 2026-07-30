@@ -73,11 +73,13 @@ enum {
     ITEM_EGG            = 344,
     ITEM_SPAWN_EGG      = 383,
     ITEM_COMPASS        = 345,
+    ITEM_BUCKET         = 325,
     ITEM_CLOCK          = 347,
     ITEM_GLOWSTONE_DUST = 348,
     ITEM_BONEMEAL       = 351,
     ITEM_BONE           = 352,
     ITEM_SUGAR          = 353,
+    ITEM_CAKE           = 354,
     ITEM_BED_ITEM       = 355,
     ITEM_SHEARS         = 359,
     ITEM_MELON          = 360,
@@ -136,6 +138,10 @@ public:
         return false;
     }
     virtual void use(ItemInstance* item, Player* player, World* world) {}
+
+    virtual int getMaxStackSize(const ItemInstance* item) const { return maxStackSize; }
+
+    virtual bool isLiquidClipItem(short data) const { return false; }
     virtual bool mineBlock(ItemInstance* item, World* world, int blockId, int x, int y, int z, Player* player) {
         return false;
     }

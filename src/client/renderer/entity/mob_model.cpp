@@ -1,3 +1,4 @@
+#include "client/renderer/render.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/mob.h"
 #include "world/level/world.h"
@@ -17,10 +18,11 @@ static const float DEG2RAD = 3.14159265f / 180.0f;
 
 void mobBuildBox(SkinVertex* out, float x0, float y0, float z0,
                  float x1, float y1, float z1, int tx, int ty, int w, int h, int d,
-                 bool mirror, float grow) {
+                 bool mirror, float grow, float texW, float texH) {
     x0 -= grow; y0 -= grow; z0 -= grow;
     x1 += grow; y1 += grow; z1 += grow;
-    const float W = 64.0f, H = 32.0f;
+
+    const float W = texW, H = texH;
     const unsigned int col = 0xFFFFFFFFu;
     int n = 0;
     auto addPoly = [&](float ax, float ay, float az, float bx, float by, float bz,
@@ -50,6 +52,23 @@ static inline unsigned int mul(unsigned int a, unsigned int b) {
     return (aa << 24) | (bb << 16) | (gg << 8) | rr;
 }
 
+MobAnim mobAnimSetup(Mob* mob, float rot, float a) {
+    MobAnim m;
+    float dBody = mob->yBodyRot - mob->yBodyRotO;
+    while (dBody > 180.0f) dBody -= 360.0f;
+    while (dBody < -180.0f) dBody += 360.0f;
+    m.bodyRot = mob->yBodyRotO + dBody * a;
+    m.headYaw = rot - m.bodyRot;
+    while (m.headYaw > 180.0f) m.headYaw -= 360.0f;
+    while (m.headYaw < -180.0f) m.headYaw += 360.0f;
+    m.pitch = mob->xRotO + (mob->xRot - mob->xRotO) * a;
+    m.speed = mob->walkAnimSpeedO + (mob->walkAnimSpeed - mob->walkAnimSpeedO) * a;
+    if (m.speed > 1.0f) m.speed = 1.0f;
+    m.pos = mob->walkAnimPos - mob->walkAnimSpeed * (1.0f - a);
+    if (mob->isBaby()) m.pos *= 3.0f;
+    return m;
+}
+
 void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
                     float x, float y, float z, float ibody, float a, unsigned int tint,
                     float babyHeadY, float babyHeadZ, float modelScale,
@@ -65,6 +84,22 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         unsigned int r  =  brCol         & 0xFFu;
         unsigned int g  = (((brCol >> 8)  & 0xFFu) * HURT_GB) / 255;
         unsigned int b  = (((brCol >> 16) & 0xFFu) * HURT_GB) / 255;
+        brCol = (brCol & 0xFF000000u) | (b << 16) | (g << 8) | r;
+    }
+
+    if (mob->isOnFire()) {
+        float f = (float)mob->onFire / 100.0f * 0.5f;
+        if (f < 0.0f) f = 0.0f;
+        float a2 = (powf(f, 0.3f) + 0.25f + 0.1f) * 0.6f;
+        if (a2 > 1.0f) a2 = 1.0f;
+
+        float fr = (1.0f - a2) + a2 * 0.800f;
+        float fg = (1.0f - a2) + a2 * 0.256f;
+        float fb = (1.0f - a2) + a2 * 0.000f;
+        unsigned int r = (unsigned int)(( brCol         & 0xFFu) * fr);
+        unsigned int g = (unsigned int)(((brCol >> 8)  & 0xFFu) * fg);
+        unsigned int b = (unsigned int)(((brCol >> 16) & 0xFFu) * fb);
+        if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
         brCol = (brCol & 0xFF000000u) | (b << 16) | (g << 8) | r;
     }
 
@@ -92,7 +127,8 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
     float msXZ = modelScale / 16.0f;
     float msY  = ((modelScaleY > 0.0f) ? modelScaleY : modelScale) / 16.0f;
     ScePspFVector3 sc = { -msXZ, -msY, msXZ }; sceGumScale(&sc);
-    ScePspFVector3 gnd = { 0.0f, -24.0f, 0.0f }; sceGumTranslate(&gnd);
+
+    ScePspFVector3 gnd = { 0.0f, -24.0f - 0.125f, 0.0f }; sceGumTranslate(&gnd);
 
     bool baby = mob->isBaby();
     #define MOB_BABY_XFORM(i)                                                          \
@@ -107,6 +143,13 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
 
     sceGuDisable(GU_BLEND);
     sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+
+    const float MOB_DEPTH_BIAS_BLOCKS = 0.10f;
+    {
+        float ddx = x - g_camX, ddy = feet - g_camY, ddz = z - g_camZ;
+        sceGuDepthOffset(mobDepthBiasUnits(ddx * ddx + ddy * ddy + ddz * ddz,
+                                           g_nearZPlane, MOB_DEPTH_BIAS_BLOCKS));
+    }
 
     for (int i = 0; i < count; i++) {
         sceGumPushMatrix();
@@ -184,6 +227,8 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
     }
     #undef MOB_BABY_XFORM
+
+    sceGuDepthOffset(0);
 
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);

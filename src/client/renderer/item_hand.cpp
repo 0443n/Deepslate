@@ -13,6 +13,7 @@
 #include "world/item/item.h"
 #include "client/gui/hud.h"
 #include "client/gui/screens/menu.h"
+#include "client/renderer/tileentity/tile_entity_renderer.h"
 #include <string.h>
 #include "gpu/texture.h"
 #include "gpu/gu.h"
@@ -167,10 +168,17 @@ int itemBuildBlockMesh(short id, unsigned char data, ChunkVertex* out) {
                            0.5f - w, 0.5f, 0.0f,         0.5f + w, 1.0f - w, 1.0f,     0, 0, out, n);
         return n;
     }
+
+    if (id == BLOCK_CHEST) return chestBuildHeldMesh(out);
+
     float ix = (id == BLOCK_CACTUS) ? 0.0625f : 0.0f;
     float iz = (id == BLOCK_CACTUS) ? 0.0625f : 0.0f;
+
+    float th = (id == BLOCK_TOPSNOW)  ? 0.125f
+             : (id == BLOCK_FARMLAND) ? 0.9375f
+             : 1.0f;
     return emitPartialBox(&g_world, 0, 150, 0, id, data,
-                          ix, 0.0f, iz, 1.0f - ix, 1.0f, 1.0f - iz,
+                          ix, 0.0f, iz, 1.0f - ix, th, 1.0f - iz,
                           0, 0, out, 0);
 }
 

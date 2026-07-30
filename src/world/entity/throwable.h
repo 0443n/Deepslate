@@ -23,7 +23,7 @@ public:
 private:
     void configure(int type);
     void shoot(float dx, float dy, float dz, float power);
-    void onHit(float hx, float hy, float hz);
+    void onHit();
 };
 
 #endif

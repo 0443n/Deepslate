@@ -93,8 +93,6 @@ public:
 
     virtual void travel(float xs, float yf);
 
-    virtual void move(float xa, float ya, float za);
-
     virtual void causeFallDamage(float dist);
 
 protected:

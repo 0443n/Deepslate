@@ -1,7 +1,12 @@
 #include "client/renderer/particle.h"
+#include "util/prof.h"
+
+extern float g_camX, g_camY, g_camZ;
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
 #include "gpu/texture.h"
+#include "world/level/level.h"
+#include "world/entity/entity.h"
 
 #include <pspgu.h>
 #include <pspgum.h>
@@ -14,7 +19,8 @@ extern unsigned int g_brightColor[16];
 
 namespace {
 
-enum Kind { K_TERRAIN, K_FLAME, K_SMOKE, K_BUBBLE, K_REDDUST, K_EXPLODE, K_LAVA, K_CRIT, K_SPLASH, K_HEART };
+enum Kind { K_TERRAIN, K_FLAME, K_SMOKE, K_BUBBLE, K_REDDUST, K_EXPLODE, K_LAVA, K_CRIT, K_SPLASH, K_HEART,
+            K_MOBFLAME };
 
 struct P {
     float x, y, z, xo, yo, zo, xd, yd, zd;
@@ -26,6 +32,10 @@ struct P {
     unsigned char kind;
     bool  active, onGround, noPhysics, terrainAtlas, fullBright;
     bool  itemsAtlas;
+    bool  fireAtlas;
+
+    int   entId;
+    float xOff, yOff, zOff, rise;
 };
 
 const int MAX_PARTICLES = 384;
@@ -37,6 +47,12 @@ P* alloc() {
     for (int i = 0; i < MAX_PARTICLES; i++)
         if (!g_pool[i].active) { g_pool[i] = P(); g_pool[i].active = true; return &g_pool[i]; }
     return 0;
+}
+
+static inline bool tooFar(float x, float y, float z) {
+    const float particleDistance = 16.0f;
+    float xd = g_camX - x, yd = g_camY - y, zd = g_camZ - z;
+    return xd * xd + yd * yd + zd * zd > particleDistance * particleDistance;
 }
 
 void baseInit(P* p, float x, float y, float z, float xa, float ya, float za) {
@@ -78,6 +94,21 @@ void tickOne(World* w, P* p) {
     if (p->age++ >= p->lifetime) { p->active = false; return; }
 
     switch (p->kind) {
+    case K_MOBFLAME: {
+
+        Entity* e = g_level.getEntity(p->entId);
+        p->yOff += p->rise;
+        if (!e || !e->isOnFire() || e->onFire < 2) {
+            p->entId = 0;
+            p->active = false;
+            return;
+        }
+        p->rise += e->bbHeight * 0.002f;
+        p->x = e->x + p->xOff;
+        p->y = (e->y - e->heightOffset) + p->yOff;
+        p->z = e->z + p->zOff;
+        break;
+    }
     case K_FLAME:
         move(w, p);
         p->xd *= 0.96f; p->yd *= 0.96f; p->zd *= 0.96f;
@@ -168,6 +199,7 @@ inline void rotY(float& x, float& y, float& z, float a) {
 }
 
 void particlesDestroyBlock(World* w, int x, int y, int z, unsigned char id, unsigned char data) {
+    if (tooFar((float)x + 0.5f, (float)y + 0.5f, (float)z + 0.5f)) return;
     if (id == BLOCK_AIR) return;
     int col = 1, row = 0; unsigned int tint = 0xFFFFFFFFu;
     tileForBlock(id, data, 1 , &col, &row, &tint);
@@ -190,6 +222,7 @@ void particlesDestroyBlock(World* w, int x, int y, int z, unsigned char id, unsi
 }
 
 void particlesCrackHit(World* w, int x, int y, int z, unsigned char id, unsigned char data, int face) {
+    if (tooFar((float)x + 0.5f, (float)y + 0.5f, (float)z + 0.5f)) return;
     (void)w;
     if (id == BLOCK_AIR) return;
     int col = 1, row = 0; unsigned int tint = 0xFFFFFFFFu;
@@ -215,6 +248,7 @@ void particlesCrackHit(World* w, int x, int y, int z, unsigned char id, unsigned
 
 void particlesEat(float px, float py, float pz, float yawDeg, float pitchDeg,
                   int iconCell, int count) {
+    if (tooFar(px, py, pz)) return;
     const float D2R = 3.14159265f / 180.0f;
 
     float xx = pitchDeg * D2R, yy = yawDeg * D2R;
@@ -238,6 +272,7 @@ void particlesEat(float px, float py, float pz, float yawDeg, float pitchDeg,
 }
 
 void particlesThrowPoof(float x, float y, float z, int iconCell) {
+    if (tooFar(x, y, z)) return;
     if (iconCell < 0) return;
     for (int i = 0; i < 8; i++) {
         P* p = alloc(); if (!p) return;
@@ -251,6 +286,7 @@ void particlesThrowPoof(float x, float y, float z, int iconCell) {
 }
 
 void particlesExplosion(World* w, float x, float y, float z) {
+    if (tooFar(x, y, z)) return;
     for (int i = 0; i < 40; i++) {
         P* p = alloc(); if (!p) return;
         baseInit(p, x + (frand() * 4 - 2), y + (frand() * 4 - 2), z + (frand() * 4 - 2),
@@ -265,6 +301,7 @@ void particlesExplosion(World* w, float x, float y, float z) {
 }
 
 void particlesMobDeath(float x, float y, float z, float w, float h) {
+    if (tooFar(x, y, z)) return;
     for (int i = 0; i < 20; i++) {
         P* p = alloc(); if (!p) return;
         baseInit(p, x + (frand() * 2 - 1) * w, y + frand() * h, z + (frand() * 2 - 1) * w,
@@ -278,6 +315,7 @@ void particlesMobDeath(float x, float y, float z, float w, float h) {
 }
 
 void particlesRedstonePoof(World* w, int x, int y, int z) {
+    if (tooFar((float)x + 0.5f, (float)y + 0.5f, (float)z + 0.5f)) return;
     const float r = 1 / 16.0f;
     for (int i = 0; i < 6; i++) {
         float xx = x + frand(), yy = y + frand(), zz = z + frand();
@@ -329,6 +367,7 @@ static void torchPoof(World* w, int x, int y, int z, unsigned char dir) {
 }
 
 void particlesFurnaceFire(int x, int y, int z, unsigned char dir) {
+    if (tooFar((float)x + 0.5f, (float)y + 0.5f, (float)z + 0.5f)) return;
     extern const signed char kFaceNeighbor[6][3];
     const float r = 0.52f;
     float fx = x + 0.5f + kFaceNeighbor[dir][0] * r;
@@ -340,6 +379,7 @@ void particlesFurnaceFire(int x, int y, int z, unsigned char dir) {
 }
 
 void particlesBubble(float x, float y, float z, float xa, float ya, float za) {
+    if (tooFar(x, y, z)) return;
     P* p = alloc(); if (!p) return;
     baseInit(p, x, y, z, 0, 0, 0);
     p->kind = K_BUBBLE; p->tex = 32;
@@ -352,6 +392,7 @@ void particlesBubble(float x, float y, float z, float xa, float ya, float za) {
 }
 
 void particlesHeart(float x, float y, float z, float xa, float ya, float za) {
+    if (tooFar(x, y, z)) return;
     P* p = alloc(); if (!p) return;
     baseInit(p, x, y, z, xa, ya, za);
     p->kind = K_HEART; p->tex = 80;
@@ -366,6 +407,7 @@ void particlesHeart(float x, float y, float z, float xa, float ya, float za) {
 }
 
 void particlesHeartBurst(float x, float feetY, float z, float w, float h) {
+    if (tooFar(x, feetY, z)) return;
     for (int i = 0; i < 7; i++) {
 
         float ja = (frand() * 2 - 1) * 0.02f;
@@ -378,6 +420,7 @@ void particlesHeartBurst(float x, float feetY, float z, float w, float h) {
 }
 
 void particlesSplash(float x, float y, float z, float xa, float ya, float za) {
+    if (tooFar(x, y, z)) return;
     P* p = alloc(); if (!p) return;
     baseInit(p, x, y, z, 0, 0, 0);
     p->kind = K_SPLASH; p->tex = 20;
@@ -392,6 +435,7 @@ void particlesSplash(float x, float y, float z, float xa, float ya, float za) {
 }
 
 void particlesCrit(float x, float y, float z, float xa, float ya, float za) {
+    if (tooFar(x, y, z)) return;
     P* p = alloc(); if (!p) return;
     baseInit(p, x, y, z, 0, 0, 0);
     p->kind = K_CRIT; p->tex = 16 * 4 + 1;
@@ -403,7 +447,56 @@ void particlesCrit(float x, float y, float z, float xa, float ya, float za) {
     p->lifetime = (int)(6.0f / (frand() * 0.8f + 0.6f));
 }
 
+void particlesEntityFlame(int entityId, float x, float feetY, float z,
+                          float w, float h, float xd, float zd) {
+    if (tooFar(x, feetY, z)) return;
+    static int s_tick = 0;
+
+    float rx = x + (frand() - 0.5f) * w;
+    float ry = feetY + frand() * h;
+    float rz = z + (frand() - 0.5f) * w;
+
+    if (s_tick & 1) {
+
+        float lift = (ry < feetY) ? 1.0f : 0.0f;
+        P* p = alloc();
+        if (p) { baseInit(p, rx, ry + lift, rz, 0, 0, 0);
+            p->kind = K_SMOKE;
+            p->xd = p->xd * 0.1f + xd * 0.5f;
+            p->yd *= 0.1f;
+            p->zd = p->zd * 0.1f + zd * 0.5f;
+            p->r = p->g = p->b = frand() * 0.5f; p->size *= 0.75f; p->oSize = p->size;
+            p->lifetime = (int)(8.0f / (frand() * 0.8f + 0.2f)) / 2 + 1;
+        }
+    }
+
+    if (++s_tick >= 10) {
+        s_tick = 0;
+        P* p = alloc();
+        if (!p) return;
+        baseInit(p, rx, feetY, rz, 0, 0, 0);
+        p->kind = K_MOBFLAME; p->fireAtlas = true;
+        p->noPhysics = true; p->fullBright = true;
+        p->lifetime = 25;
+        p->size *= 3.0f; p->oSize = p->size;
+        p->xd = p->xd * 0.1f + xd * 0.5f;
+        p->yd = p->yd * 0.1f;
+        p->zd = p->zd * 0.1f + zd * 0.5f;
+
+        p->entId = entityId;
+        float hw = w * 0.5f;
+        p->y += 0.7f;
+        p->xOff = (p->x - x) * hw + ((frand() * 2.0f) - 1.0f) * 0.1f;
+        p->yOff = p->y - feetY;
+        p->zOff = (p->z - z) * hw + ((frand() * 2.0f) - 1.0f) * 0.1f;
+        p->rise = h * 0.5f * 0.01f;
+        p->x = x + p->xOff; p->y = feetY + p->yOff; p->z = z + p->zOff;
+        p->xo = p->x; p->yo = p->y; p->zo = p->z;
+    }
+}
+
 void particlesSmoke(float x, float y, float z) {
+    if (tooFar(x, y, z)) return;
     P* p = alloc(); if (!p) return;
     baseInit(p, x, y, z, 0, 0, 0);
     p->kind = K_SMOKE;
@@ -413,6 +506,7 @@ void particlesSmoke(float x, float y, float z) {
 }
 
 void particlesLargeSmoke(float x, float y, float z) {
+    if (tooFar(x, y, z)) return;
     P* p = alloc(); if (!p) return;
     const float scale = 2.5f;
     baseInit(p, x, y, z, 0, 0, 0);
@@ -437,6 +531,12 @@ static void emitAmbient(World* w, float px, float py, float pz) {
             particlesFurnaceFire(bx, by, bz, worldData(w, bx, by, bz) & 7);
         } else if (id == BLOCK_ORE_REDSTONE_LIT) {
             particlesRedstonePoof(w, bx, by, bz);
+        } else if (isWaterId(id)) {
+
+            unsigned char d = worldData(w, bx, by, bz);
+            if (d > 0 && d < 8 && rand() % 64 == 0)
+                g_level.playSound(bx + 0.5f, by + 0.5f, bz + 0.5f, "liquid.water",
+                                  frand() * 0.25f + 0.75f, frand() * 1.0f + 0.5f);
         } else if (isLavaId(id)) {
 
             if ((isWaterId(worldBlock(w, bx - 1, by, bz)) || isWaterId(worldBlock(w, bx + 1, by, bz)) ||
@@ -450,6 +550,7 @@ static void emitAmbient(World* w, float px, float py, float pz) {
                 p->xd *= 0.8f; p->zd *= 0.8f;
                 p->yd = frand() * 0.4f + 0.05f;
                 p->size *= (frand() * 2.0f + 0.2f); p->oSize = p->size;
+
                 p->lifetime = (int)(16.0f / (frand() * 0.8f + 0.2f));
             }
         }
@@ -468,16 +569,19 @@ struct PVertex { float u, v; unsigned int color; float x, y, z; };
 }
 
 void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
-                     const Texture* terrain, const Texture* misc, const Texture* items) {
+                     const Texture* terrain, const Texture* misc, const Texture* items,
+                     const Texture* fire) {
 
-    int nMisc = 0, nTerr = 0, nItems = 0;
+    int nMisc = 0, nTerr = 0, nItems = 0, nFire = 0;
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!g_pool[i].active) continue;
-        if (g_pool[i].itemsAtlas) nItems++;
+        if (g_pool[i].fireAtlas) nFire++;
+        else if (g_pool[i].itemsAtlas) nItems++;
         else if (g_pool[i].terrainAtlas) nTerr++;
         else nMisc++;
     }
-    if (nMisc == 0 && nTerr == 0 && nItems == 0) return;
+    if (nMisc == 0 && nTerr == 0 && nItems == 0 && nFire == 0) return;
+    profAdd(PROFC_PARTICLES, nMisc + nTerr + nItems + nFire);
 
     const float D2R = 3.14159265f / 180.0f;
     float cy = cosf(yawDeg * D2R), sy = sinf(yawDeg * D2R);
@@ -495,11 +599,11 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
     sceGuEnable(GU_ALPHA_TEST);
     sceGuAlphaFunc(GU_GREATER, 0, 0xff);
 
-    for (int pass = 0; pass < 3; pass++) {
+    for (int pass = 0; pass < 4; pass++) {
         bool terr = (pass == 1);
-        int count = pass == 0 ? nMisc : pass == 1 ? nTerr : nItems;
+        int count = pass == 0 ? nMisc : pass == 1 ? nTerr : pass == 2 ? nItems : nFire;
         if (count == 0) continue;
-        const Texture* tx = pass == 0 ? misc : pass == 1 ? terrain : items;
+        const Texture* tx = pass == 0 ? misc : pass == 1 ? terrain : pass == 2 ? items : fire;
         if (tx) textureBindNoMip(tx); else continue;
 
         PVertex* v = (PVertex*)sceGuGetMemory(count * 6 * sizeof(PVertex));
@@ -507,12 +611,13 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
         for (int i = 0; i < MAX_PARTICLES; i++) {
             P* p = &g_pool[i];
             if (!p->active) continue;
-            int pp = p->itemsAtlas ? 2 : p->terrainAtlas ? 1 : 0;
+            int pp = p->fireAtlas ? 3 : p->itemsAtlas ? 2 : p->terrainAtlas ? 1 : 0;
             if (pp != pass) continue;
 
             float sz = p->size;
             float sfrac = (p->age + alpha) / (float)p->lifetime;
-            if (p->kind == K_FLAME) sz = p->oSize * (1 - sfrac * sfrac * 0.5f);
+            if (p->kind == K_MOBFLAME) sz = p->oSize;
+            else if (p->kind == K_FLAME) sz = p->oSize * (1 - sfrac * sfrac * 0.5f);
             else if (p->kind == K_LAVA) sz = p->oSize * (1 - sfrac * sfrac);
             else if (p->kind == K_SMOKE || p->kind == K_REDDUST || p->kind == K_CRIT) {
                 float l = sfrac * 32.0f; if (l > 1) l = 1; if (l < 0) l = 0; sz = p->oSize * l;
@@ -520,7 +625,14 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
             float r = 0.1f * sz;
 
             float u0, u1, v0, v1;
-            if (p->itemsAtlas) {
+            if (p->fireAtlas) {
+
+                int fr = (int)((p->age + alpha) / (float)p->lifetime * 32.0f);
+                if (fr < 0) fr = 0; else if (fr > 31) fr = 31;
+                const float FH = 1.0f / 32.0f, HT = 1.0f / 1024.0f;
+                u0 = 0.0f; u1 = 1.0f;
+                v0 = fr * FH + HT; v1 = (fr + 1) * FH - HT;
+            } else if (p->itemsAtlas) {
 
                 const float INV = 1.0f / 512.0f, HT = INV / 2.0f;
                 float ub = ((p->tex & 31) * 16.0f + p->uo * 4.0f) * INV;

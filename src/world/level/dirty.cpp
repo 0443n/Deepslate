@@ -23,6 +23,14 @@ static inline void markSecDirty(World* w, int cx, int cz, int y) {
     g_inEditQueue[ci][si] = true;
 }
 
+bool g_smoothLighting = true;
+
+void worldMarkAllDirty(World* w) {
+    for (int ci = 0; ci < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; ci++)
+        for (int si = 0; si < N_SECTIONS; si++)
+            w->chunks[ci].sec[si].dirty = true;
+}
+
 void worldMarkDirty(World* w, int x, int y, int z) {
     for (int dx = -1; dx <= 1; dx++)
     for (int dz = -1; dz <= 1; dz++)

@@ -1,6 +1,7 @@
 
 #include "world/item/crafting/recipes.h"
 #include "world/item/item.h"
+#include "world/item/bucket_item.h"
 #include <cstring>
 
  Recipes* Recipes::instance = nullptr;
@@ -23,7 +24,7 @@ enum {
 static inline short clothData(int dyeAux) { return (short)(~dyeAux & 0xf); }
 
 enum { SLAB_STONE = 0, SLAB_SAND = 1, SLAB_WOOD = 2, SLAB_COBBLE = 3,
-       SLAB_BRICK = 4, SLAB_SMOOTHBRICK = 5 };
+       SLAB_BRICK = 4, SLAB_SMOOTHBRICK = 5, SLAB_QUARTZ = 6 };
 enum { SANDSTONE_HEIROGLYPHS = 1, SANDSTONE_SMOOTHSIDE = 2 };
 enum { COAL_CHARCOAL = 1 };
 
@@ -195,6 +196,10 @@ Recipes::Recipes() {
                     "#",
                     "#", { INST('#', BLOCK_QUARTZ_BLOCK, QZ_DEFAULT) });
 
+    addShapedRecipe(ItemInstance(BLOCK_QUARTZ_BLOCK, 1, QZ_CHISELED),
+                    "#",
+                    "#", { INST('#', BLOCK_SLAB, SLAB_QUARTZ) });
+
     {
         static const char* const shapes[4][3] = {
             { "XXX", "X X", 0     },
@@ -300,12 +305,16 @@ Recipes::Recipes() {
                     "###", { TILE('#', BLOCK_STONE) });
     addShapedRecipe(ItemInstance(BLOCK_SLAB, 6, SLAB_SAND),
                     "###", { TILE('#', BLOCK_SANDSTONE) });
-    addShapedRecipe(ItemInstance(BLOCK_SLAB, 6, SLAB_WOOD),
+
+    addShapedRecipe(ItemInstance(BLOCK_WOOD_SLAB, 6, 0),
                     "###", { TILE('#', BLOCK_PLANKS) });
     addShapedRecipe(ItemInstance(BLOCK_SLAB, 6, SLAB_BRICK),
                     "###", { TILE('#', BLOCK_BRICKS) });
     addShapedRecipe(ItemInstance(BLOCK_SLAB, 6, SLAB_SMOOTHBRICK),
                     "###", { TILE('#', BLOCK_STONE_BRICKS) });
+
+    addShapedRecipe(ItemInstance(BLOCK_SLAB, 6, SLAB_QUARTZ),
+                    "###", { TILE('#', BLOCK_QUARTZ_BLOCK) });
 
     addShapedRecipe(ItemInstance(BLOCK_LADDER, 2, 0),
                     "# #",
@@ -325,6 +334,12 @@ Recipes::Recipes() {
                     "###",
                     "###",
                     " X ", { TILE('#', BLOCK_PLANKS), ITEM('X', ITEM_STICK) });
+
+    addShapedRecipe(ItemInstance(ITEM_CAKE, 1, 0),
+                    "AAA",
+                    "BEB",
+                    "CCC", { INST('A', ITEM_BUCKET, BUCKET_MILK), ITEM('B', ITEM_SUGAR),
+                             ITEM('C', ITEM_WHEAT), ITEM('E', ITEM_EGG) });
 
     addShapedRecipe(ItemInstance(ITEM_SUGAR, 1, 0),
                     "#", { ITEM('#', ITEM_REEDS) });
@@ -347,6 +362,10 @@ Recipes::Recipes() {
     addShapedRecipe(ItemInstance(ITEM_BOWL, 4, 0),
                     "# #",
                     " # ", { TILE('#', BLOCK_PLANKS) });
+
+    addShapedRecipe(ItemInstance(ITEM_BUCKET, 1, BUCKET_EMPTY),
+                    "# #",
+                    " # ", { ITEM('#', ITEM_IRON_INGOT) });
 
     addShapedRecipe(ItemInstance(ITEM_FLINT_AND_STEEL, 1, 0),
                     "A ",

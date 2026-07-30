@@ -7,7 +7,8 @@ class CompoundTag;
 
 enum TileEntityRendererId {
     TR_NO_RENDER = 0,
-    TR_SIGN_RENDERER
+    TR_SIGN_RENDERER,
+    TR_CHEST_RENDERER
 };
 
 enum TileEntityType {
@@ -27,6 +28,10 @@ public:
     virtual void tick() {}
 
     virtual bool save(CompoundTag* tag);
+
+    virtual bool shouldSave() { return true; }
+
+    virtual bool stillValid(class Player* player);
     virtual void load(CompoundTag* tag);
 
     int getTile() const;
