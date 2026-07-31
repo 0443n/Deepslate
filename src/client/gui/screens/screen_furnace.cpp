@@ -103,8 +103,12 @@ int furnaceTargetSlotForCursor() {
 }
 bool furnaceFocusIsSlots() { return s_focus != 0; }
 
+static int s_fx, s_fy, s_fz;
+static bool furnaceGone() { return g_level.getTileEntity(s_fx, s_fy, s_fz) != s_furnace; }
+
 void furnaceOpen(FurnaceTileEntity* fe) {
     s_furnace = fe;
+    s_fx = fe->x; s_fy = fe->y; s_fz = fe->z;
     updateItems();
     s_cursor = 0; s_slotSel = FurnaceTileEntity::SLOT_INGREDIENT;
     s_focus = s_list.empty() ? 1 : 0;
@@ -119,6 +123,7 @@ struct FurnaceScreen : ContainerScreen {
 void FurnaceScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int held) {
     (void)s;
     if (!s_furnace) { g_furnaceOpen = false; return; }
+    if (furnaceGone()) { s_furnace = nullptr; g_furnaceOpen = false; return; }
 
     if (!s_furnace->stillValid(g_level.player)) {
         s_furnace = nullptr; g_furnaceOpen = false; return;
@@ -198,7 +203,7 @@ static void drawFurnaceSlot(MenuState& s, int slot, float gx, float gy) {
 
 void FurnaceScreen::renderContent(MenuState& s) {
     Font& font = s.font; bool haveFont = s.haveFont;
-    if (!s_furnace) return;
+    if (!s_furnace || furnaceGone()) return;
 
     sceGuDisable(GU_DEPTH_TEST);
 

@@ -64,8 +64,12 @@ static void moveAcross(int n) {
     soundPlay("random.pop", 0.3f, 1.4f);
 }
 
+static int s_cx, s_cy, s_cz;
+static bool chestGone() { return g_level.getTileEntity(s_cx, s_cy, s_cz) != s_chest; }
+
 void chestOpen(ChestTileEntity* ce) {
     s_chest = ce;
+    s_cx = ce->x; s_cy = ce->y; s_cz = ce->z;
     ce->startOpen();
     s_pane = 0;
     s_cursor[0] = s_cursor[1] = 0;
@@ -89,13 +93,9 @@ struct ChestScreen : ContainerScreen {
 void ChestScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int held) {
     (void)s;
     if (!s_chest) { g_chestOpen = false; return; }
+    if (chestGone()) { s_chest = nullptr; chestClose(); return; }
 
-    if (!s_chest->stillValid(g_level.player)) {
-        if (g_level.getTileEntity(s_chest->x, s_chest->y, s_chest->z) != s_chest)
-            s_chest = nullptr;
-        chestClose();
-        return;
-    }
+    if (!s_chest->stillValid(g_level.player)) { chestClose(); return; }
     const int cols = 3;
     int& cur = s_cursor[s_pane];
     const int n = paneSize(s_pane);
@@ -199,7 +199,7 @@ static void drawPane(MenuState& s, int paneIdx, float paneX) {
 }
 
 void ChestScreen::renderContent(MenuState& s) {
-    if (!s_chest) return;
+    if (!s_chest || chestGone()) return;
 
     sceGuDisable(GU_DEPTH_TEST);
 

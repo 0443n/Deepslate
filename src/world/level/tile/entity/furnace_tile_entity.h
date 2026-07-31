@@ -30,9 +30,11 @@ public:
     bool isLit() const { return litTime > 0; }
 
     int getBurnProgress(int max) const { return tickCount * max / BURN_INTERVAL; }
-    int getLitProgress(int max) const {
-        int d = litDuration > 0 ? litDuration : BURN_INTERVAL;
-        return litTime * max / d;
+
+    int getLitProgress(int max) {
+        if (!litDuration) litDuration = BURN_INTERVAL;
+        int r = litTime * max / litDuration;
+        return r >= max ? max : r;
     }
 
     static int getBurnDuration(const ItemInstance& fuel);
