@@ -152,8 +152,9 @@ std::vector<AABB>& Level::getCubes(Entity* , const AABB& box) {
     int x0 = Mth::floor(box.x0), x1 = Mth::floor(box.x1);
     int y0 = Mth::floor(box.y0), y1 = Mth::floor(box.y1);
     int z0 = Mth::floor(box.z0), z1 = Mth::floor(box.z1);
+
     for (int x = x0; x <= x1; x++)
-        for (int y = y0; y <= y1; y++)
+        for (int y = y0 - 1; y <= y1; y++)
             for (int z = z0; z <= z1; z++) {
                 BlockAABB b[3];
                 int n = getBlockAABBs(w, x, y, z, b);

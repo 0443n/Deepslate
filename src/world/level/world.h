@@ -5,6 +5,7 @@
 #include "world/level/levelgen/level_source.h"
 
 #include "world/level/chunk/chunk.h"
+#include "world/level/tile/material.h"
 #include <stdlib.h>
 #include <vector>
 #include <unordered_set>
@@ -279,7 +280,7 @@ static inline int lightRawAt(const World* w, int x, int y, int z) {
 }
 
 static inline int lightSample(const World* w, unsigned char* cache, int i, int x, int y, int z);
-static inline bool opaqueSample(const World* w, const unsigned char* cache, int i, int x, int y, int z);
+static inline bool translucentSample(const World* w, const unsigned char* cache, int i, int x, int y, int z);
 
 static inline int lightLazy(const World* w, unsigned char* cache, int i, int x, int y, int z) {
     int v = cache[i];
@@ -313,9 +314,10 @@ static inline void smoothFaceLight(const World* w, const unsigned char* lc,
         int p2[3] = { p0[0], p0[1], p0[2] }; p2[a2] += d2;
         const float b1 = g_brightRamp[lightSample(w, llc, i1, p1[0], p1[1], p1[2])];
         const float b2 = g_brightRamp[lightSample(w, llc, i2, p2[0], p2[1], p2[2])];
-        float bc = b1;
-        if (!opaqueSample(w, lc, i1, p1[0], p1[1], p1[2]) ||
-            !opaqueSample(w, lc, i2, p2[0], p2[1], p2[2])) {
+
+        float bc = (a == 2) ? b1 : b2;
+        if (translucentSample(w, lc, i1, p1[0], p1[1], p1[2]) ||
+            translucentSample(w, lc, i2, p2[0], p2[1], p2[2])) {
             int pd[3] = { p1[0], p1[1], p1[2] }; pd[a2] += d2;
             bc = g_brightRamp[lightSample(w, llc, i1 + d2 * s2, pd[0], pd[1], pd[2])];
         }
@@ -326,8 +328,10 @@ static inline void smoothFaceLight(const World* w, const unsigned char* lc,
 static inline int lightSample(const World* w, unsigned char* cache, int i, int x, int y, int z) {
     return cache ? lightLazy(w, cache, i, x, y, z) : lightRawAt(w, x, y, z);
 }
-static inline bool opaqueSample(const World* w, const unsigned char* cache, int i, int x, int y, int z) {
-    return isOpaque(cache ? cache[i] : worldBlock(w, x, y, z));
+
+static inline bool translucentSample(const World* w, const unsigned char* cache, int i, int x, int y, int z) {
+    unsigned char id = cache ? cache[i] : worldBlock(w, x, y, z);
+    return !Tile::tiles[id]->material->blocksLight();
 }
 
 static inline void smoothFaceLightAt(const World* w, int nx, int ny, int nz,
