@@ -316,6 +316,7 @@ static inline void smoothFaceLight(const World* w, const unsigned char* lc,
         const float b2 = g_brightRamp[lightSample(w, llc, i2, p2[0], p2[1], p2[2])];
 
         float bc = (a == 2) ? b1 : b2;
+
         if (translucentSample(w, lc, i1, p1[0], p1[1], p1[2]) ||
             translucentSample(w, lc, i2, p2[0], p2[1], p2[2])) {
             int pd[3] = { p1[0], p1[1], p1[2] }; pd[a2] += d2;
@@ -328,7 +329,6 @@ static inline void smoothFaceLight(const World* w, const unsigned char* lc,
 static inline int lightSample(const World* w, unsigned char* cache, int i, int x, int y, int z) {
     return cache ? lightLazy(w, cache, i, x, y, z) : lightRawAt(w, x, y, z);
 }
-
 static inline bool translucentSample(const World* w, const unsigned char* cache, int i, int x, int y, int z) {
     unsigned char id = cache ? cache[i] : worldBlock(w, x, y, z);
     return !Tile::tiles[id]->material->blocksLight();

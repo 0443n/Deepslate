@@ -93,6 +93,7 @@ struct ChestScreen : ContainerScreen {
 void ChestScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int held) {
     (void)s;
     if (!s_chest) { g_chestOpen = false; return; }
+
     if (chestGone()) { s_chest = nullptr; chestClose(); return; }
 
     if (!s_chest->stillValid(g_level.player)) { chestClose(); return; }
@@ -199,6 +200,7 @@ static void drawPane(MenuState& s, int paneIdx, float paneX) {
 }
 
 void ChestScreen::renderContent(MenuState& s) {
+
     if (!s_chest || chestGone()) return;
 
     sceGuDisable(GU_DEPTH_TEST);

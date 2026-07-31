@@ -123,6 +123,7 @@ struct FurnaceScreen : ContainerScreen {
 void FurnaceScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int held) {
     (void)s;
     if (!s_furnace) { g_furnaceOpen = false; return; }
+
     if (furnaceGone()) { s_furnace = nullptr; g_furnaceOpen = false; return; }
 
     if (!s_furnace->stillValid(g_level.player)) {

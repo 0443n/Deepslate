@@ -307,7 +307,7 @@ static bool continueMining(const BlockHit& hit) {
     float ticks = (now - s_lastUs) / 50000.0f;
     s_lastUs = now;
 
-    if (!timeReached(now, s_breakCooldownUs)) return false;
+    if (s_breakCooldownUs && !timeReached(now, s_breakCooldownUs)) return false;
     g_mining.progress += perTick * ticks;
 
     s_digTicks += ticks;
@@ -321,7 +321,10 @@ static bool continueMining(const BlockHit& hit) {
     }
 
     bool done = g_mining.progress >= 1.0f;
-    if (done) s_breakCooldownUs = now + 250000;
+    if (done) {
+        s_breakCooldownUs = now + 250000;
+        if (!s_breakCooldownUs) s_breakCooldownUs = 1;
+    }
     return done;
 }
 
