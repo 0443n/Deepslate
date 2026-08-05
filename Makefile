@@ -203,6 +203,10 @@ PSP_EBOOT_PIC0  = $(if $(wildcard $(PRESENT)/PIC0.PNG),$(PRESENT)/PIC0.PNG,NULL)
 PSP_EBOOT_PIC1  = $(if $(wildcard $(PRESENT)/PIC1.PNG),$(PRESENT)/PIC1.PNG,NULL)
 PSP_EBOOT_SND0  = $(if $(wildcard $(PRESENT)/SND0.AT3),$(PRESENT)/SND0.AT3,NULL)
 
+# Pins MEMSIZE=1 in PARAM.SFO (the extra 32MB). Do not drop: the CI container
+# has shipped MEMSIZE=2, and without the expansion every 64MB PSP runs as a 1000.
+PSP_LARGE_MEMORY = 1
+
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
 
