@@ -136,6 +136,8 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
         profBegin(PROF_TPLAYER);
         if (g_level.player) g_level.player->aiStep(btn, lx, ly);
         profEnd(PROF_TPLAYER);
+
+        g_world.simTick = true;
         profBegin(PROF_TWORLD);
         if (g_worldBuilt)
             worldTick(&g_world);
@@ -146,6 +148,7 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
         profBegin(PROF_TTE);
         if (g_worldBuilt) g_level.tickTileEntities();
         profEnd(PROF_TTE);
+        g_world.simTick = false;
         profBegin(PROF_TPART);
         if (g_worldBuilt && g_level.player) particlesTick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z);
         profEnd(PROF_TPART);

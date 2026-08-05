@@ -72,17 +72,54 @@ static void lightPageFree(World* w, unsigned int id) {
     w->lightPagesUsed--;
 }
 
+void lightSlotRelease(World* w, int slotIdx) {
+    int slot0 = (slotIdx << 7) << 1;
+    for (int i = 0; i < 2 * WORLD_H; i++) {
+        unsigned int id = w->lightIdx[slot0 + i];
+        if (id < LP_SENT) lightPageFree(w, id);
+        w->lightIdx[slot0 + i] = LP_ALL0;
+    }
+}
+
+void lightInitSkyChunk(World* w, int cx, int cz) {
+            int hmin = WORLD_H, hmax = 0;
+            for (int lx = 0; lx < 16; lx++)
+                for (int lz = 0; lz < 16; lz++) {
+                    int hy = w->heightmap[worldColumn(w, cx * 16 + lx, cz * 16 + lz)];
+                    if (hy < hmin) hmin = hy;
+                    if (hy > hmax) hmax = hy;
+                }
+            int slot0 = lightPlaneSlot0(w, 0, cx, cz);
+            for (int y = 0; y < WORLD_H; y++) {
+                int slot = slot0 + y * 2;
+
+                unsigned int old = w->lightIdx[slot];
+                if (old < LP_SENT) { w->lightIdx[slot] = LP_ALL0; lightPageFree(w, old); }
+                if (y < hmin)  { w->lightIdx[slot] = LP_ALL0;  continue; }
+                if (y >= hmax) { w->lightIdx[slot] = LP_ALL15; continue; }
+                unsigned int id = lightPagePromote(w, slot, 0x00);
+                if (id >= LP_SENT) continue;
+                unsigned char* p = lightPage(w, id);
+                for (int lx = 0; lx < 16; lx++)
+                    for (int lz = 0; lz < 16; lz++) {
+                        if (y < w->heightmap[worldColumn(w, cx * 16 + lx, cz * 16 + lz)]) continue;
+                        int pi = (lx << 4) | lz;
+                        p[pi >> 1] |= (unsigned char)(0x0F << ((pi & 1) * 4));
+                    }
+            }
+}
+
 void lightInitSkyFromHeightmap(World* w) {
     for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
         for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
             int hmin = WORLD_H, hmax = 0;
             for (int lx = 0; lx < 16; lx++)
                 for (int lz = 0; lz < 16; lz++) {
-                    int hy = w->heightmap[(cx * 16 + lx) * WORLD_D + (cz * 16 + lz)];
+                    int hy = w->heightmap[worldColumn(w, cx * 16 + lx, cz * 16 + lz)];
                     if (hy < hmin) hmin = hy;
                     if (hy > hmax) hmax = hy;
                 }
-            int slot0 = (((cx << 4) | cz) << 7) << 1;
+            int slot0 = lightPlaneSlot0(w, 0, cx, cz);
             for (int y = 0; y < WORLD_H; y++) {
                 int slot = slot0 + y * 2;
                 if (y < hmin)       { w->lightIdx[slot] = LP_ALL0;  continue; }
@@ -92,7 +129,7 @@ void lightInitSkyFromHeightmap(World* w) {
                 unsigned char* p = lightPage(w, id);
                 for (int lx = 0; lx < 16; lx++)
                     for (int lz = 0; lz < 16; lz++) {
-                        if (y < w->heightmap[(cx * 16 + lx) * WORLD_D + (cz * 16 + lz)]) continue;
+                        if (y < w->heightmap[worldColumn(w, cx * 16 + lx, cz * 16 + lz)]) continue;
                         int pi = (lx << 4) | lz;
                         p[pi >> 1] |= (unsigned char)(0x0F << ((pi & 1) * 4));
                     }
@@ -102,7 +139,7 @@ void lightInitSkyFromHeightmap(World* w) {
 }
 
 static void loadLayerPlanes(World* w, int layer, int cx, int cz, const unsigned char* nib) {
-    int slot0 = ((((cx << 4) | cz) << 7) << 1) | layer;
+    int slot0 = lightPlaneSlot0(w, layer, cx, cz);
     for (int y = 0; y < WORLD_H; y++) {
 
         int idx0 = (0 << 11) | (0 << 7) | y;

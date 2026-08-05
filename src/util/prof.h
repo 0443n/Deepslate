@@ -1,6 +1,8 @@
 #pragma once
 
-#define PROF 0
+#ifndef PROF
+#define PROF 1
+#endif
 
 enum {
     PROF_TICK,
@@ -12,11 +14,20 @@ enum {
     PROF_TTE,
     PROF_TPART,
     PROF_WORLD,
+    PROF_STREAM,
+    PROF_SGEN,
+    PROF_SDECOR,
+    PROF_SLIGHT,
+    PROF_SDISK,
+    PROF_SEVICT,
+    PROF_SMISC,
     PROF_LIGHT,
     PROF_REBUILD,
     PROF_CULL,
     PROF_RSCAN,
     PROF_RBUILD,
+    PROF_MEMIT,
+    PROF_MPACK,
     PROF_SKY,
     PROF_ENTITY,
     PROF_WATER,
@@ -27,7 +38,7 @@ enum {
     PROF_N
 };
 
-enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_N };
+enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN, PROFC_N };
 
 #if PROF
 void profAdd(int slot, int n);

@@ -143,7 +143,8 @@ static void spawnMonsters(Level* level) {
 
         int cx = pcx + s_rng.nextInt(2 * R + 1) - R;
         int cz = pcz + s_rng.nextInt(2 * R + 1) - R;
-        if (cx < 0 || cx >= WORLD_W / 16 || cz < 0 || cz >= WORLD_D / 16) continue;
+
+        if (!level->hasChunksAt(cx * 16, 0, cz * 16, cx * 16 + 15, 0, cz * 16 + 15)) continue;
 
         int xStart = cx * 16 + s_rng.nextInt(16);
         int zStart = cz * 16 + s_rng.nextInt(16);

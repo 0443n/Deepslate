@@ -26,6 +26,9 @@ void textureFree(Texture* tex);
 
 void textureForgetFailures();
 
+extern unsigned int g_textureBindFailures;
+extern char g_textureLastFailed[80];
+
 void textureGenMips(Texture* tex, int minSize);
 
 bool textureLoadMipLevel(Texture* tex, int level, const char* path);

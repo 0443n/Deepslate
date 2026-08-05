@@ -68,19 +68,22 @@ void profFrameEnd(void) {
     if (fp) {
         ++g_profLines;
         fprintf(fp, "fps %.1f frame %u max %u | tick %u (plr %u wtick %u [rand %u pend %u] ent %u te %u part %u) "
-                    "world %u (light %u rebuild %u [scan %u build %u] cull %u) "
+                    "world %u (stream %u [gen %u dec %u lit %u disk %u evict %u misc %u] light %u rebuild %u [scan %u build %u (emit %u pack %u)] cull %u) "
                     "sky %u ent %u water %u part %u hud %u gesync %u vblank %u | other %d "
-                    "| n(part %.0f sect %.1f pend %.0f)\n",
+                    "| n(part %.0f sect %.1f pend %.0f strm %.2f)\n",
                 f * 1000000.0f / (float)elapsed, frame, s_maxFrame,
                 avg[PROF_TICK], avg[PROF_TPLAYER], avg[PROF_TWORLD],
                 avg[PROF_TRAND], avg[PROF_TPEND], avg[PROF_TENT],
                 avg[PROF_TTE], avg[PROF_TPART],
-                avg[PROF_WORLD], avg[PROF_LIGHT], avg[PROF_REBUILD],
-                avg[PROF_RSCAN], avg[PROF_RBUILD], avg[PROF_CULL],
+                avg[PROF_WORLD], avg[PROF_STREAM], avg[PROF_SGEN], avg[PROF_SDECOR],
+                avg[PROF_SLIGHT], avg[PROF_SDISK], avg[PROF_SEVICT], avg[PROF_SMISC],
+                avg[PROF_LIGHT], avg[PROF_REBUILD],
+                avg[PROF_RSCAN], avg[PROF_RBUILD], avg[PROF_MEMIT], avg[PROF_MPACK], avg[PROF_CULL],
                 avg[PROF_SKY], avg[PROF_ENTITY], avg[PROF_WATER], avg[PROF_PART],
                 avg[PROF_HUD], avg[PROF_GESYNC], avg[PROF_VBLANK],
                 (int)frame - accounted,
-                s_cnt[PROFC_PARTICLES] / f, s_cnt[PROFC_SECTIONS] / f, s_cnt[PROFC_PENDLIST] / f);
+                s_cnt[PROFC_PARTICLES] / f, s_cnt[PROFC_SECTIONS] / f, s_cnt[PROFC_PENDLIST] / f,
+                s_cnt[PROFC_STREAMIN] / f);
         fflush(fp);
     }
 

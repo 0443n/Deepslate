@@ -33,7 +33,9 @@ struct McpeGen {
     float* getHeights(int x, int y, int z, int xSize, int ySize, int zSize);
     void prepareChunk(World* w, int chunkX, int chunkZ);
     void buildSurfacesChunk(World* w, int chunkX, int chunkZ);
-    void postProcessChunk(World* w, int chunkX, int chunkZ);
+
+    bool postProcessPhase(World* w, int chunkX, int chunkZ, int phase);
+    int mPhaseBiome;
 };
 
 #endif

@@ -10,37 +10,42 @@
 #define LOGI(...) ((void)0)
 #endif
 
+#include <cstdlib>
+
 static const int SECTOR_BYTES = 4096;
 static const int SECTOR_INTS  = SECTOR_BYTES / 4;
 static const int SECTOR_COLS  = 32;
-static const char* const REGION_DAT_NAME = "chunks.dat";
 
 static void logAssert(int actual, int expected) {
     if (actual != expected)
         LOGI("RegionFile: I/O op failed (%d vs %d)\n", actual, expected);
 }
 
-RegionFile::RegionFile(const std::string& basePath)
-    : file(NULL) {
-    filename = basePath;
-    filename += "/";
-    filename += REGION_DAT_NAME;
-    offsets = new int[SECTOR_INTS];
-    emptyChunk = new int[SECTOR_INTS];
-    memset(emptyChunk, 0, SECTOR_INTS * sizeof(int));
+RegionFile::RegionFile(const char* path)
+    : file(NULL), offsets(0), emptyChunk(0), freeBits(0), knownSectors(0) {
+    snprintf(filename, sizeof(filename), "%s", path);
+
+    offsets    = (int*)malloc(SECTOR_INTS * sizeof(int));
+    emptyChunk = (int*)malloc(SECTOR_INTS * sizeof(int));
+    freeBits   = (unsigned char*)malloc((RF_MAX_SECTORS + 7) / 8);
+    if (emptyChunk) memset(emptyChunk, 0, SECTOR_INTS * sizeof(int));
 }
 
 RegionFile::~RegionFile() {
     close();
-    delete[] offsets;
-    delete[] emptyChunk;
+    free(offsets);
+    free(emptyChunk);
+    free(freeBits);
 }
 
 bool RegionFile::open() {
     close();
+    if (!offsets || !emptyChunk || !freeBits) return false;
     memset(offsets, 0, SECTOR_INTS * sizeof(int));
+    memset(freeBits, 0, (RF_MAX_SECTORS + 7) / 8);
+    knownSectors = 0;
 
-    file = fopen(filename.c_str(), "r+b");
+    file = fopen(filename, "r+b");
     if (file) {
         logAssert(fread(offsets, sizeof(int), SECTOR_INTS, file), SECTOR_INTS);
 
@@ -49,9 +54,10 @@ bool RegionFile::open() {
         int fileSectors = (fsize > 0) ? (int)(fsize / SECTOR_BYTES) : 0;
         fseek(file, 0, SEEK_SET);
 
+        if (fileSectors > RF_MAX_SECTORS) fileSectors = RF_MAX_SECTORS;
         for (int i = 1; i < fileSectors; i++)
-            sectorFree[i] = true;
-        sectorFree[0] = false;
+            sectorSetFree(i, true);
+        sectorSetFree(0, false);
         for (int sector = 0; sector < SECTOR_INTS; sector++) {
             int offset = offsets[sector];
             if (offset) {
@@ -62,18 +68,18 @@ bool RegionFile::open() {
                     continue;
                 }
                 for (int i = 0; i < count; i++)
-                    sectorFree[base + i] = false;
+                    sectorSetFree(base + i, false);
             }
         }
     } else {
 
-        file = fopen(filename.c_str(), "w+b");
+        file = fopen(filename, "w+b");
         if (!file) {
-            LOGI("RegionFile: failed to create %s\n", filename.c_str());
+            LOGI("RegionFile: failed to create %s\n", filename);
             return false;
         }
         logAssert(fwrite(offsets, sizeof(int), SECTOR_INTS, file), SECTOR_INTS);
-        sectorFree[0] = false;
+        sectorSetFree(0, false);
     }
     return file != NULL;
 }
@@ -129,21 +135,25 @@ bool RegionFile::writeChunk(int x, int z, const unsigned char* data, int len) {
     } else {
 
         for (int i = 0; i < sectorCount; i++)
-            sectorFree[sectorNum + i] = true;
+            sectorSetFree(sectorNum + i, true);
 
         int slot = 0, runLength = 0;
         bool extendFile = false;
         while (runLength < sectorsNeeded) {
-            if (sectorFree.find(slot + runLength) == sectorFree.end()) {
+            if (!sectorKnown(slot + runLength)) {
                 extendFile = true;
                 break;
             }
-            if (sectorFree[slot + runLength] == true) {
+            if (sectorIsFree(slot + runLength)) {
                 runLength++;
             } else {
                 slot = slot + runLength + 1;
                 runLength = 0;
             }
+        }
+        if (slot + sectorsNeeded > RF_MAX_SECTORS) {
+            LOGI("RegionFile: region full\n");
+            return false;
         }
 
         if (extendFile) {
@@ -151,12 +161,12 @@ bool RegionFile::writeChunk(int x, int z, const unsigned char* data, int len) {
             int extend = sectorsNeeded - runLength;
             for (int i = 0; i < extend; i++) {
                 fwrite(emptyChunk, sizeof(int), SECTOR_INTS, file);
-                sectorFree[slot + i] = true;
+                sectorSetFree(slot + i, true);
             }
         }
         offsets[idx] = (slot << 8) | sectorsNeeded;
         for (int i = 0; i < sectorsNeeded; i++)
-            sectorFree[slot + i] = false;
+            sectorSetFree(slot + i, false);
 
         write(slot, data, len);
 

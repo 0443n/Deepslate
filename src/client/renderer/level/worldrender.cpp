@@ -1,5 +1,6 @@
 
 #include "world/level/world.h"
+#include "world/level/chunk/chunk_cache.h"
 
 #include "gpu/texture.h"
 #include "util/prof.h"
@@ -63,14 +64,17 @@ static inline float drawCull(float viewDist) {
 }
 
 bool worldColumnDrawn(const World* w, float x, float z) {
-    int cx = (int)(x) / CHUNK_SX, cz = (int)(z) / CHUNK_SZ;
-    if (x < 0 || z < 0 || cx < 0 || cx >= WORLD_CHUNKS_X || cz < 0 || cz >= WORLD_CHUNKS_Z)
-        return false;
-    return w->chunks[cz * WORLD_CHUNKS_X + cx].drawn;
+    int cx = ((int)floorf(x)) >> 4, cz = ((int)floorf(z)) >> 4;
+    if (!worldChunkReady(w, cx, cz)) return false;
+    return worldMesh(w, cx, cz)->drawn;
 }
 
 void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float viewDist) {
     World* w = (World*)cw;
+
+    profBegin(PROF_STREAM);
+    profAdd(PROFC_STREAMIN, worldStream(w, camX, camZ, 4));
+    profEnd(PROF_STREAM);
 
     profBegin(PROF_LIGHT);
     worldUpdateLights(w);
@@ -92,6 +96,7 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     } else {
 
     static const int MAX_CAND = 48;
+
     static const unsigned int TIME_BUDGET_US = 2000;
     float buildD2 = viewDist * viewDist;
 
@@ -99,10 +104,13 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     struct Cand { ChunkMesh* c; int si; float d; } cand[MAX_CAND];
     int nc = 0; float worst = 1e30f;
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
+        if (!w->slots[i].resident || worldSlotBusy(&w->slots[i])) continue;
         ChunkMesh* c = &w->chunks[i];
         float dx = c->cx - camX, dz = c->cz - camZ;
         float hd = dx * dx + dz * dz;
         if (hd > buildD2) continue;
+
+        if (!worldChunkMeshable(w, w->slots[i].x, w->slots[i].z)) continue;
         if (nc == MAX_CAND && hd >= worst) continue;
         for (int si = 0; si < N_SECTIONS; si++) {
             if (!c->sec[si].dirty) continue;
@@ -157,6 +165,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
     float keepD2 = (viewDist + 32.0f) * (viewDist + 32.0f);
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
+        if (!w->slots[i].resident || worldSlotBusy(&w->slots[i])) continue;
         ChunkMesh* c = &w->chunks[i];
         float dx = c->cx - camX, dz = c->cz - camZ;
         if (dx * dx + dz * dz <= keepD2) continue;
@@ -170,6 +179,12 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
         ChunkMesh* c = &w->chunks[i];
+
+        if (!w->slots[i].resident || worldSlotBusy(&w->slots[i])) {
+            c->drawn = false;
+            for (int si = 0; si < N_SECTIONS; si++) c->sec[si].visible = false;
+            continue;
+        }
         float dx = c->cx - camX, dz = c->cz - camZ;
         bool off = (dx * dx + dz * dz > maxD2 || !columnVisible(c));
 

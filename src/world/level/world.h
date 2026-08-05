@@ -7,6 +7,7 @@
 #include "world/level/chunk/chunk.h"
 #include "world/level/tile/material.h"
 #include <stdlib.h>
+#include <string.h>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
@@ -28,6 +29,18 @@ struct TickNextTickData {
 
 #define WORLD_VIEW_DIST 64.0f
 
+#ifndef WORLD_SIZE_CHUNKS
+#define WORLD_SIZE_CHUNKS 16
+#endif
+
+static inline bool worldChunkInBounds(int cx, int cz) {
+#if WORLD_SIZE_CHUNKS
+    return cx >= 0 && cz >= 0 && cx < WORLD_SIZE_CHUNKS && cz < WORLD_SIZE_CHUNKS;
+#else
+    (void)cx; (void)cz; return true;
+#endif
+}
+
 #define LP_PAGE       128
 #define LP_BLK_PAGES  256
 #define LP_MAX_BLKS   256
@@ -47,7 +60,25 @@ struct BlockSection {
     unsigned char  uniform;
 };
 
+struct LevelChunk {
+    int  x, z;
+    bool resident;
+
+    bool unsaved;
+
+    bool terrainPopulated;
+
+    volatile bool generating;
+
+    unsigned char stage;
+    bool isAt(int cx, int cz) const { return resident && x == cx && z == cz; }
+};
+
 struct World {
+
+    int slotBits;
+    int slotMask;
+    int slotN;
 
     BlockSection bsec[BS_SECTIONS];
     int blockPages;
@@ -66,7 +97,7 @@ struct World {
     unsigned char* heightmap;
     ChunkMesh chunks[WORLD_CHUNKS_X * WORLD_CHUNKS_Z];
 
-    bool unsaved[WORLD_CHUNKS_X * WORLD_CHUNKS_Z];
+    LevelChunk slots[WORLD_CHUNKS_X * WORLD_CHUNKS_Z];
 
     long time;
 
@@ -77,6 +108,8 @@ struct World {
 
     std::vector<unsigned int> lightQueue;
     bool lightReady;
+
+    bool simTick;
 
     std::vector<std::vector<unsigned char> > preservedTileEntities;
 };
@@ -96,21 +129,101 @@ void worldValidateSpawn(World* w, int* x, int* y, int* z);
 
 void worldFree(World* w);
 
-static inline int worldIndex(int x, int y, int z) {
-    return (x * WORLD_D + z) * WORLD_H + y;
+#define WORLD_SLOT_BITS 4
+static inline void worldSetWindow(World* w, int slotBits) {
+    w->slotBits = slotBits;
+    w->slotN    = 1 << slotBits;
+    w->slotMask = w->slotN - 1;
+}
+static inline int worldSlotIndex(const World* w, int cx, int cz) {
+    return ((cz & w->slotMask) << w->slotBits) | (cx & w->slotMask);
+}
+static inline LevelChunk* worldSlot(World* w, int cx, int cz) {
+    return &w->slots[worldSlotIndex(w, cx, cz)];
+}
+static inline const LevelChunk* worldSlot(const World* w, int cx, int cz) {
+    return &w->slots[worldSlotIndex(w, cx, cz)];
 }
 
-static inline int bsSection(int x, int y, int z) {
-    return (((x >> 4) * WORLD_CHUNKS_Z + (z >> 4)) * N_SECTIONS) + (y >> 4);
+static inline bool worldChunkReady(const World* w, int cx, int cz) {
+    return worldSlot(w, cx, cz)->isAt(cx, cz);
+}
+
+static inline bool worldChunkSettled(const World* w, int cx, int cz) {
+    const LevelChunk* c = worldSlot(w, cx, cz);
+    return c->isAt(cx, cz) && !c->generating;
+}
+
+static inline bool worldSlotBusy(const LevelChunk* c) { return c->generating || c->stage != 0; }
+
+static inline bool worldNeighbourSettled(const World* w, int cx, int cz) {
+
+    return !worldChunkInBounds(cx, cz) || worldChunkReady(w, cx, cz);
+}
+static inline bool worldChunkMeshable(const World* w, int cx, int cz) {
+    return worldNeighbourSettled(w, cx + 1, cz) && worldNeighbourSettled(w, cx - 1, cz) &&
+           worldNeighbourSettled(w, cx, cz + 1) && worldNeighbourSettled(w, cx, cz - 1);
+}
+static inline bool worldReady(const World* w, int x, int z) {
+    return worldChunkReady(w, x >> 4, z >> 4);
+}
+
+static inline bool worldFitsInWindow(const World* w) {
+#if WORLD_SIZE_CHUNKS
+    return WORLD_SIZE_CHUNKS <= w->slotN;
+#else
+    (void)w; return false;
+#endif
+}
+
+static inline void worldSlotsReset(World* w) {
+    for (int i = 0; i < w->slotN * w->slotN; i++) {
+        LevelChunk* c = &w->slots[i];
+        c->x = c->z = 0;
+        c->resident = false; c->unsaved = false; c->terrainPopulated = false;
+        c->generating = false; c->stage = 0;
+    }
+}
+static inline void worldResidentAtOrigin(World* w) {
+    for (int cz = 0; cz < w->slotN; cz++)
+        for (int cx = 0; cx < w->slotN; cx++) {
+            LevelChunk* c = &w->slots[worldSlotIndex(w, cx, cz)];
+            c->x = cx; c->z = cz; c->resident = true; c->unsaved = false;
+
+            c->terrainPopulated = false; c->generating = false; c->stage = 0;
+        }
+}
+
+static inline void worldWindowOrigin(const World* w, int* ox, int* oz) {
+    *ox = w->slots[0].x * 16;
+    *oz = w->slots[0].z * 16;
+}
+
+static inline int worldColumn(const World* w, int x, int z) {
+    return (worldSlotIndex(w, x >> 4, z >> 4) << 8) | ((x & 15) << 4) | (z & 15);
+}
+static inline int worldIndex(const World* w, int x, int y, int z) {
+    return worldColumn(w, x, z) * WORLD_H + y;
+}
+
+static inline int bsSection(const World* w, int x, int y, int z) {
+    return (worldSlotIndex(w, x >> 4, z >> 4) * N_SECTIONS) + (y >> 4);
 }
 static inline int bsOffset(int x, int y, int z) {
     return (((x & 15) * 16 + (z & 15)) * SECTION_SY) + (y & (SECTION_SY - 1));
 }
+
+static inline ChunkMesh* worldMesh(World* w, int cx, int cz) {
+    return &w->chunks[worldSlotIndex(w, cx, cz)];
+}
+static inline const ChunkMesh* worldMesh(const World* w, int cx, int cz) {
+    return &w->chunks[worldSlotIndex(w, cx, cz)];
+}
 static inline unsigned char worldBlock(const World* w, int x, int y, int z) {
     if (y < 0 || y >= WORLD_H) return BLOCK_AIR;
-    if (x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D)
+    if (!worldReady(w, x, z))
         return BLOCK_INVISIBLE_BEDROCK;
-    const BlockSection* s = &w->bsec[bsSection(x, y, z)];
+    const BlockSection* s = &w->bsec[bsSection(w, x, y, z)];
     if (!s->page) return s->uniform;
     int off = bsOffset(x, y, z);
     if (!s->palN) return s->page[off];
@@ -128,9 +241,11 @@ unsigned int blockBytes(const World* w);
 
 void blockStats(const World* w, int* uniform, int* paletted, int* raw);
 
-extern unsigned int g_blockOomDrops;
+void blockSlotRecycle(World* w, int slotIdx);
 
-static inline int worldColumn(int x, int z) { return x * WORLD_D + z; }
+bool blockSectionUniform(const World* w, int x, int y, int z, unsigned char* out);
+
+extern unsigned int g_blockOomDrops;
 
 #define WORLD_DATA_PAGE (WORLD_H / 2)
 
@@ -147,8 +262,8 @@ static inline unsigned int worldMemBytes(const World* w) {
 }
 
 static inline unsigned char worldData(const World* w, int x, int y, int z) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
-    const unsigned char* pg = w->dataCol[worldColumn(x, z)];
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return 0;
+    const unsigned char* pg = w->dataCol[worldColumn(w, x, z)];
     if (!pg) return 0;
     return (y & 1) ? (unsigned char)(pg[y >> 1] >> 4)
                    : (unsigned char)(pg[y >> 1] & 0x0F);
@@ -171,6 +286,27 @@ static inline void worldDataPut(World* w, int i, unsigned char v) {
                 : (unsigned char)((b & 0xF0) | (v & 0x0F));
 }
 
+static inline void worldDataColumnPut(World* w, int x, int z, const unsigned char* src) {
+    int col = worldColumn(w, x, z);
+    unsigned char* pg = w->dataCol[col];
+    if (!pg) {
+        int i = 0;
+        while (i < WORLD_DATA_PAGE && !src[i]) i++;
+        if (i == WORLD_DATA_PAGE) return;
+        pg = (unsigned char*)calloc(1, WORLD_DATA_PAGE);
+        if (!pg) return;
+        w->dataPages++;
+        w->dataCol[col] = pg;
+    }
+    memcpy(pg, src, WORLD_DATA_PAGE);
+}
+
+static inline void worldDataColumnGet(const World* w, int x, int z, unsigned char* dst) {
+    const unsigned char* pg = w->dataCol[worldColumn(w, x, z)];
+    if (pg) memcpy(dst, pg, WORLD_DATA_PAGE);
+    else    memset(dst, 0, WORLD_DATA_PAGE);
+}
+
 bool worldSetBlockAndData(World* w, int x, int y, int z, unsigned char id, unsigned char data);
 void worldSetData(World* w, int x, int y, int z, unsigned char data);
 
@@ -180,12 +316,20 @@ void worldMarkDirty(World* w, int x, int y, int z);
 
 void worldDrainPlayerEdits(World* w, int maxSections);
 
+int worldEditQueueDepth();
+
+int worldEditQueueFront(int field);
+
 void worldRebuildAroundNow(World* w, int x, int y, int z);
 
 void lightOnBlockChanged(World* w, int x, int y, int z);
 
-static inline int lightPlaneIdx(int layer, int x, int y, int z) {
-    return ((((((x >> 4) << 4) | (z >> 4)) << 7) | y) << 1) | layer;
+static inline int lightPlaneIdx(const World* w, int layer, int x, int y, int z) {
+    return (((worldSlotIndex(w, x >> 4, z >> 4) << 7) | y) << 1) | layer;
+}
+
+static inline int lightPlaneSlot0(const World* w, int layer, int cx, int cz) {
+    return ((worldSlotIndex(w, cx, cz) << 7) << 1) | layer;
 }
 static inline unsigned char* lightPage(const World* w, unsigned int id) {
     return w->lightPool[id >> 8] + ((id & (LP_BLK_PAGES - 1)) << 7);
@@ -196,13 +340,13 @@ static inline int lightPi(int x, int z) { return ((x & 15) << 4) | (z & 15); }
 unsigned int lightPagePromote(World* w, int idxSlot, unsigned char prefill);
 
 static inline int lightLayerGet(const World* w, int layer, int x, int y, int z) {
-    unsigned int id = w->lightIdx[lightPlaneIdx(layer, x, y, z)];
+    unsigned int id = w->lightIdx[lightPlaneIdx(w, layer, x, y, z)];
     if (id >= LP_SENT) return (int)(id & 1) * 15;
     int pi = lightPi(x, z);
     return (lightPage(w, id)[pi >> 1] >> ((pi & 1) * 4)) & 15;
 }
 static inline void lightLayerSet(World* w, int layer, int x, int y, int z, int v) {
-    int slot = lightPlaneIdx(layer, x, y, z);
+    int slot = lightPlaneIdx(w, layer, x, y, z);
     unsigned int id = w->lightIdx[slot];
     if (id >= LP_SENT) {
         if (v == (int)(id & 1) * 15) return;
@@ -217,24 +361,24 @@ static inline void lightLayerSet(World* w, int layer, int x, int y, int z, int v
 }
 
 static inline bool lightPlaneAllDark(const World* w, int layer, int x, int y, int z) {
-    return w->lightIdx[lightPlaneIdx(layer, x, y, z)] == LP_ALL0;
+    return w->lightIdx[lightPlaneIdx(w, layer, x, y, z)] == LP_ALL0;
 }
 
 static inline int lightSkyGet(const World* w, int x, int y, int z) {
     if (y >= WORLD_H) return 15;
-    if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
+    if (y < 0 || !worldReady(w, x, z)) return 0;
     return lightLayerGet(w, 0, x, y, z);
 }
 static inline int lightBlockGet(const World* w, int x, int y, int z) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return 0;
     return lightLayerGet(w, 1, x, y, z);
 }
 static inline void lightSkySet(World* w, int x, int y, int z, int v) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
     lightLayerSet(w, 0, x, y, z, v);
 }
 static inline void lightBlockSet(World* w, int x, int y, int z, int v) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
     lightLayerSet(w, 1, x, y, z, v);
 }
 
@@ -259,7 +403,7 @@ static inline int lightRawAtNoProp(const World* w, int x, int y, int z) {
     if (y >= WORLD_H + 8) return 15;
 
     if (y >= WORLD_H) { int s = 15 - g_skyDarken; return s < 0 ? 0 : s; }
-    if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return 0;
+    if (y < 0 || !worldReady(w, x, z)) return 0;
 
     int s = lightLayerGet(w, 0, x, y, z) - g_skyDarken, b = lightLayerGet(w, 1, x, y, z);
     if (s < 0) s = 0;
@@ -348,16 +492,19 @@ static inline unsigned int brightColorF(float b) {
 
 static inline bool worldCanSeeSky(const World* w, int x, int y, int z) {
     if (y >= WORLD_H) return true;
-    if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return false;
-    return y >= w->heightmap[x * WORLD_D + z];
+    if (y < 0 || !worldReady(w, x, z)) return false;
+    return y >= w->heightmap[worldColumn(w, x, z)];
 }
 
 void worldInitLight(World* w);
+
+void worldInitChunkLight(World* w, int cx, int cz);
+void worldRecalcChunkHeightmap(World* w, int cx, int cz);
+
+void worldScheduleChunkLiquids(World* w, int cx, int cz);
 void worldRecalcHeightmap(World* w);
 void worldUpdateLights(World* w);
 void worldMarkAllDirty(World* w);
-
-bool worldSettleLights(World* w);
 void worldRemoveBlockLight(World* w, int x, int y, int z);
 
 void lightQueuesReserve(World* w);
@@ -370,7 +517,11 @@ unsigned int lightBytes(const World* w);
 void         lightCompactStep(World* w);
 void         lightCompactAll(World* w);
 
+void         lightSlotRelease(World* w, int slotIdx);
+
 void         lightInitSkyFromHeightmap(World* w);
+
+void         lightInitSkyChunk(World* w, int cx, int cz);
 
 void         lightLoadChunk(World* w, int cx, int cz,
                             const unsigned char* skyNib, const unsigned char* blockNib);

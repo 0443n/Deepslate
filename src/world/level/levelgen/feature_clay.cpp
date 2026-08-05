@@ -1,3 +1,4 @@
+#include "util/mth.h"
 #include "world/level/levelgen/features.h"
 #include "world/level/levelgen/Random.h"
 #include "world/level/world.h"
@@ -23,9 +24,9 @@ void clayFeature(World* w, Random& random, int x, int y, int z) {
         float ss = random.nextFloat() * (float)(count >> 4);
         float r  = (sinf(d * MCPE_PI / count) + 1) * ss + 1;
 
-        for (int x2 = (int)(xx - r / 2); x2 <= (int)(xx + r / 2); x2++)
-        for (int y2 = (int)(yy - r / 2); y2 <= (int)(yy + r / 2); y2++)
-        for (int z2 = (int)(zz - r / 2); z2 <= (int)(zz + r / 2); z2++) {
+        for (int x2 = Mth::floor(xx - r / 2); x2 <= Mth::floor(xx + r / 2); x2++)
+        for (int y2 = Mth::floor(yy - r / 2); y2 <= Mth::floor(yy + r / 2); y2++)
+        for (int z2 = Mth::floor(zz - r / 2); z2 <= Mth::floor(zz + r / 2); z2++) {
             float xd = ((x2 + 0.5f) - xx) / (r / 2);
             float yd = ((y2 + 0.5f) - yy) / (r / 2);
             float zd = ((z2 + 0.5f) - zz) / (r / 2);

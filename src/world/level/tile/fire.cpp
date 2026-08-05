@@ -59,7 +59,7 @@ static int getFireOdds(World* w, int x, int y, int z) {
 }
 
 static void setTile(World* w, int x, int y, int z, unsigned char id) {
-    if (x < 0 || x >= WORLD_W || y < 0 || y >= WORLD_H || z < 0 || z >= WORLD_D) return;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
     worldSetBlockAndData(w, x, y, z, id, 0);
     worldNotifyNeighborsChanged(w, x, y, z);
     worldUpdateLights(w);

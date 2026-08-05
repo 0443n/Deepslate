@@ -9,14 +9,19 @@ static int g_editQueueN = 0;
 static bool g_inEditQueue[WORLD_CHUNKS_X * WORLD_CHUNKS_Z][N_SECTIONS];
 
 static inline void markSecDirty(World* w, int cx, int cz, int y) {
-    if (cx < 0 || cx >= WORLD_CHUNKS_X || cz < 0 || cz >= WORLD_CHUNKS_Z) return;
+
+    if (!worldChunkSettled(w, cx, cz)) return;
     if (y < 0 || y >= WORLD_H) return;
     int si = y / SECTION_SY;
-    w->chunks[cz * WORLD_CHUNKS_X + cx].sec[si].dirty = true;
+    worldMesh(w, cx, cz)->sec[si].dirty = true;
 
-    w->unsaved[cz * WORLD_CHUNKS_X + cx] = true;
+    if (!w->lightReady) return;
 
-    int ci = cz * WORLD_CHUNKS_X + cx;
+    worldSlot(w, cx, cz)->unsaved = true;
+
+    if (w->simTick) return;
+
+    int ci = worldSlotIndex(w, cx, cz);
     if (g_inEditQueue[ci][si]) return;
     if (g_editQueueN >= PLAYER_EDIT_QUEUE_CAP) return;
     g_editQueue[g_editQueueN][0] = ci; g_editQueue[g_editQueueN][1] = si; g_editQueueN++;
@@ -32,29 +37,36 @@ void worldMarkAllDirty(World* w) {
 }
 
 void worldMarkDirty(World* w, int x, int y, int z) {
-    for (int dx = -1; dx <= 1; dx++)
-    for (int dz = -1; dz <= 1; dz++)
-    for (int dy = -1; dy <= 1; dy++)
-        markSecDirty(w, (x + dx) / CHUNK_SX, (z + dz) / CHUNK_SZ, y + dy);
+
+    int cx[2], cz[2], sy[2], ncx = 1, ncz = 1, nsy = 1;
+    cx[0] = (x - 1) >> 4;  if (((x + 1) >> 4) != cx[0]) cx[ncx++] = (x + 1) >> 4;
+    cz[0] = (z - 1) >> 4;  if (((z + 1) >> 4) != cz[0]) cz[ncz++] = (z + 1) >> 4;
+    int ylo = (y > 0) ? y - 1 : 0;
+    int yhi = (y < WORLD_H - 1) ? y + 1 : WORLD_H - 1;
+    sy[0] = ylo;           if ((yhi >> 4) != (ylo >> 4)) sy[nsy++] = yhi;
+    for (int a = 0; a < ncx; a++)
+        for (int b = 0; b < ncz; b++)
+            for (int c = 0; c < nsy; c++)
+                markSecDirty(w, cx[a], cz[b], sy[c]);
 }
 
 void worldSetData(World* w, int x, int y, int z, unsigned char data) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
-    worldDataPut(w, worldIndex(x, y, z), data);
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
+    worldDataPut(w, worldIndex(w, x, y, z), data);
     worldMarkDirty(w, x, y, z);
 }
 
 void worldSetDataNoUpdate(World* w, int x, int y, int z, unsigned char data) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
-    worldDataPut(w, worldIndex(x, y, z), data);
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
+    worldDataPut(w, worldIndex(w, x, y, z), data);
 }
 
 bool worldSetBlockAndData(World* w, int x, int y, int z, unsigned char id, unsigned char data) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return false;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return false;
     unsigned char was = worldBlock(w, x, y, z);
 
     if (!blockPut(w, x, y, z, id)) return false;
-    worldDataPut(w, worldIndex(x, y, z), data);
+    worldDataPut(w, worldIndex(w, x, y, z), data);
     worldMarkDirty(w, x, y, z);
     if (w->lightReady) {
         lightOnBlockChanged(w, x, y, z);
@@ -65,26 +77,24 @@ bool worldSetBlockAndData(World* w, int x, int y, int z, unsigned char id, unsig
 }
 
 void worldRebuildAroundNow(World* w, int x, int y, int z) {
-
-    if (w->lightReady && !worldSettleLights(w)) return;
-
-    static const int FACE7[7][3] = { {0,0,0}, {-1,0,0},{1,0,0}, {0,-1,0},{0,1,0}, {0,0,-1},{0,0,1} };
-    static const int MAX_SYNC_SECTIONS = 2;
-    int done[7][2]; int nd = 0;
-    for (int i = 0; i < 7; i++) {
-        int cx = (x + FACE7[i][0]) / CHUNK_SX, cz = (z + FACE7[i][2]) / CHUNK_SZ, yy = y + FACE7[i][1];
-        if (cx < 0 || cx >= WORLD_CHUNKS_X || cz < 0 || cz >= WORLD_CHUNKS_Z) continue;
-        if (yy < 0 || yy >= WORLD_H) continue;
-        int ci = cz * WORLD_CHUNKS_X + cx, si = yy / SECTION_SY;
-        bool seen = false;
-        for (int j = 0; j < nd; j++) if (done[j][0] == ci && done[j][1] == si) { seen = true; break; }
-        if (seen) continue;
-        done[nd][0] = ci; done[nd][1] = si; nd++;
-        if (nd > MAX_SYNC_SECTIONS) continue;
-        ChunkMesh* c = &w->chunks[ci];
-        if (c->sec[si].dirty) chunkBuildSection(c, w, si);
+    if (y < 0 || y >= WORLD_H) return;
+    int cx = x >> 4, cz = z >> 4;
+    if (!worldChunkSettled(w, cx, cz)) return;
+    int ci = worldSlotIndex(w, cx, cz), si = y / SECTION_SY;
+    if (!g_inEditQueue[ci][si]) return;
+    for (int i = 0; i < g_editQueueN; i++) {
+        if (g_editQueue[i][0] != ci || g_editQueue[i][1] != si) continue;
+        for (int j = i; j > 0; j--) {
+            g_editQueue[j][0] = g_editQueue[j-1][0];
+            g_editQueue[j][1] = g_editQueue[j-1][1];
+        }
+        g_editQueue[0][0] = ci; g_editQueue[0][1] = si;
+        return;
     }
 }
+
+int worldEditQueueDepth() { return g_editQueueN; }
+int worldEditQueueFront(int field) { return g_editQueueN ? g_editQueue[0][field] : -1; }
 
 void worldDrainPlayerEdits(World* w, int maxSections) {
 
@@ -103,9 +113,10 @@ void worldDrainPlayerEdits(World* w, int maxSections) {
 }
 
 void worldScheduleTick(World* w, int x, int y, int z, unsigned char id, int tickDelay) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
 
-    unsigned int key = (unsigned int)worldIndex(x, y, z);
+    if (y < 0 || y >= WORLD_H || !worldChunkSettled(w, x >> 4, z >> 4)) return;
+
+    unsigned int key = (unsigned int)worldIndex(w, x, y, z);
     if (!w->tickSet.insert(key).second) return;
     TickNextTickData td = {x, y, z, id, w->time + tickDelay};
     w->tickNextTickList.push_back(td);

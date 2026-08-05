@@ -23,10 +23,8 @@ Level::Level(World* world) : w(world), player(0), isClientSide(false),
 void Level::validateSpawn() { worldValidateSpawn(w, &spawnX, &spawnY, &spawnZ); }
 
 static inline int colOf(float x, float z) {
-    int cx = (int)(x) >> 4, cz = (int)(z) >> 4;
-    if (cx < 0) cx = 0; else if (cx >= WORLD_CHUNKS_X) cx = WORLD_CHUNKS_X - 1;
-    if (cz < 0) cz = 0; else if (cz >= WORLD_CHUNKS_Z) cz = WORLD_CHUNKS_Z - 1;
-    return cz * WORLD_CHUNKS_X + cx;
+    return (((int)Mth::floor(z) >> 4) & (WORLD_CHUNKS_Z - 1)) * WORLD_CHUNKS_X
+         + (((int)Mth::floor(x) >> 4) & (WORLD_CHUNKS_X - 1));
 }
 
 void Level::linkEntity(Entity* e) {
@@ -34,7 +32,7 @@ void Level::linkEntity(Entity* e) {
     int col = colOf(e->x, e->z);
     e->xChunk = col % WORLD_CHUNKS_X;
     e->zChunk = col / WORLD_CHUNKS_X;
-    e->yChunk = (int)e->y >> 4;
+    e->yChunk = Mth::floor(e->y) >> 4;
     e->nextInChunk = chunkEntityHead[col];
     chunkEntityHead[col] = e;
     e->inChunk = true;
@@ -54,7 +52,7 @@ void Level::relinkIfMoved(Entity* e) {
     if (!e) return;
     int col = colOf(e->x, e->z);
     if (e->inChunk && col == e->zChunk * WORLD_CHUNKS_X + e->xChunk) {
-        e->yChunk = (int)e->y >> 4;
+        e->yChunk = Mth::floor(e->y) >> 4;
         return;
     }
     unlinkEntity(e);
@@ -62,13 +60,12 @@ void Level::relinkIfMoved(Entity* e) {
 }
 
 static inline void colRange(const AABB& b, int* cx0, int* cx1, int* cz0, int* cz1) {
-    *cx0 = ((int)(b.x0 - 2.0f)) >> 4; *cx1 = ((int)(b.x1 + 2.0f)) >> 4;
-    *cz0 = ((int)(b.z0 - 2.0f)) >> 4; *cz1 = ((int)(b.z1 + 2.0f)) >> 4;
+    *cx0 = ((int)Mth::floor(b.x0 - 2.0f)) >> 4; *cx1 = ((int)Mth::floor(b.x1 + 2.0f)) >> 4;
+    *cz0 = ((int)Mth::floor(b.z0 - 2.0f)) >> 4; *cz1 = ((int)Mth::floor(b.z1 + 2.0f)) >> 4;
+}
 
-    if (*cx0 < 0) *cx0 = 0; else if (*cx0 >= WORLD_CHUNKS_X) *cx0 = WORLD_CHUNKS_X - 1;
-    if (*cz0 < 0) *cz0 = 0; else if (*cz0 >= WORLD_CHUNKS_Z) *cz0 = WORLD_CHUNKS_Z - 1;
-    if (*cx1 >= WORLD_CHUNKS_X) *cx1 = WORLD_CHUNKS_X - 1; else if (*cx1 < 0) *cx1 = 0;
-    if (*cz1 >= WORLD_CHUNKS_Z) *cz1 = WORLD_CHUNKS_Z - 1; else if (*cz1 < 0) *cz1 = 0;
+static inline int colIdx(int cx, int cz) {
+    return (cz & (WORLD_CHUNKS_Z - 1)) * WORLD_CHUNKS_X + (cx & (WORLD_CHUNKS_X - 1));
 }
 
 int Level::getTile(int x, int y, int z) const {
@@ -96,8 +93,10 @@ float Level::getBrightness(int x, int y, int z) const {
 }
 bool Level::hasChunksAt(int x0, int y0, int z0, int x1, int y1, int z1) const {
 
-    if (x1 < 0 || z1 < 0 || x0 >= WORLD_W || z0 >= WORLD_D) return false;
     if (y1 < 0 || y0 >= WORLD_H) return false;
+    for (int cz = z0 >> 4; cz <= (z1 >> 4); cz++)
+        for (int cx = x0 >> 4; cx <= (x1 >> 4); cx++)
+            if (!worldChunkSettled(w, cx, cz)) return false;
     return true;
 }
 
@@ -187,7 +186,7 @@ static int gather(Entity* const* heads, const AABB& box, const Entity* except,
     colRange(box, &cx0, &cx1, &cz0, &cz1);
     for (int cz = cz0; cz <= cz1; cz++)
         for (int cx = cx0; cx <= cx1; cx++)
-            for (Entity* e = heads[cz * WORLD_CHUNKS_X + cx]; e; e = e->nextInChunk) {
+            for (Entity* e = heads[colIdx(cx, cz)]; e; e = e->nextInChunk) {
                 if (e == except || e->removed) continue;
                 if (wantType  != FILTER_ANY && e->getEntityTypeId()     != wantType)  continue;
                 if (wantClass != FILTER_ANY && e->getCreatureBaseType() != wantClass) continue;
@@ -202,7 +201,7 @@ bool Level::isUnobstructed(const AABB& box) const {
     colRange(box, &cx0, &cx1, &cz0, &cz1);
     for (int cz = cz0; cz <= cz1; cz++)
         for (int cx = cx0; cx <= cx1; cx++)
-            for (Entity* e = chunkEntityHead[cz * WORLD_CHUNKS_X + cx]; e; e = e->nextInChunk)
+            for (Entity* e = chunkEntityHead[colIdx(cx, cz)]; e; e = e->nextInChunk)
                 if (!e->removed && e->blocksBuilding && e->bb.intersects(box)) return false;
 
     if (player && !player->removed && player->bb.intersects(box)) return false;
@@ -222,11 +221,16 @@ void Level::findPath(Path* path, Entity* from, int x, int y, int z, float maxDis
     s_pathFinder.findPath(path, from, x, y, z, maxDist);
 }
 
+bool Level::isLoadedAt(float x, float z) const {
+    return worldChunkSettled(w, Mth::floor(x) >> 4, Mth::floor(z) >> 4);
+}
+
 int Level::countInstanceOfBaseType(int baseType) const {
     int n = 0;
     for (size_t i = 0; i < entities.size(); i++) {
         Entity* e = entities[i];
-        if (e && !e->removed && e->isMob() && e->getCreatureBaseType() == baseType) n++;
+        if (e && !e->removed && e->isMob() && e->getCreatureBaseType() == baseType &&
+            isLoadedAt(e->x, e->z)) n++;
     }
     return n;
 }
@@ -235,7 +239,8 @@ int Level::countInstanceOfType(int entityType) const {
     int n = 0;
     for (size_t i = 0; i < entities.size(); i++) {
         Entity* e = entities[i];
-        if (e && !e->removed && e->getEntityTypeId() == entityType) n++;
+        if (e && !e->removed && e->getEntityTypeId() == entityType &&
+            isLoadedAt(e->x, e->z)) n++;
     }
     return n;
 }
@@ -260,8 +265,8 @@ Entity* Level::getEntity(int id) const {
 int Level::getDifficulty() const { return g_difficulty; }
 
 int Level::getTopSolidBlock(int x, int z) const {
-    if (x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return WORLD_H;
-    return w->heightmap[x * WORLD_D + z];
+    if (!worldReady(w, x, z)) return WORLD_H;
+    return w->heightmap[worldColumn(w, x, z)];
 }
 
 void Level::addEntity(Entity* e) {
@@ -280,7 +285,8 @@ void Level::tickEntities() {
 
     for (size_t i = 0; i < entities.size(); i++) {
         Entity* e = entities[i];
-        if (!e->removed) {
+
+        if (!e->removed && isLoadedAt(e->x, e->z)) {
             e->tick();
 
             relinkIfMoved(e);
@@ -340,7 +346,8 @@ void Level::removeAllTileEntities() {
 void Level::tickTileEntities() {
     for (size_t i = 0; i < tileEntities.size(); ) {
         TileEntity* te = tileEntities[i];
-        if (te && !te->removed) te->tick();
+
+        if (te && !te->removed && isLoadedAt((float)te->x, (float)te->z)) te->tick();
         if (te && te->removed) {
             delete te;
             tileEntities[i] = tileEntities.back();

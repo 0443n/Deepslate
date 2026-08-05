@@ -254,6 +254,11 @@ static inline bool isNoMipLayerId(unsigned char id) {
         || id == BLOCK_CACTUS || isGlass(id) || id == BLOCK_CAKE;
 }
 
+bool sectionCannotEmit(const World* w, int ox, int oz, int si) {
+    unsigned char id = 0;
+    return blockSectionUniform(w, ox, si * SECTION_SY, oz, &id) && id == BLOCK_AIR;
+}
+
 int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, int layer, int cap, bool leavesOpaque, bool leavesCull, int* nLava) {
     int n = 0;
     bool sawLava = false;
@@ -404,6 +409,8 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
 
         if (out && n + 36 > cap) return -1;
 
+        int blockData = -1;
+
         for (int f = 0; f < 6; f++) {
 
             int nx = gx + kFaceNeighbor[f][0];
@@ -423,7 +430,8 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
 
             if (out) {
                 int col, row; unsigned int tint;
-                tileForBlock(id, worldData(w, gx, y, gz), f, &col, &row, &tint);
+                if (blockData < 0) blockData = worldData(w, gx, y, gz);
+                tileForBlock(id, (unsigned char)blockData, f, &col, &row, &tint);
                 if (id == BLOCK_GRASS && LCB(gx, y + 1, gz) == BLOCK_TOPSNOW) {
                     if (f != F_TOP && f != F_DOWN) { col = 4; row = 4; tint = 0xFFFFFFFFu; }
                 }

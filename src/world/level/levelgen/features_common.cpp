@@ -3,7 +3,7 @@
 #include "world/level/world.h"
 
 void setBlock(World* w, int x, int y, int z, unsigned char id, unsigned char data) {
-    if (x < 0 || x >= WORLD_W || y < 0 || y >= WORLD_H || z < 0 || z >= WORLD_D) return;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
     worldSetBlockAndData(w, x, y, z, id, data);
     if (id == BLOCK_WATER || id == BLOCK_LAVA) {
         worldScheduleTick(w, x, y, z, id, (id == BLOCK_WATER) ? 5 : 30);

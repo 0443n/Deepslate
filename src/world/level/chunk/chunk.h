@@ -311,6 +311,8 @@ void chunkBuildMesh(ChunkMesh* c, const World* w, int ox, int oz);
 
 void chunkInitLazy(ChunkMesh* c, int ox, int oz);
 
+bool sectionCannotEmit(const World* w, int ox, int oz, int si);
+
 void chunkBuildSection(ChunkMesh* c, const World* w, int si);
 void chunkDrawSection(const ChunkSection* s);
 void chunkDrawWaterSection(const ChunkSection* s);

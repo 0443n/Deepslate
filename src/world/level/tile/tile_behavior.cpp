@@ -40,10 +40,14 @@ static unsigned int s_tick = 0;
 
 void tileRandomTick(World* w) {
     s_tick++;
-    for (int cx = 0; cx < WORLD_CHUNKS_X; cx++)
-    for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
+
+    for (int slot = 0; slot < w->slotN * w->slotN; slot++) {
+        LevelChunk* lc = &w->slots[slot];
+        if (!lc->isAt(lc->x, lc->z) || lc->generating) continue;
+        int cx = lc->x, cz = lc->z;
         int xo = cx * CHUNK_SX, zo = cz * CHUNK_SZ;
-        unsigned int chunkIndex = (unsigned int)(cx * WORLD_CHUNKS_Z + cz);
+
+        unsigned int chunkIndex = (unsigned int)slot;
         for (unsigned int i = 0; i < SAMPLES_PER_CHUNK; i++) {
             int lx, lz, y;
             randomTickPick(s_tick, chunkIndex, i, &lx, &lz, &y);

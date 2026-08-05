@@ -159,7 +159,7 @@ static bool canSpreadTo(const World* w, int x, int y, int z, unsigned char liqui
 }
 
 static void setStatic(World* w, int x, int y, int z, unsigned char id) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
     blockPut(w, x, y, z, calmOf(id));
 }
 
@@ -382,11 +382,34 @@ void worldSettleLiquids(World* w) {
         if (batch.empty()) break;
 
         for (size_t i = 0; i < batch.size(); i++)
-            w->tickSet.erase((unsigned int)worldIndex(batch[i].x, batch[i].y, batch[i].z));
+            w->tickSet.erase((unsigned int)worldIndex(w, batch[i].x, batch[i].y, batch[i].z));
         for (size_t i = 0; i < batch.size(); i++) {
             TickNextTickData& td = batch[i];
             if (worldBlock(w, td.x, td.y, td.z) == td.tileId)
                 tickLiquid(w, td.x, td.y, td.z, td.tileId);
+        }
+    }
+}
+
+void worldScheduleChunkLiquids(World* w, int cx, int cz) {
+
+    bool hasLiquid[N_SECTIONS];
+    for (int si = 0; si < N_SECTIONS; si++) {
+        unsigned char u;
+        hasLiquid[si] = !blockSectionUniform(w, cx * 16, si * SECTION_SY, cz * 16, &u)
+                        || isLiquidId(u);
+    }
+    for (int lx = 0; lx < 16; lx++)
+    for (int lz = 0; lz < 16; lz++) {
+        int x = cx * 16 + lx, z = cz * 16 + lz;
+        for (int y = 0; y < WORLD_H; y++) {
+            if (!hasLiquid[y >> 4]) { y |= (SECTION_SY - 1); continue; }
+            unsigned char id = worldBlock(w, x, y, z);
+            if (!isLiquidId(id)) continue;
+            if (worldData(w, x, y, z) == 0) continue;
+            unsigned char dyn = dynOf(id);
+            if (id != dyn) blockPut(w, x, y, z, dyn);
+            worldScheduleTick(w, x, y, z, dyn, isWaterId(dyn) ? 5 : 30);
         }
     }
 }
@@ -434,7 +457,7 @@ void worldTick(World* w) {
         w->tickNextTickList[cursor] = w->tickNextTickList.back();
         w->tickNextTickList.pop_back();
 
-        w->tickSet.erase((unsigned int)worldIndex(td.x, td.y, td.z));
+        w->tickSet.erase((unsigned int)worldIndex(w, td.x, td.y, td.z));
 
         unsigned char currentId = worldBlock(w, td.x, td.y, td.z);
         if (currentId == td.tileId) {

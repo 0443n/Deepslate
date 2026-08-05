@@ -17,6 +17,9 @@ static int nextPow2(int v) {
     return p;
 }
 
+unsigned int g_textureBindFailures = 0;
+char g_textureLastFailed[80] = "";
+
 static char s_failed[32][80];
 static int  s_failedCount = 0;
 static bool alreadyFailed(const char* path) {
@@ -27,6 +30,8 @@ static bool alreadyFailed(const char* path) {
 void textureForgetFailures() { s_failedCount = 0; }
 
 static void markFailed(const char* path) {
+    std::strncpy(g_textureLastFailed, path, sizeof(g_textureLastFailed) - 1);
+    g_textureLastFailed[sizeof(g_textureLastFailed) - 1] = 0;
     if (s_failedCount >= (int)(sizeof(s_failed) / sizeof(s_failed[0]))) return;
     std::strncpy(s_failed[s_failedCount], path, sizeof(s_failed[0]) - 1);
     s_failed[s_failedCount][sizeof(s_failed[0]) - 1] = 0;
@@ -259,7 +264,12 @@ void textureMipAuto() { sceGuTexLevelMode(GU_TEXTURE_AUTO, s_mipBias); }
 
 void textureBind(const Texture* tex) {
 
-    if (!tex || !tex->data || tex->texW <= 0 || tex->texH <= 0) return;
+    if (!tex || !tex->data || tex->texW <= 0 || tex->texH <= 0) {
+        g_textureBindFailures++;
+        s_lastBound = 0;
+        sceGuDisable(GU_TEXTURE_2D);
+        return;
+    }
 
     if (tex != s_lastBound) {
     s_lastBound = tex;
@@ -288,7 +298,12 @@ void textureBind(const Texture* tex) {
 }
 
 void textureBindNoMip(const Texture* tex) {
-    if (!tex || !tex->data || tex->texW <= 0 || tex->texH <= 0) return;
+    if (!tex || !tex->data || tex->texW <= 0 || tex->texH <= 0) {
+        g_textureBindFailures++;
+        textureBindLastBoundReset();
+        sceGuDisable(GU_TEXTURE_2D);
+        return;
+    }
     textureBindLastBoundReset();
     sceGuTexMode(tex->psm, 0, 0, tex->swizzled ? 1 : 0);
     sceGuTexImage(0, tex->texW, tex->texH, tex->texW, tex->data);

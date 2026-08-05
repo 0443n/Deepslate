@@ -2,6 +2,7 @@
 #include "client/renderer/level/frustum.h"
 #include <malloc.h>
 #include <pspkernel.h>
+#include "util/prof.h"
 
 extern float g_camX, g_camY, g_camZ;
 extern int g_fancyGraphics;
@@ -87,6 +88,20 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     int ox = c->ox, oz = c->oz;
     s->ox = ox; s->oy = y0; s->oz = oz;
 
+    if (sectionCannotEmit(w, ox, oz, si)) {
+        if (s->mesh)   { free(s->mesh);   s->mesh = 0; }
+        if (s->water)  { free(s->water);  s->water = 0; }
+        if (s->leaves) { free(s->leaves); s->leaves = 0; }
+        if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
+        s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
+        s->noMipLavaStart = 0;
+        s->skyLit = false;
+        s->dirty = false;
+
+        s->by0 = s->by1 = s->lby0 = s->lby1 = s->wby0 = s->wby1 = (float)y0;
+        return;
+    }
+
     s->skyLit = false;
     {
         int sy0 = y0 - 1, sy1 = y1;
@@ -97,9 +112,9 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
             if (!lightPlaneAllDark(w, 0, ox, yy, oz)) s->skyLit = true;
 
         for (int gx = ox - 1; gx <= ox + CHUNK_SX && !s->skyLit; gx++) {
-            if (gx < 0 || gx >= WORLD_W) continue;
             for (int gz = oz - 1; gz <= oz + CHUNK_SZ && !s->skyLit; gz++) {
-                if (gz < 0 || gz >= WORLD_D) continue;
+
+                if (!worldReady(w, gx, gz)) continue;
                 if (gx >= ox && gx < ox + CHUNK_SX &&
                     gz >= oz && gz < oz + CHUNK_SZ) continue;
                 for (int yy = sy0; yy <= sy1; yy++)
@@ -129,18 +144,22 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
 #if MESH_PROFILE
         unsigned int t0 = sceKernelGetSystemTimeLow();
 #endif
+        profBegin(PROF_MEMIT);
         int rc = meshSection(w, ox, oz, y0, y1, g_scratch, g_scratchW, g_scratchL, g_scratchN,
                              SCRATCH_VERTS, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL,
                              &n0, &n1, &n2, &n3, &nLava, leavesOpaque, leavesCull);
+        profEnd(PROF_MEMIT);
 #if MESH_PROFILE
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
 #endif
         if (rc == 0) {
+            profBegin(PROF_MPACK);
             s->mesh   = n0 ? chunkPack(g_scratch,  n0, ox, y0, oz) : 0; s->vertexCount = s->mesh   ? n0 : 0;
             s->water  = n1 ? chunkPack(g_scratchW, n1, ox, y0, oz) : 0; s->waterCount  = s->water  ? n1 : 0;
             s->leaves = n2 ? chunkPack(g_scratchL, n2, ox, y0, oz) : 0; s->leavesCount = s->leaves ? n2 : 0;
             s->noMip  = n3 ? chunkPack(g_scratchN, n3, ox, y0, oz) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
             s->noMipLavaStart = s->noMip ? nLava : 0;
+            profEnd(PROF_MPACK);
 
             oom = (n0 && !s->mesh) || (n1 && !s->water) || (n2 && !s->leaves) || (n3 && !s->noMip);
 #if MESH_PROFILE

@@ -202,8 +202,7 @@ static void breakTargetedBlock(const BlockHit& hit) {
     unsigned char brokenData = worldData(&g_world, hit.x, hit.y, hit.z);
 
     if (brokenId == BLOCK_BEDROCK ||
-        hit.x < 0 || hit.x >= WORLD_W ||
-        hit.z < 0 || hit.z >= WORLD_D ||
+        !worldReady(&g_world, hit.x, hit.z) ||
         hit.y < 0 || hit.y >= WORLD_H) {
         return;
     }

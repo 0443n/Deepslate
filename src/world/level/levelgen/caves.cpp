@@ -167,9 +167,7 @@ void caveFeature(World* w, long worldSeed, int chunkX, int chunkZ) {
 
     const int r = 8;
     for (int x = chunkX - r; x <= chunkX + r; x++) {
-        if (x < 0 || x >= WORLD_CHUNKS_X) continue;
         for (int z = chunkZ - r; z <= chunkZ + r; z++) {
-            if (z < 0 || z >= WORLD_CHUNKS_Z) continue;
             random.setSeed((x * xScale + z * zScale) ^ worldSeed);
             caveAddFeature(w, random, x, z, chunkX, chunkZ);
         }

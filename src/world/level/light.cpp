@@ -5,44 +5,65 @@
 #include <string.h>
 #include <pspkernel.h>
 
-static inline int hmIdx(int x, int z) { return x * WORLD_D + z; }
 static inline bool isSkyLitAt(const World* w, int x, int y, int z) {
     if (y >= WORLD_H) return true;
-    if (y < 0 || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return false;
-    return y >= w->heightmap[hmIdx(x, z)];
+    if (y < 0 || !worldReady(w, x, z)) return false;
+    return y >= w->heightmap[worldColumn(w, x, z)];
 }
 
 static const signed char kLN[6][3] = {{-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}};
-static inline unsigned int lpack(int x, int y, int z) {
-    return ((unsigned)x << 15) | ((unsigned)z << 7) | (unsigned)y;
+
+static const signed char kHN[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
+
+static inline unsigned int lpack(const World* w, int x, int y, int z) {
+    return ((unsigned)worldSlotIndex(w, x >> 4, z >> 4) << 15)
+         | ((unsigned)(x & 15) << 11) | ((unsigned)(z & 15) << 7) | (unsigned)y;
+}
+static inline void lunpack(const World* w, unsigned int p, int* x, int* y, int* z) {
+    const LevelChunk* c = &w->slots[(p >> 15) & 0xFF];
+    *x = (c->x << 4) | (int)((p >> 11) & 15);
+    *z = (c->z << 4) | (int)((p >> 7) & 15);
+    *y = (int)(p & 0x7F);
 }
 static std::vector<unsigned int> g_lightBfs;
 
 #define LIGHT_BFS_RESERVE   32768
 #define LIGHT_QUEUE_RESERVE 32768
 
-static inline unsigned int qpack(int layer, int x, int y, int z) {
-    return ((unsigned)layer << 23) | lpack(x, y, z);
+static inline unsigned int qpack(const World* w, int layer, int x, int y, int z) {
+    return ((unsigned)layer << 23) | lpack(w, x, y, z);
+}
+
+static bool g_floodMarks = false;
+
+static bool g_lightYield = true;
+static inline void floodMark(World* w, int x, int y, int z) {
+    if (!g_floodMarks) return;
+    int cx = x >> 4, cz = z >> 4;
+    if (!worldChunkReady(w, cx, cz)) return;
+    worldMesh(w, cx, cz)->sec[y >> 4].dirty = true;
 }
 
 static void lightFlood(World* w, int layer) {
     size_t head = 0;
     while (head < g_lightBfs.size()) {
-        if ((head & 1023) == 0) sceKernelDelayThread(100);
+
+        if (g_lightYield && (head & 1023) == 0) sceKernelDelayThread(100);
         unsigned int p = g_lightBfs[head++];
-        int x = (p >> 15) & 0xFF, z = (p >> 7) & 0xFF, y = p & 0x7F;
+        int x, y, z; lunpack(w, p, &x, &y, &z);
         int cur = (layer == 0) ? lightSkyGet(w, x, y, z) : lightBlockGet(w, x, y, z);
         if (cur <= 1) continue;
         for (int d = 0; d < 6; d++) {
             int nx = x + kLN[d][0], ny = y + kLN[d][1], nz = z + kLN[d][2];
-            if (nx < 0 || nx >= WORLD_W || ny < 0 || ny >= WORLD_H || nz < 0 || nz >= WORLD_D) continue;
+            if (ny < 0 || ny >= WORLD_H || !worldReady(w, nx, nz)) continue;
             int op = lightOpacity(worldBlock(w, nx, ny, nz)); if (op < 1) op = 1;
             int nl = cur - op;
             if (nl <= 0) continue;
             int have = (layer == 0) ? lightSkyGet(w, nx, ny, nz) : lightBlockGet(w, nx, ny, nz);
             if (have < nl) {
                 if (layer == 0) lightSkySet(w, nx, ny, nz, nl); else lightBlockSet(w, nx, ny, nz, nl);
-                g_lightBfs.push_back(lpack(nx, ny, nz));
+                floodMark(w, nx, ny, nz);
+                g_lightBfs.push_back(lpack(w, nx, ny, nz));
             }
         }
     }
@@ -57,7 +78,7 @@ void worldRecalcHeightmap(World* w) {
             for (int y = WORLD_H - 1; y >= 0; y--) {
                 if (lightOpacity(worldBlock(w, x, y, z)) > 0) { hy = y + 1; break; }
             }
-            w->heightmap[hmIdx(x, z)] = (unsigned char)hy;
+            w->heightmap[worldColumn(w, x, z)] = (unsigned char)hy;
         }
     }
 }
@@ -90,9 +111,9 @@ void worldInitLight(World* w) {
             if (s <= 1) continue;
             for (int d = 0; d < 6; d++) {
                 int nx = x + kLN[d][0], ny = y + kLN[d][1], nz = z + kLN[d][2];
-                if (nx < 0 || nx >= WORLD_W || ny < 0 || ny >= WORLD_H || nz < 0 || nz >= WORLD_D) continue;
+                if (ny < 0 || ny >= WORLD_H || !worldReady(w, nx, nz)) continue;
                 if (lightOpacity(worldBlock(w, nx, ny, nz)) >= 15) continue;
-                if (lightSkyGet(w, nx, ny, nz) < s - 1) { g_lightBfs.push_back(lpack(x, y, z)); break; }
+                if (lightSkyGet(w, nx, ny, nz) < s - 1) { g_lightBfs.push_back(lpack(w, x, y, z)); break; }
             }
         }
     }
@@ -108,7 +129,7 @@ void worldInitLight(World* w) {
         for (int z = 0; z < WORLD_D; z++)
         for (int y = 0; y < WORLD_H; y++) {
             int e = lightEmit(worldBlock(w, x, y, z));
-            if (e > 0) { lightBlockSet(w, x, y, z, e); g_lightBfs.push_back(lpack(x, y, z)); }
+            if (e > 0) { lightBlockSet(w, x, y, z, e); g_lightBfs.push_back(lpack(w, x, y, z)); }
         }
     }
     lightFlood(w, 1);
@@ -118,13 +139,99 @@ void worldInitLight(World* w) {
     lightCompactAll(w);
 }
 
+void worldRecalcChunkHeightmap(World* w, int cx, int cz) {
+    for (int lx = 0; lx < 16; lx++)
+        for (int lz = 0; lz < 16; lz++) {
+            int x = cx * 16 + lx, z = cz * 16 + lz, hy = 0;
+            for (int y = WORLD_H - 1; y >= 0; y--)
+                if (lightOpacity(worldBlock(w, x, y, z)) > 0) { hy = y + 1; break; }
+            w->heightmap[worldColumn(w, x, z)] = (unsigned char)hy;
+        }
+}
+
+void worldInitChunkLight(World* w, int cx, int cz) {
+    const int x0 = cx * 16, z0 = cz * 16;
+
+    g_floodMarks = true;
+    g_lightYield = false;
+    worldRecalcChunkHeightmap(w, cx, cz);
+
+    lightInitSkyChunk(w, cx, cz);
+
+    g_lightBfs.clear();
+    for (int lx = 0; lx < 16; lx++)
+        for (int lz = 0; lz < 16; lz++) {
+            int x = x0 + lx, z = z0 + lz;
+            int h = w->heightmap[worldColumn(w, x, z)];
+            int top = h;
+            for (int d = 0; d < 4; d++) {
+                int nx = x + kHN[d][0], nz = z + kHN[d][1];
+                if (!worldReady(w, nx, nz)) continue;
+                int nh = w->heightmap[worldColumn(w, nx, nz)];
+                if (nh > top) top = nh;
+            }
+
+            if (h > 0 && lightOpacity(worldBlock(w, x, h - 1, z)) < 15 && h < WORLD_H)
+                g_lightBfs.push_back(lpack(w, x, h, z));
+            for (int y = h; y < top && y < WORLD_H; y++)
+                g_lightBfs.push_back(lpack(w, x, y, z));
+        }
+
+    for (int e = 0; e < 4; e++)
+        for (int k = 0; k < 16; k++) {
+            int lx, lz, ix, iz;
+            switch (e) {
+                case 0: lx = -1; lz = k;  ix = 0;  iz = k;  break;
+                case 1: lx = 16; lz = k;  ix = 15; iz = k;  break;
+                case 2: lx = k;  lz = -1; ix = k;  iz = 0;  break;
+                default: lx = k; lz = 16; ix = k;  iz = 15; break;
+            }
+            int x = x0 + lx, z = z0 + lz;
+            if (!worldReady(w, x, z)) continue;
+            int ih = w->heightmap[worldColumn(w, x0 + ix, z0 + iz)];
+            for (int y = 0; y < ih && y < WORLD_H; y++)
+                if (lightSkyGet(w, x, y, z) > 1) g_lightBfs.push_back(lpack(w, x, y, z));
+        }
+    lightFlood(w, 0);
+
+    g_lightBfs.clear();
+    for (int lx = 0; lx < 16; lx++)
+        for (int lz = 0; lz < 16; lz++) {
+            int x = x0 + lx, z = z0 + lz;
+            for (int y = 0; y < WORLD_H; y++) {
+                int e = lightEmit(worldBlock(w, x, y, z));
+                if (e > 0) { lightBlockSet(w, x, y, z, e); g_lightBfs.push_back(lpack(w, x, y, z)); }
+            }
+        }
+
+    for (int e = 0; e < 4; e++) {
+        int lx = (e == 0) ? -1 : (e == 1) ? 16 : 0;
+        int lz = (e == 2) ? -1 : (e == 3) ? 16 : 0;
+        int x = x0 + lx, z = z0 + lz;
+        if (!worldReady(w, x, z)) continue;
+        for (int y = 0; y < WORLD_H; y++) {
+            if (lightPlaneAllDark(w, 1, x, y, z)) continue;
+            for (int k = 0; k < 16; k++) {
+                int cxx = (e < 2) ? x : x0 + k;
+                int czz = (e < 2) ? z0 + k : z;
+                if (lightBlockGet(w, cxx, y, czz) > 1) g_lightBfs.push_back(lpack(w, cxx, y, czz));
+            }
+        }
+    }
+    lightFlood(w, 1);
+    g_floodMarks = false;
+    g_lightYield = true;
+}
+
+unsigned int g_lightQueueDrops = 0;
 static void lightEnqueue(World* w, int layer, int x, int y, int z) {
 
-    w->lightQueue.push_back(qpack(layer, x, y, z));
+    if (w->lightQueue.size() >= LIGHT_QUEUE_RESERVE) { g_lightQueueDrops++; return; }
+    w->lightQueue.push_back(qpack(w, layer, x, y, z));
 }
 
 static void lightUpdateIfOther(World* w, int layer, int x, int y, int z, int expected) {
-    if (x < 0 || x >= WORLD_W || y < 0 || y >= WORLD_H || z < 0 || z >= WORLD_D) return;
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return;
     if (layer == 0) { if (isSkyLitAt(w, x, y, z)) expected = 15; }
     else { int e = lightEmit(worldBlock(w, x, y, z)); if (e > expected) expected = e; }
     int have = (layer == 0) ? lightSkyGet(w, x, y, z) : lightBlockGet(w, x, y, z);
@@ -167,8 +274,8 @@ static bool lightDrain(World* w, unsigned int budgetUs) {
     while (!w->lightQueue.empty()) {
         unsigned int q = w->lightQueue.back();
         w->lightQueue.pop_back();
-        lightUpdateCell(w, (int)(q >> 23) & 1, (int)((q >> 15) & 0xFF),
-                        (int)(q & 0x7F), (int)((q >> 7) & 0xFF));
+        int x, y, z; lunpack(w, q, &x, &y, &z);
+        lightUpdateCell(w, (int)(q >> 23) & 1, x, y, z);
 
         if ((++steps & 63) == 0 && sceKernelGetSystemTimeLow() - tStart >= budgetUs) break;
     }
@@ -178,11 +285,6 @@ static bool lightDrain(World* w, unsigned int budgetUs) {
 void worldUpdateLights(World* w) {
     static const unsigned int TIME_BUDGET_US = 1500;
     lightDrain(w, TIME_BUDGET_US);
-}
-
-bool worldSettleLights(World* w) {
-    static const unsigned int SETTLE_BUDGET_US = 6000;
-    return lightDrain(w, SETTLE_BUDGET_US);
 }
 
 void worldRemoveBlockLight(World* w, int x, int y, int z) {
@@ -202,7 +304,7 @@ void worldRemoveBlockLight(World* w, int x, int y, int z) {
         RN n = rem[head++];
         for (int d = 0; d < 6; d++) {
             int nx = n.x + kLN[d][0], ny = n.y + kLN[d][1], nz = n.z + kLN[d][2];
-            if (nx < 0 || nx >= WORLD_W || ny < 0 || ny >= WORLD_H || nz < 0 || nz >= WORLD_D) continue;
+            if (ny < 0 || ny >= WORLD_H || !worldReady(w, nx, nz)) continue;
             int nl = lightBlockGet(w, nx, ny, nz);
             if (nl == 0) continue;
             if (nl < n.lvl) {
@@ -210,11 +312,11 @@ void worldRemoveBlockLight(World* w, int x, int y, int z) {
                 int e = lightEmit(worldBlock(w, nx, ny, nz));
                 lightBlockSet(w, nx, ny, nz, 0);
                 worldMarkDirty(w, nx, ny, nz);
-                if (e > 0) { lightBlockSet(w, nx, ny, nz, e); g_lightBfs.push_back(lpack(nx, ny, nz)); }
+                if (e > 0) { lightBlockSet(w, nx, ny, nz, e); g_lightBfs.push_back(lpack(w, nx, ny, nz)); }
                 else rem.push_back({ nx, ny, nz, nl });
             } else {
 
-                g_lightBfs.push_back(lpack(nx, ny, nz));
+                g_lightBfs.push_back(lpack(w, nx, ny, nz));
             }
         }
     }
@@ -223,12 +325,12 @@ void worldRemoveBlockLight(World* w, int x, int y, int z) {
 
 void lightOnBlockChanged(World* w, int x, int y, int z) {
 
-    int oldH = w->heightmap[hmIdx(x, z)];
+    int oldH = w->heightmap[worldColumn(w, x, z)];
     int newH = 0;
     for (int yy = WORLD_H - 1; yy >= 0; yy--) {
         if (lightOpacity(worldBlock(w, x, yy, z)) > 0) { newH = yy + 1; break; }
     }
-    w->heightmap[hmIdx(x, z)] = (unsigned char)newH;
+    w->heightmap[worldColumn(w, x, z)] = (unsigned char)newH;
 
     int lo = y, hi = y + 1;
     if (oldH < lo) lo = oldH;

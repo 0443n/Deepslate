@@ -190,6 +190,8 @@ void renderAllTileEntities(Level* level, float a) {
         TileEntity* te = list[i];
         if (!te || te->removed) continue;
 
+        if (!level->isLoadedAt((float)te->x, (float)te->z)) continue;
+
         int tile = level->getTile(te->x, te->y, te->z);
         switch (te->rendererId) {
             case TR_SIGN_RENDERER:

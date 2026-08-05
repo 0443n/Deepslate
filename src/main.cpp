@@ -324,6 +324,14 @@ int main(int argc, char* argv[]) {
 #endif
                     fontDrawTextShadow(&s.font, 10, ty, fpsBuf, 0xFFE0E0E0u, 1.0f);
                     ty += 12.0f;
+
+                    if (g_textureBindFailures) {
+                        char txBuf[96];
+                        std::snprintf(txBuf, sizeof(txBuf), "TEX FAIL %u: %s",
+                                      g_textureBindFailures, g_textureLastFailed);
+                        fontDrawTextShadow(&s.font, 10, ty, txBuf, 0xFF5050FFu, 1.0f);
+                        ty += 12.0f;
+                    }
 #if MEM_OVERLAY
 
                     if (g_worldBuilt) {

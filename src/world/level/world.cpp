@@ -1,5 +1,7 @@
 
 #include "world/level/world.h"
+#include "world/level/storage/chunk_storage.h"
+#include "world/level/chunk/chunk_cache.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include "world/level/levelgen/PerlinNoise.h"
@@ -71,9 +73,14 @@ volatile int g_terrainProgress = 0;
 volatile bool g_terrainThreadDone = false;
 
 bool worldAllocArrays(World* w) {
+
+    worldSetWindow(w, WORLD_SLOT_BITS);
     memset(w->chunks, 0, sizeof(w->chunks));
 
-    memset(w->unsaved, 0, sizeof(w->unsaved));
+    chunkStorageShutdown();
+
+    memset(w->slots, 0, sizeof(w->slots));
+    worldSlotsReset(w);
 
     blockAlloc(w);
 
@@ -137,21 +144,23 @@ bool worldInitTerrain(World* w, long seed, int worldType) {
 
 int worldBuildMeshesStep(World* w, int maxChunks) {
 
-    static const float spawnX = WORLD_W * 0.5f, spawnZ = WORLD_D * 0.5f;
-
     extern float g_viewDist;
     const float maxD2 = g_viewDist * g_viewDist;
-    const int total = WORLD_CHUNKS_X * WORLD_CHUNKS_Z;
+    const float px = g_level.player ? g_level.player->x : 0.0f;
+    const float pz = g_level.player ? g_level.player->z : 0.0f;
+    const int total = w->slotN * w->slotN;
 
     int budget = maxChunks;
     while (g_meshBuildCursor < total && budget-- > 0) {
-        int cx = g_meshBuildCursor % WORLD_CHUNKS_X, cz = g_meshBuildCursor / WORLD_CHUNKS_X;
-        ChunkMesh* c = &w->chunks[cz * WORLD_CHUNKS_X + cx];
-        int ox = cx * CHUNK_SX, oz = cz * CHUNK_SZ;
-        float dx = (ox + CHUNK_SX * 0.5f) - spawnX, dz = (oz + CHUNK_SZ * 0.5f) - spawnZ;
+        LevelChunk* lc = &w->slots[g_meshBuildCursor];
+        ChunkMesh* c = &w->chunks[g_meshBuildCursor];
+        g_meshBuildCursor++;
+        if (!lc->resident) continue;
+        int ox = lc->x * CHUNK_SX, oz = lc->z * CHUNK_SZ;
+        float dx = (ox + CHUNK_SX * 0.5f) - px, dz = (oz + CHUNK_SZ * 0.5f) - pz;
+
         if (dx * dx + dz * dz <= maxD2) chunkBuildMesh(c, w, ox, oz);
         else chunkInitLazy(c, ox, oz);
-        g_meshBuildCursor++;
     }
     return g_meshBuildCursor;
 }
@@ -165,22 +174,39 @@ static unsigned char columnTop(World* w, int x, int z, int* outY) {
 }
 
 static bool isValidSpawn(World* w, int x, int z) {
+
+    if (!worldChunkSettled(w, x >> 4, z >> 4)) return false;
     int ty; unsigned char top = columnTop(w, x, z, &ty);
     return isSolidPhys(top) && top != BLOCK_LEAVES;
 }
 
+#define SPAWN_SEARCH_CHUNKS 2
+
+static void clampToArea(int cx0, int cz0, int* x, int* z, int step) {
+    const int lo = 4, hi = (SPAWN_SEARCH_CHUNKS * 2 + 1) * 16 - 4;
+    int ox = (cx0 - SPAWN_SEARCH_CHUNKS) * 16, oz = (cz0 - SPAWN_SEARCH_CHUNKS) * 16;
+    if (*x < ox + lo) *x += step;
+    if (*x >= ox + hi) *x -= step;
+    if (*z < oz + lo) *z += step;
+    if (*z >= oz + hi) *z -= step;
+}
+
+static void spawnSearchArea(World* w, int x, int z) {
+    worldEnsureArea(w, x >> 4, z >> 4, SPAWN_SEARCH_CHUNKS);
+}
+
 void worldValidateSpawn(World* w, int* x, int* y, int* z) {
     if (*y <= 0) *y = 64;
+
+    spawnSearchArea(w, *x, *z);
+    const int cx0 = *x >> 4, cz0 = *z >> 4;
     Random random(g_worldSeed);
     int xs = *x, zs = *z;
     int guard = 0;
     while (!isValidSpawn(w, xs, zs) && guard++ < 10000) {
         xs += random.nextInt(8) - random.nextInt(8);
         zs += random.nextInt(8) - random.nextInt(8);
-        if (xs < 4) xs += 8;
-        if (xs >= WORLD_W - 4) xs -= 8;
-        if (zs < 4) zs += 8;
-        if (zs >= WORLD_D - 4) zs -= 8;
+        clampToArea(cx0, cz0, &xs, &zs, 8);
     }
     if (xs != *x || zs != *z) {
         int ty; columnTop(w, xs, zs, &ty);
@@ -191,33 +217,39 @@ void worldValidateSpawn(World* w, int* x, int* y, int* z) {
 
 void worldFindSpawn(World* w, int* outX, int* outZ, int* outFeetY) {
     Random random(g_worldSeed);
-    int xSpawn = WORLD_W / 2, zSpawn = WORLD_D / 2;
+
+    int wox, woz; worldWindowOrigin(w, &wox, &woz);
+    int xSpawn = wox + w->slotN * 8, zSpawn = woz + w->slotN * 8;
+
+    spawnSearchArea(w, xSpawn, zSpawn);
+    const int cx0 = xSpawn >> 4, cz0 = zSpawn >> 4;
 
     int guard = 0;
     while (!isValidSpawn(w, xSpawn, zSpawn) && guard++ < 10000) {
         xSpawn += random.nextInt(32) - random.nextInt(32);
         zSpawn += random.nextInt(32) - random.nextInt(32);
-        if (xSpawn < 4) xSpawn += 32;
-        if (xSpawn >= WORLD_W - 4) xSpawn -= 32;
-        if (zSpawn < 4) zSpawn += 32;
-        if (zSpawn >= WORLD_D - 4) zSpawn -= 32;
+        clampToArea(cx0, cz0, &xSpawn, &zSpawn, 32);
     }
 
     guard = 0;
     while (!isValidSpawn(w, xSpawn, zSpawn) && guard++ < 10000) {
         xSpawn += random.nextInt(8) - random.nextInt(8);
         zSpawn += random.nextInt(8) - random.nextInt(8);
-        if (xSpawn < 4) xSpawn += 8;
-        if (xSpawn >= WORLD_W - 4) xSpawn -= 8;
-        if (zSpawn < 4) zSpawn += 8;
-        if (zSpawn >= WORLD_D - 4) zSpawn -= 8;
+        clampToArea(cx0, cz0, &xSpawn, &zSpawn, 8);
     }
 
     int ty; columnTop(w, xSpawn, zSpawn, &ty);
+
+    if (!isValidSpawn(w, xSpawn, zSpawn)) ty = 63;
     *outX = xSpawn; *outZ = zSpawn; *outFeetY = ty + 1;
 }
 
 void worldFree(World* w) {
+
+    chunkStorageShutdown();
+
+    worldGenWorkerStop();
+    worldGenFree();
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
         chunkFreeMesh(&w->chunks[i]);
     blockFree(w);

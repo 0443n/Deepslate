@@ -55,12 +55,14 @@ OBJS = \
 	src/world/level/storage/external_servers.o \
 	src/world/level/storage/worldlist.o \
 	src/world/level/storage/region_file.o \
+	src/world/level/storage/chunk_storage.o \
 	src/world/level/storage/level_storage.o \
 	src/util/data_io.o \
 	src/util/prof.o \
 	src/nbt/tag.o \
 	src/world/level/chunk/chunk.o \
 	src/world/level/chunk/chunk_build.o \
+	src/world/level/chunk/chunk_cache.o \
 	src/world/level/chunk/chunk_draw.o \
 	src/world/level/tile/tile_glass.o \
 	src/world/level/tile/tile_wool.o \

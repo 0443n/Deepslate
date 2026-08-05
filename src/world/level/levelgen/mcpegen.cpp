@@ -1,4 +1,5 @@
 #include "world/level/levelgen/mcpegen.h"
+#include "world/level/chunk/chunk_cache.h"
 #include "world/level/levelgen/features.h"
 #include "world/level/levelgen/caves.h"
 #include "world/level/levelgen/gen_features.h"
@@ -248,10 +249,12 @@ void McpeGen::buildSurfacesChunk(World* w, int chunkX, int chunkZ) {
     }
 }
 
-void McpeGen::postProcessChunk(World* w, int chunkX, int chunkZ) {
+bool McpeGen::postProcessPhase(World* w, int chunkX, int chunkZ, int phase) {
     int xo = chunkX * 16, zo = chunkZ * 16;
+    switch (phase) {
+    case 0: {
     computeBiome(chunkX, chunkZ);
-    BiomeId biome = classifyBiome(mTemp[8 * 16 + 8], mDownfall[8 * 16 + 8]);
+    mPhaseBiome = (int)classifyBiome(mTemp[8 * 16 + 8], mDownfall[8 * 16 + 8]);
 
     random.setSeed(worldSeed);
     int xScale = random.nextInt() / 2 * 2 + 1;
@@ -263,6 +266,9 @@ void McpeGen::postProcessChunk(World* w, int chunkX, int chunkZ) {
         int x = xo + random.nextInt(16), y = random.nextInt(128), z = zo + random.nextInt(16);
         clayFeature(w, random, x, y, z);
     }
+    return false; }
+
+    case 1: {
 
     for (int i = 0; i < 20; i++) { int x = xo + random.nextInt(16), y = random.nextInt(128), z = zo + random.nextInt(16); oreFeature(w, random, x, y, z, BLOCK_DIRT, 32); }
     for (int i = 0; i < 10; i++) { int x = xo + random.nextInt(16), y = random.nextInt(128), z = zo + random.nextInt(16); oreFeature(w, random, x, y, z, BLOCK_GRAVEL, 32); }
@@ -272,6 +278,11 @@ void McpeGen::postProcessChunk(World* w, int chunkX, int chunkZ) {
     for (int i = 0; i < 8; i++) { int x = xo + random.nextInt(16), y = random.nextInt(16), z = zo + random.nextInt(16); oreFeature(w, random, x, y, z, BLOCK_ORE_REDSTONE, 7); }
     for (int i = 0; i < 1; i++) { int x = xo + random.nextInt(16), y = random.nextInt(16), z = zo + random.nextInt(16); oreFeature(w, random, x, y, z, BLOCK_ORE_EMERALD, 7); }
     for (int i = 0; i < 1; i++) { int x = xo + random.nextInt(16), y = random.nextInt(16) + random.nextInt(16), z = zo + random.nextInt(16); oreFeature(w, random, x, y, z, BLOCK_ORE_LAPIS, 6); }
+
+    return false; }
+
+    case 2: {
+    BiomeId biome = (BiomeId)mPhaseBiome;
 
     float fss = 0.5f;
     int oFor = (int)((forestNoise.getValue(xo * fss, zo * fss) / 8 + random.nextFloat() * 4 + 4) / 3);
@@ -303,6 +314,11 @@ void McpeGen::postProcessChunk(World* w, int chunkX, int chunkZ) {
         }
     }
 
+    return false; }
+
+    case 3: {
+    BiomeId biome = (BiomeId)mPhaseBiome;
+
     for (int i = 0; i < 2; i++) { int x = xo + random.nextInt(16) + 8, y = random.nextInt(128), z = zo + random.nextInt(16) + 8; flowerFeature(w, random, x, y, z, BLOCK_FLOWER); }
     if (random.nextInt(2) == 0) { int x = xo + random.nextInt(16) + 8, y = random.nextInt(128), z = zo + random.nextInt(16) + 8; flowerFeature(w, random, x, y, z, BLOCK_ROSE); }
     if (random.nextInt(4) == 0) { int x = xo + random.nextInt(16) + 8, y = random.nextInt(128), z = zo + random.nextInt(16) + 8; mushroomFeature(w, random, x, y, z, BLOCK_MUSHROOM_BROWN); }
@@ -312,6 +328,10 @@ void McpeGen::postProcessChunk(World* w, int chunkX, int chunkZ) {
 
     int cacti = (biome == B_DESERT) ? 5 : 0;
     for (int i = 0; i < cacti; i++) { int x = xo + random.nextInt(16) + 8, y = random.nextInt(128), z = zo + random.nextInt(16) + 8; cactusFeature(w, random, x, y, z); }
+
+    return false; }
+
+    case 4: {
 
     #define SPRING_WATER_TRIES 50
     #define SPRING_LAVA_TRIES  20
@@ -324,32 +344,59 @@ void McpeGen::postProcessChunk(World* w, int chunkX, int chunkZ) {
         springFeature(w, x, y, z, BLOCK_LAVA);
     }
 
+    return false; }
+
+    default: {
+
     snowCap(w, chunkX, chunkZ, mTemp);
+    return true; }
+    }
+}
+
+static McpeGen* g_gen = 0;
+static long     g_genSeed = 0;
+static int      g_genMask = 0;
+
+void worldGenInit(long seed, int genMask) {
+    if (g_gen && g_genSeed == seed) { g_genMask = genMask; return; }
+    worldGenFree();
+    g_gen = new (std::nothrow) McpeGen(seed);
+    g_genSeed = seed;
+    g_genMask = genMask;
+}
+
+void worldGenFree() {
+    delete g_gen; g_gen = 0;
+}
+
+void chunkGenerateTerrain(World* w, int cx, int cz) {
+    if (!g_gen) return;
+
+    g_gen->random.setSeed((long)(int)((unsigned int)cx * 341872712u + (unsigned int)cz * 132899541u));
+    g_gen->computeBiome(cx, cz);
+    g_gen->prepareChunk(w, cx, cz);
+    g_gen->buildSurfacesChunk(w, cx, cz);
+
+    if (genFeatureEnabled(g_genMask, GEN_FEATURE_CAVES)) caveFeature(w, g_genSeed, cx, cz);
+}
+
+bool chunkPostProcessPhase(World* w, int cx, int cz, int phase) {
+    if (!g_gen) return true;
+    return g_gen->postProcessPhase(w, cx, cz, phase);
 }
 
 void worldGenerateMCPE(World* w, long seed, int genMask) {
-    const bool doCaves = genFeatureEnabled(genMask, GEN_FEATURE_CAVES);
-    McpeGen* g = new McpeGen(seed);
-    int totalChunks = WORLD_CHUNKS_X * WORLD_CHUNKS_Z;
+    worldGenInit(seed, genMask);
+
+    const int side = worldFitsInWindow(w) ? WORLD_SIZE_CHUNKS : WORLD_CHUNKS_X;
+    int totalChunks = side * side;
     int doneChunks = 0;
-    for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++)
-    for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-
-        g->random.setSeed((long)(int)((unsigned int)cx * 341872712u + (unsigned int)cz * 132899541u));
-        g->computeBiome(cx, cz);
-        g->prepareChunk(w, cx, cz);
-        g->buildSurfacesChunk(w, cx, cz);
-
-        if (doCaves) caveFeature(w, seed, cx, cz);
-
+    for (int cz = 0; cz < side; cz++)
+    for (int cx = 0; cx < side; cx++) {
+        worldGetChunk(w, cx, cz);
         doneChunks++;
         g_terrainProgress = (doneChunks * 50) / totalChunks;
 
         sceKernelDelayThread(100);
     }
-
-    for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++)
-    for (int cx = 0; cx < WORLD_CHUNKS_X; cx++)
-        g->postProcessChunk(w, cx, cz);
-    delete g;
 }

@@ -8,6 +8,8 @@ unsigned int g_blockOomDrops = 0;
 
 void blockAlloc(World* w) {
 
+    if (!w->slotN) { worldSetWindow(w, WORLD_SLOT_BITS); worldResidentAtOrigin(w); }
+
     memset(w->bsec, 0, sizeof(w->bsec));
     for (int i = 0; i < BS_SECTIONS; i++) w->bsec[i].uniform = BLOCK_AIR;
     w->blockPages = 0;
@@ -18,6 +20,25 @@ void blockFree(World* w) {
     for (int i = 0; i < BS_SECTIONS; i++)
         if (w->bsec[i].page) { free(w->bsec[i].page); w->bsec[i].page = 0; }
     blockAlloc(w);
+}
+
+void blockSlotRecycle(World* w, int slotIdx) {
+    BlockSection* s0 = &w->bsec[slotIdx * N_SECTIONS];
+    for (int i = 0; i < N_SECTIONS; i++) {
+        BlockSection* s = &s0[i];
+        s->uniform = BLOCK_AIR;
+        if (!s->page) { s->palN = 0; continue; }
+        memset(s->page, 0, s->palN ? BS_PAL_PAGE : BS_CELLS);
+
+        if (s->palN) { s->pal[0] = BLOCK_AIR; s->palN = 1; }
+    }
+}
+
+bool blockSectionUniform(const World* w, int x, int y, int z, unsigned char* out) {
+    const BlockSection* s = &w->bsec[bsSection(w, x, y, z)];
+    if (s->page) return false;
+    if (out) *out = s->uniform;
+    return true;
 }
 
 unsigned int blockBytes(const World* w) {
@@ -81,8 +102,8 @@ static bool secWrite(World* w, BlockSection* s, int off, unsigned char id) {
 }
 
 bool blockPut(World* w, int x, int y, int z, unsigned char id) {
-    if (y < 0 || y >= WORLD_H || x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return false;
-    BlockSection* s = &w->bsec[bsSection(x, y, z)];
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return false;
+    BlockSection* s = &w->bsec[bsSection(w, x, y, z)];
     if (!s->page) {
 
         if (id == s->uniform) return true;
@@ -92,15 +113,27 @@ bool blockPut(World* w, int x, int y, int z, unsigned char id) {
 }
 
 void blockColumnGet(const World* w, int x, int z, unsigned char* out128) {
+    if (!worldReady(w, x, z)) { memset(out128, BLOCK_INVISIBLE_BEDROCK, WORLD_H); return; }
 
-    for (int y = 0; y < WORLD_H; y++) out128[y] = worldBlock(w, x, y, z);
+    for (int y0 = 0; y0 < WORLD_H; y0 += SECTION_SY) {
+        const BlockSection* s = &w->bsec[bsSection(w, x, y0, z)];
+        unsigned char* dst = out128 + y0;
+        if (!s->page) { memset(dst, s->uniform, SECTION_SY); continue; }
+        int off0 = bsOffset(x, y0, z);
+        if (!s->palN) { memcpy(dst, s->page + off0, SECTION_SY); continue; }
+        const unsigned char* p = s->page + (off0 >> 1);
+        for (int i = 0; i < SECTION_SY / 2; i++) {
+            dst[i * 2]     = s->pal[p[i] & 0x0F];
+            dst[i * 2 + 1] = s->pal[p[i] >> 4];
+        }
+    }
 }
 
 void blockColumnPut(World* w, int x, int z, const unsigned char* in128) {
-    if (x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return;
+    if (!worldReady(w, x, z)) return;
 
     for (int y0 = 0; y0 < WORLD_H; y0 += SECTION_SY) {
-        BlockSection* s = &w->bsec[bsSection(x, y0, z)];
+        BlockSection* s = &w->bsec[bsSection(w, x, y0, z)];
         int off0 = bsOffset(x, y0, z);
         for (int dy = 0; dy < SECTION_SY; dy++) {
             unsigned char id = in128[y0 + dy];

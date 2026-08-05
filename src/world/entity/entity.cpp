@@ -513,8 +513,12 @@ bool Entity::load(CompoundTag* tag) {
 
     float xx = pos->getFloat(0), yy = pos->getFloat(1), zz = pos->getFloat(2);
     const float padding = bbWidth * 0.5f + 0.001f;
-    xx = Mth::clamp(xx, padding, (float)WORLD_W - padding);
-    zz = Mth::clamp(zz, padding, (float)WORLD_D - padding);
+#if WORLD_SIZE_CHUNKS
+
+    const float lim = (float)(WORLD_SIZE_CHUNKS * CHUNK_SX);
+    xx = Mth::clamp(xx, padding, lim - padding);
+    zz = Mth::clamp(zz, padding, lim - padding);
+#endif
 
     xo = xOld = x = xx;
     yo = yOld = y = yy;

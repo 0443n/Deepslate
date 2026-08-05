@@ -9,6 +9,8 @@
 #include "gpu/font.h"
 #include "gpu/sprite.h"
 #include "world/level/world.h"
+#include "world/level/chunk/chunk_cache.h"
+#include "util/mth.h"
 #include "world/level/level.h"
 #include "world/level/mob_spawner.h"
 #include "client/renderer/entity/entity_render_dispatcher.h"
@@ -429,7 +431,8 @@ static void renderClouds(float alpha, float px, float py, float pz) {
 
 static void drawInWallOverlay(float ix, float iy, float iz) {
     if (!g_haveTerrain) return;
-    int hx = (int)ix, hy = (int)iy, hz = (int)iz;
+
+    int hx = Mth::floor(ix), hy = Mth::floor(iy), hz = Mth::floor(iz);
     unsigned char id = worldBlock(&g_world, hx, hy, hz);
     if (!isOpaque(id)) return;
     int col, row; unsigned int tint;
@@ -925,6 +928,8 @@ void gameRender(MenuState& s) {
             drawGeneratingScreen(s, 90 + (done * 10 / total));
 
             if (done >= total) {
+
+                worldGenWorkerStart(&g_world);
                 g_worldBuilt = true; g_genStage = GS_IDLE;
                 extern int g_autosaveTick; g_autosaveTick = 0;
                 particlesReset();
@@ -941,6 +946,9 @@ void gameRender(MenuState& s) {
                     g_level.player->x = sx + 0.5f; g_level.player->z = sz + 0.5f;
                     playerSpawnAt(feetY + PLAYER_EYE);
                 }
+
+                if (!g_level.getCubes(g_level.player, g_level.player->bb).empty())
+                    g_level.player->resetPos(true);
 
                 int gamemode = (s.worldSelected >= 0 && s.worldSelected < s.worlds.count)
                              ? s.worlds.gameModes[s.worldSelected] : 1;
@@ -997,7 +1005,7 @@ void gameRender(MenuState& s) {
 
     float px0 = ix, py0 = iy, pz0 = iz;
 
-    unsigned char eyeBlk = worldBlock(&g_world, (int)ix, (int)iy, (int)iz);
+    unsigned char eyeBlk = worldBlock(&g_world, Mth::floor(ix), Mth::floor(iy), Mth::floor(iz));
     float fov = isWaterId(eyeBlk) ? 60.0f : 70.0f;
 
     float cp = cosf(ipitch * DEG2RAD), sp = sinf(ipitch * DEG2RAD);

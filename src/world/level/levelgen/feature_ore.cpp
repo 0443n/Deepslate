@@ -1,3 +1,4 @@
+#include "util/mth.h"
 #include "world/level/levelgen/features.h"
 #include "world/level/levelgen/Random.h"
 #include "world/level/world.h"
@@ -25,13 +26,13 @@ void oreFeature(World* w, Random& random, int x, int y, int z, unsigned char til
         float r = (sinf(d * MCPE_PI / count) + 1.0f) * ss + 1.0f;
         float hr = (sinf(d * MCPE_PI / count) + 1.0f) * ss + 1.0f;
 
-        int xt0 = (int) (xx - r / 2.0f);
-        int yt0 = (int) (yy - hr / 2.0f);
-        int zt0 = (int) (zz - r / 2.0f);
+        int xt0 = Mth::floor(xx - r / 2.0f);
+        int yt0 = Mth::floor(yy - hr / 2.0f);
+        int zt0 = Mth::floor(zz - r / 2.0f);
 
-        int xt1 = (int) (xx + r / 2.0f);
-        int yt1 = (int) (yy + hr / 2.0f);
-        int zt1 = (int) (zz + r / 2.0f);
+        int xt1 = Mth::floor(xx + r / 2.0f);
+        int yt1 = Mth::floor(yy + hr / 2.0f);
+        int zt1 = Mth::floor(zz + r / 2.0f);
 
         for (int x2 = xt0; x2 <= xt1; x2++) {
             float xd = ((x2 + 0.5f) - xx) / (r / 2.0f);

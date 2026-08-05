@@ -15,7 +15,7 @@ void leafFlagNeighbors(World* w, int x, int y, int z) {
     for (int yo = -1; yo <= 1; yo++)
     for (int zo = -1; zo <= 1; zo++) {
         int xx = x + xo, yy = y + yo, zz = z + zo;
-        if (xx < 0 || xx >= WORLD_W || yy < 0 || yy >= WORLD_H || zz < 0 || zz >= WORLD_D) continue;
+        if (yy < 0 || yy >= WORLD_H || !worldReady(w, xx, zz)) continue;
         unsigned char id = worldBlock(w, xx, yy, zz);
         if (!isLeaf(id)) continue;
         unsigned char d = worldData(w, xx, yy, zz);
@@ -37,7 +37,7 @@ void leafDecayTick(World* w, int x, int y, int z) {
     for (int zo = -r; zo <= r; zo++) {
         int xx = x + xo, yy = y + yo, zz = z + zo;
         int t;
-        if (xx < 0 || xx >= WORLD_W || yy < 0 || yy >= WORLD_H || zz < 0 || zz >= WORLD_D) t = 0;
+        if (yy < 0 || yy >= WORLD_H || !worldReady(w, xx, zz)) t = 0;
         else t = worldBlock(w, xx, yy, zz);
         int* cell = &g_leafBuf[(xo + WO) * WW + (yo + WO) * W + (zo + WO)];
         if (isLog(t))       *cell = 0;

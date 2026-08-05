@@ -161,17 +161,23 @@ Vec3 ReactorTileEntity::getSpawnPosition(float minDistance, float variableDistan
 void ReactorTileEntity::spawnEnemy() {
     Mob* mob = MobFactory::createMob(EntityTypes::IdPigZombie, level);
     if (!mob) return;
+
     Vec3 pos = getSpawnPosition(3, 4, -1);
-    while (pos.x < 0 || pos.z < 0 || pos.x >= WORLD_W || pos.z >= WORLD_D)
+    for (int tries = 0; tries < 16 && !level->hasChunksAt(Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z), Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z)); tries++)
         pos = getSpawnPosition(3, 4, -1);
+    if (!level->hasChunksAt(Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z), Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z))) {
+        delete mob;
+        return;
+    }
     mob->moveTo(pos.x, pos.y, pos.z, 0, 0);
     level->addEntity(mob);
 }
 
 void ReactorTileEntity::spawnItem() {
     Vec3 pos = getSpawnPosition(3, 4, -1);
-    while (pos.x < 0 || pos.z < 0 || pos.x >= WORLD_W || pos.z >= WORLD_D)
+    for (int tries = 0; tries < 16 && !level->hasChunksAt(Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z), Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z)); tries++)
         pos = getSpawnPosition(3, 4, -1);
+    if (!level->hasChunksAt(Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z), Mth::floor(pos.x), Mth::floor(pos.y), Mth::floor(pos.z))) return;
     ItemEntity* item = new ItemEntity(level, pos.x, pos.y, pos.z, getSpawnItem());
     item->throwTime = 10;
     item->age = item->getLifeTime() - TPS * 30;

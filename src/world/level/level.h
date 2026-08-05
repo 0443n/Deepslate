@@ -43,6 +43,8 @@ public:
     int   getRawBrightness(int x, int y, int z) const;
     float getBrightness(int x, int y, int z) const;
     bool  hasChunksAt(int x0, int y0, int z0, int x1, int y1, int z1) const;
+
+    bool  isLoadedAt(float x, float z) const;
     bool  isSolidBlockingTile(int x, int y, int z) const;
     bool  isSolidTile(int x, int y, int z) const;
 

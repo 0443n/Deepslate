@@ -2,8 +2,12 @@
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include "world/level/storage/region_file.h"
+#include "world/level/storage/chunk_storage.h"
+#include "world/level/chunk/chunk_cache.h"
+#include "world/level/levelgen/mcpegen.h"
 
 #include "world/level/world.h"
+#include "util/mth.h"
 #include "world/level/level.h"
 #include "world/entity/entity.h"
 #include "world/entity/entity_factory.h"
@@ -29,128 +33,58 @@
 #include <cstring>
 #include <string>
 
-static std::vector<int> s_chestPositions;
-
-static const int CH_BLOCKS = 16 * 16 * 128;
-static const int CH_NIBBLE = CH_BLOCKS / 2;
-static const int CH_COLS   = 256;
-static const int CH_PAYLOAD = CH_BLOCKS + CH_NIBBLE * 3 + CH_COLS;
-
-static const int OFF_DATA = CH_BLOCKS;
-static const int OFF_SKY  = OFF_DATA + CH_NIBBLE;
-static const int OFF_BLK  = OFF_SKY  + CH_NIBBLE;
-static const int OFF_UPD  = OFF_BLK  + CH_NIBBLE;
-
 static const int STORAGE_VERSION = 3;
-
-static inline int chunkIdx(int lx, int lz, int y) { return (lx << 11) | (lz << 7) | y; }
-static inline void nibSet(unsigned char* base, int idx, int v) {
-    unsigned char& b = base[idx >> 1];
-    if (idx & 1) b = (b & 0x0F) | ((v & 0x0F) << 4);
-    else         b = (b & 0xF0) | (v & 0x0F);
-}
-static inline int nibGet(const unsigned char* base, int idx) {
-    unsigned char b = base[idx >> 1];
-    return (idx & 1) ? (b >> 4) & 0x0F : b & 0x0F;
-}
 
 static std::string join(const char* dir, const char* name) {
     std::string s = dir; s += "/"; s += name; return s;
 }
 
-static void saveOneChunk(World* w, RegionFile& rf, unsigned char* payload, int cx, int cz);
+static char s_activeDir[320] = "";
+static char s_activeName[64] = "World";
+static long s_activeSeed = 0;
+static int  s_activeGameType = 1;
+static int  s_activeWorldType = WORLD_TYPE_OLD;
+static int  s_activeGenMask = GEN_FEATURES_ALL_ON;
+
 extern bool g_saveShowProgress;
+static void saveChunks(World* w, bool onlyDirty) {
 
-static void saveChunks(World* w, const char* absDir, bool onlyDirty) {
-    RegionFile rf(absDir);
-    if (!rf.open()) { LOGI("LevelStorage: can't open chunks.dat for write\n"); return; }
+    for (int i = 0; i < w->slotN * w->slotN; i++) {
+        LevelChunk* c = &w->slots[i];
+        if (!c->resident) continue;
 
-    unsigned char* payload = (unsigned char*)malloc(CH_PAYLOAD);
-    if (!payload) {
+        if (worldSlotBusy(c)) continue;
+        if (onlyDirty && !c->unsaved) continue;
+        if (!chunkStorageSave(w, c->x, c->z)) {
 
-        LOGI("LevelStorage: no room for the save buffer, dropping meshes\n");
-        for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
-            chunkFreeMesh(&w->chunks[i]);
-            for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].dirty = true;
+            LOGI("LevelStorage: chunk write failed, dropping meshes\n");
+            for (int k = 0; k < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; k++) {
+                chunkFreeMesh(&w->chunks[k]);
+                for (int si = 0; si < N_SECTIONS; si++) w->chunks[k].sec[si].dirty = true;
+            }
+            chunkStorageSave(w, c->x, c->z);
         }
-        payload = (unsigned char*)malloc(CH_PAYLOAD);
-        if (!payload) { LOGI("LevelStorage: save aborted, out of memory\n"); return; }
+        if (g_saveShowProgress) g_terrainProgress = (i + 1) * 100 / (w->slotN * w->slotN);
     }
-    for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            if (onlyDirty && !w->unsaved[cz * WORLD_CHUNKS_X + cx]) continue;
-            saveOneChunk(w, rf, payload, cx, cz);
-        }
-
-        if (g_saveShowProgress) g_terrainProgress = (cz + 1) * 100 / WORLD_CHUNKS_Z;
-    }
-    free(payload);
 }
 
-static void saveOneChunk(World* w, RegionFile& rf, unsigned char* payload, int cx, int cz) {
-    memset(payload, 0, CH_PAYLOAD);
-    for (int lx = 0; lx < 16; lx++) {
-        for (int lz = 0; lz < 16; lz++) {
-            int gx = cx * 16 + lx, gz = cz * 16 + lz;
-            int dstBase = chunkIdx(lx, lz, 0);
+static void loadChunks(World* w, int cxCentre, int czCentre) {
+    int done = 0, total = w->slotN * w->slotN;
 
-            blockColumnGet(w, gx, gz, payload + dstBase);
-            for (int y = 0; y < 128; y++) {
-                int idx = dstBase + y;
-
-                nibSet(payload + OFF_DATA, idx, worldData(w, gx, y, gz));
-                nibSet(payload + OFF_SKY,  idx, lightSkyGet(w, gx, y, gz));
-                nibSet(payload + OFF_BLK,  idx, lightBlockGet(w, gx, y, gz));
+    if (worldFitsInWindow(w)) {
+        for (int cz = 0; cz < WORLD_SIZE_CHUNKS; cz++)
+            for (int cx = 0; cx < WORLD_SIZE_CHUNKS; cx++) {
+                worldGetChunk(w, cx, cz);
+                g_terrainProgress = (++done) * 60 / total;
             }
-        }
+        return;
     }
-    rf.writeChunk(cx, cz, payload, CH_PAYLOAD);
-    w->unsaved[cz * WORLD_CHUNKS_X + cx] = false;
-}
-
-static bool loadChunks(World* w, const char* absDir, bool* outGotLight) {
-    RegionFile rf(absDir);
-    if (!rf.open()) return false;
-
-    bool any = false;
-    *outGotLight = true;
-    for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            unsigned char* payload = NULL;
-            int len = 0;
-            if (!rf.readChunk(cx, cz, &payload, &len)) continue;
-            if (len < OFF_DATA + CH_NIBBLE) { delete[] payload; continue; }
-            any = true;
-
-            bool chunkHasLight = (len >= OFF_UPD);
-            if (!chunkHasLight) *outGotLight = false;
-            for (int lx = 0; lx < 16; lx++) {
-                for (int lz = 0; lz < 16; lz++) {
-                    int gx = cx * 16 + lx, gz = cz * 16 + lz;
-                    int srcBase = worldIndex(gx, 0, gz);
-                    int dstBase = chunkIdx(lx, lz, 0);
-
-                    blockColumnPut(w, gx, gz, payload + dstBase);
-                    for (int y = 0; y < 128; y++) {
-
-                        worldDataPut(w, srcBase + y, nibGet(payload + OFF_DATA, dstBase + y));
-
-                        if (payload[dstBase + y] == BLOCK_ORE_REDSTONE_LIT)
-                            worldScheduleTick(w, gx, y, gz, BLOCK_ORE_REDSTONE_LIT, 30);
-
-                        if (payload[dstBase + y] == BLOCK_CHEST)
-                            s_chestPositions.push_back(gx | (y << 8) | (gz << 16));
-                    }
-                }
-            }
-
-            if (chunkHasLight)
-                lightLoadChunk(w, cx, cz, payload + OFF_SKY, payload + OFF_BLK);
-            delete[] payload;
+    const int R = w->slotN / 2;
+    for (int dz = -R; dz < R; dz++)
+        for (int dx = -R; dx < R; dx++) {
+            worldGetChunk(w, cxCentre + dx, czCentre + dz);
+            g_terrainProgress = (++done) * 60 / total;
         }
-        g_terrainProgress = (cz + 1) * 60 / WORLD_CHUNKS_Z;
-    }
-    return any;
 }
 
 int g_autosave = 18000;
@@ -472,16 +406,17 @@ static TileEntity* createTileEntityByName(const std::string& id) {
 
 static void repairMissingChestTileEntities() {
     int made = 0;
-    for (size_t i = 0; i < s_chestPositions.size(); i++) {
-        int p = s_chestPositions[i];
+    int* pos = 0; int n = 0;
+    chunkStorageTakeChestPositions(&pos, &n);
+    for (int i = 0; i < n; i++) {
+        int p = pos[i];
         int x = p & 0xFF, y = (p >> 8) & 0x7F, z = (p >> 16) & 0xFF;
         if (g_level.getTileEntity(x, y, z)) continue;
         g_level.setTileEntity(x, y, z, new ChestTileEntity());
         made++;
     }
     if (made) printf("[save] rebuilt %d missing chest tile entities\n", made);
-    s_chestPositions.clear();
-    std::vector<int>().swap(s_chestPositions);
+    chunkStorageClearChestPositions();
 }
 
 static void migrateChestFurnaceFacing(World* w) {
@@ -563,7 +498,7 @@ extern int g_lowMemPsp;
 namespace LevelStorage {
 
 bool hasSave(const char* absDir) {
-    return fileExists(join(absDir, "chunks.dat"));
+    return chunkStorageHasSave(absDir);
 }
 
 bool save(World* w, const char* absDir, long seed, int gameType, const char* levelName,
@@ -575,7 +510,8 @@ bool save(World* w, const char* absDir, long seed, int gameType, const char* lev
             for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].dirty = true;
         }
     }
-    saveChunks(w, absDir, !fullSave);
+    chunkStorageInit(absDir);
+    saveChunks(w, !fullSave);
     bool ok = saveLevelDat(w, absDir, seed, gameType, levelName);
     saveEntities(w, absDir);
     return ok;
@@ -611,24 +547,22 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
     if (!hasSave(absDir)) return false;
     if (!worldAllocArrays(w)) return false;
     clearLoadedHotbar();
-    bool gotLight = false;
-    loadChunks(w, absDir, &gotLight);
+    g_level.removeAllEntities();
+    g_level.removeAllTileEntities();
+
+    loadLevelDat(w, absDir, outSeed, outGameType);
+    worldGenInit(outSeed ? *outSeed : 0, s_activeGenMask);
+
+    chunkStorageInit(absDir);
+
+    loadChunks(w, Mth::floor(g_level.player->x) >> 4, Mth::floor(g_level.player->z) >> 4);
     g_terrainProgress = 60;
 
     worldScheduleLoadedLiquids(w);
 
-    if (gotLight) {
-        worldRecalcHeightmap(w);
-
-        lightCompactAll(w);
-    } else {
-        worldInitLight(w);
-    }
+    lightCompactAll(w);
     g_terrainProgress = 100;
     w->lightReady = true;
-    g_level.removeAllEntities();
-    g_level.removeAllTileEntities();
-    loadLevelDat(w, absDir, outSeed, outGameType);
 
     worldUpdateSkyDarken(w);
     loadEntities(w, absDir);
@@ -670,13 +604,6 @@ bool readInfo(const char* absDir, char* nameOut, int nameCap, int* outGameType, 
     fclose(f);
     return ok;
 }
-
-static char s_activeDir[320] = "";
-static char s_activeName[64] = "World";
-static long s_activeSeed = 0;
-static int  s_activeGameType = 1;
-static int  s_activeWorldType = WORLD_TYPE_OLD;
-static int  s_activeGenMask = GEN_FEATURES_ALL_ON;
 
 void setActiveWorld(const char* absDir, long seed, int gameType, const char* levelName,
                     int worldType, int genMask) {
