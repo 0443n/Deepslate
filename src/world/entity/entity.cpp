@@ -257,7 +257,7 @@ void Entity::checkFireAndWaterTiles() {
     if (water && onFire > 0) {
 
         float pitch = 1.6f + ((rand() % 1000) / 1000.0f - (rand() % 1000) / 1000.0f) * 0.4f;
-        soundPlay("random.fizz", 0.7f, pitch);
+        if (level) level->playSound(this, "random.fizz", 0.7f, pitch);
         onFire = -flameTime;
     }
 }

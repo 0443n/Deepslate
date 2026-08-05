@@ -72,6 +72,8 @@ bool worldColumnDrawn(const World* w, float x, float z) {
 void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float viewDist) {
     World* w = (World*)cw;
 
+    chunkMeshHeapProbe();
+
     profBegin(PROF_STREAM);
     profAdd(PROFC_STREAMIN, worldStream(w, camX, camZ, 4));
     profEnd(PROF_STREAM);

@@ -639,6 +639,8 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
         int cap = leafOpaqueDst ? cap2 : noMip ? cap3 : cap0;
         if (nd + 36 > cap) return -1;
 
+        unsigned char blockData = worldData(w, gx, y, gz);
+
         for (int f = 0; f < 6; f++) {
             int nbi = base + kFaceStride[f];
             unsigned char nb = lc[nbi];
@@ -654,7 +656,7 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 (id == BLOCK_ICE && nb == BLOCK_ICE)) continue;
 
             int col, row; unsigned int tint;
-            tileForBlock(id, worldData(w, gx, y, gz), f, &col, &row, &tint);
+            tileForBlock(id, blockData, f, &col, &row, &tint);
             if (id == BLOCK_GRASS && lc[base + 1] == BLOCK_TOPSNOW) {
                 if (f != F_TOP && f != F_DOWN) { col = 4; row = 4; tint = 0xFFFFFFFFu; }
             }

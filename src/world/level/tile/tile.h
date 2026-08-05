@@ -44,6 +44,8 @@ public:
     bool cube;
     bool opaque;
     bool replaceable;
+
+    bool blocksLight;
     bool randomTicks;
     unsigned char lightBlock;
     unsigned char lightEmission;
@@ -55,7 +57,7 @@ public:
 
     explicit Tile(unsigned char id_)
         : id(id_), shape(SHAPE_CUBE), solidPhys(true), cube(true),
-          opaque(true), replaceable(false), randomTicks(false),
+          opaque(true), replaceable(false), blocksLight(true), randomTicks(false),
           lightBlock(15), lightEmission(0), soundType(SOUND_STONE),
           destroySpeed(0.0f), material(0) {}
     virtual ~Tile() {}

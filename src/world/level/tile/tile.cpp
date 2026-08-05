@@ -1183,6 +1183,7 @@ void Tile::initTiles() {
         t->soundType     = (unsigned char)rawSoundType((unsigned char)id);
         t->destroySpeed  = rawDestroySpeed((unsigned char)id);
         t->material      = &materialOf((unsigned char)id);
+        t->blocksLight   = t->material->blocksLight();
         tiles[id] = t;
     }
 }

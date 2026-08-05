@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef PROF
-#define PROF 1
+#define PROF 0
 #endif
 
 enum {
@@ -26,6 +26,7 @@ enum {
     PROF_CULL,
     PROF_RSCAN,
     PROF_RBUILD,
+
     PROF_MEMIT,
     PROF_MPACK,
     PROF_SKY,
@@ -38,14 +39,17 @@ enum {
     PROF_N
 };
 
-enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN, PROFC_N };
+enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
+       PROFC_DRAWLIVE, PROFC_N };
 
 #if PROF
+void profListBytes(unsigned bytes);
 void profAdd(int slot, int n);
 void profBegin(int slot);
 void profEnd(int slot);
 void profFrameEnd(void);
 #else
+static inline void profListBytes(unsigned) {}
 static inline void profAdd(int, int) {}
 static inline void profBegin(int) {}
 static inline void profEnd(int) {}

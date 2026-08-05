@@ -100,7 +100,7 @@ void worldExplode(World* w, float x, float y, float z, float r) {
         unsigned char id = worldBlock(w, bx, by, bz);
         if (id == BLOCK_AIR) continue;
         if (id == BLOCK_TNT) {
-            worldPrimeTnt(w, bx, by, bz, rand() % 20 + 10);
+            worldPrimeTnt(w, bx, by, bz, rand() % 20 + 10, false);
         } else {
 
             if (frand() < 0.3f)
@@ -154,17 +154,19 @@ void worldExplode(World* w, float x, float y, float z, float r) {
     }
 }
 
-void tntSpawnPrimed(World* w, int x, int y, int z, int fuseTicks) {
+void tntSpawnPrimed(World* w, int x, int y, int z, int fuseTicks, bool playFuse) {
     (void)w;
     g_level.addEntity(new PrimedTnt(&g_level, x + 0.5f, y + 0.5f, z + 0.5f, fuseTicks));
-    g_level.playSound(x + 0.5f, y + 0.5f, z + 0.5f, "random.fuse", 1.0f, 1.0f);
+
+    if (playFuse)
+        g_level.playSound(x + 0.5f, y + 0.5f, z + 0.5f, "random.fuse", 1.0f, 1.0f);
 }
 
-void worldPrimeTnt(World* w, int x, int y, int z, int fuseTicks) {
+void worldPrimeTnt(World* w, int x, int y, int z, int fuseTicks, bool playFuse) {
     if (worldBlock(w, x, y, z) != BLOCK_TNT) return;
     worldSetBlockAndData(w, x, y, z, BLOCK_AIR, 0);
     worldNotifyNeighborsChanged(w, x, y, z);
     worldUpdateLights(w);
     worldRebuildAroundNow(w, x, y, z);
-    tntSpawnPrimed(w, x, y, z, fuseTicks);
+    tntSpawnPrimed(w, x, y, z, fuseTicks, playFuse);
 }

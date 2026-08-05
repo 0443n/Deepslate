@@ -44,10 +44,7 @@ bool     g_gameFrozen  = true;
 
 PSP_MODULE_INFO("MinecraftPSP", 0, 0, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
-#ifndef PSP_LARGE_MEMORY
-#define PSP_LARGE_MEMORY(flag) int psp_large_memory = (flag)
-#endif
-PSP_LARGE_MEMORY(1);
+
 PSP_HEAP_SIZE_KB(-1024);
 
 int g_lowMemPsp = 0;

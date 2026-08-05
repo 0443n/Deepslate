@@ -90,6 +90,12 @@ void guStartFrame(unsigned int clearColor) {
     sceGuStart(GU_DIRECT, g_listUncached);
 
     sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
+    {
+        void* shown = 0; int bw = 0, pf = 0;
+        sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
+        void* about = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]);
+        if (shown == about) profAdd(PROFC_DRAWLIVE, 1);
+    }
 
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
 
@@ -100,7 +106,8 @@ void guStartFrame(unsigned int clearColor) {
 
 void guFinishFrame(void) {
     profBegin(PROF_GESYNC);
-    sceGuFinish();
+
+    profListBytes((unsigned)sceGuFinish());
     sceGuSync(0, 0);
     profEnd(PROF_GESYNC);
 }

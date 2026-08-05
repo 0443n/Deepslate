@@ -19,7 +19,11 @@ static unsigned int s_flushT0;
 static unsigned int s_lastFrame;
 static unsigned int s_maxFrame;
 
+static unsigned int s_maxList;
+
 void profAdd(int slot, int n) { s_cnt[slot] += (unsigned int)n; }
+
+void profListBytes(unsigned bytes) { if (bytes > s_maxList) s_maxList = bytes; }
 
 void profBegin(int slot) {
 
@@ -38,7 +42,7 @@ void profFrameEnd(void) {
     unsigned int now = sceKernelGetSystemTimeLow();
     if (!g_worldBuilt) { s_flushT0 = 0; return; }
     if (!s_flushT0) {
-        s_flushT0 = now; s_lastFrame = now; s_frames = 0; s_maxFrame = 0;
+        s_flushT0 = now; s_lastFrame = now; s_frames = 0; s_maxFrame = 0; s_maxList = 0;
         for (int i = 0; i < PROF_N; i++) s_acc[i] = 0;
         return;
     }
@@ -67,11 +71,11 @@ void profFrameEnd(void) {
     FILE* fp = s_fp;
     if (fp) {
         ++g_profLines;
-        fprintf(fp, "fps %.1f frame %u max %u | tick %u (plr %u wtick %u [rand %u pend %u] ent %u te %u part %u) "
+        fprintf(fp, "fps %.1f frame %u max %u list %u | tick %u (plr %u wtick %u [rand %u pend %u] ent %u te %u part %u) "
                     "world %u (stream %u [gen %u dec %u lit %u disk %u evict %u misc %u] light %u rebuild %u [scan %u build %u (emit %u pack %u)] cull %u) "
                     "sky %u ent %u water %u part %u hud %u gesync %u vblank %u | other %d "
-                    "| n(part %.0f sect %.1f pend %.0f strm %.2f)\n",
-                f * 1000000.0f / (float)elapsed, frame, s_maxFrame,
+                    "| n(part %.0f sect %.1f pend %.0f strm %.2f live %.2f)\n",
+                f * 1000000.0f / (float)elapsed, frame, s_maxFrame, s_maxList,
                 avg[PROF_TICK], avg[PROF_TPLAYER], avg[PROF_TWORLD],
                 avg[PROF_TRAND], avg[PROF_TPEND], avg[PROF_TENT],
                 avg[PROF_TTE], avg[PROF_TPART],
@@ -83,7 +87,7 @@ void profFrameEnd(void) {
                 avg[PROF_HUD], avg[PROF_GESYNC], avg[PROF_VBLANK],
                 (int)frame - accounted,
                 s_cnt[PROFC_PARTICLES] / f, s_cnt[PROFC_SECTIONS] / f, s_cnt[PROFC_PENDLIST] / f,
-                s_cnt[PROFC_STREAMIN] / f);
+                s_cnt[PROFC_STREAMIN] / f, s_cnt[PROFC_DRAWLIVE] / f);
         fflush(fp);
     }
 
@@ -91,6 +95,7 @@ void profFrameEnd(void) {
     for (int i = 0; i < PROFC_N; i++) s_cnt[i] = 0;
     s_frames = 0;
     s_maxFrame = 0;
+    s_maxList = 0;
 
     s_flushT0 = sceKernelGetSystemTimeLow();
     s_lastFrame = s_flushT0;

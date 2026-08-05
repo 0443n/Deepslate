@@ -475,7 +475,8 @@ static inline int lightSample(const World* w, unsigned char* cache, int i, int x
 }
 static inline bool translucentSample(const World* w, const unsigned char* cache, int i, int x, int y, int z) {
     unsigned char id = cache ? cache[i] : worldBlock(w, x, y, z);
-    return !Tile::tiles[id]->material->blocksLight();
+
+    return !Tile::tiles[id]->blocksLight;
 }
 
 static inline void smoothFaceLightAt(const World* w, int nx, int ny, int nz,
@@ -541,9 +542,9 @@ bool worldSetTileUpdate(World* w, int x, int y, int z, unsigned char id, unsigne
 
 void worldExplode(World* w, float x, float y, float z, float r);
 
-void worldPrimeTnt(World* w, int x, int y, int z, int fuseTicks);
+void worldPrimeTnt(World* w, int x, int y, int z, int fuseTicks, bool playFuse = true);
 
-void tntSpawnPrimed(World* w, int x, int y, int z, int fuseTicks);
+void tntSpawnPrimed(World* w, int x, int y, int z, int fuseTicks, bool playFuse = true);
 
 bool tileMayPlace(World* w, unsigned char id, int x, int y, int z, int face);
 void tileNeighborChanged(World* w, int x, int y, int z);

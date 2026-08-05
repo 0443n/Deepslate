@@ -26,7 +26,9 @@ static ChunkVertex* g_scratchW = 0;
 static ChunkVertex* g_scratchL = 0;
 static ChunkVertex* g_scratchN = 0;
 
-static bool meshHeapReserveOk() {
+static bool g_heapOk = true;
+
+static bool meshHeapReserveProbe() {
     unsigned MESH_HEAP_RESERVE = g_lowMemPsp ? (1u * 1024 * 1024) : (3u * 1024 * 1024);
     void* p = malloc(MESH_HEAP_RESERVE);
     if (!p) return false;
@@ -34,9 +36,13 @@ static bool meshHeapReserveOk() {
     return true;
 }
 
+void chunkMeshHeapProbe() { g_heapOk = meshHeapReserveProbe(); }
+
+static inline bool meshHeapReserveOk() { return g_heapOk; }
+
 static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer,
                        DrawVertex** outMesh, int* outCount, bool leavesOpaque, bool leavesCull, bool* oom,
-                       int* lavaStart = 0) {
+                       int* lavaStart = 0, float* ylo = 0, float* yhi = 0) {
     if (lavaStart) *lavaStart = 0;
     if (!meshHeapReserveOk()) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     if (!g_scratch)
@@ -52,7 +58,7 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
 #endif
         if (n >= 0) {
             if (n == 0) { *outMesh = 0; *outCount = 0; return; }
-            DrawVertex* d = chunkPack(g_scratch, n, ox, y0, oz);
+            DrawVertex* d = chunkPack(g_scratch, n, ox, y0, oz, ylo, yhi);
 #if MESH_PROFILE
             g_tPack += sceKernelGetSystemTimeLow() - t1;
 #endif
@@ -73,7 +79,7 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
     ChunkVertex* m = (ChunkVertex*)memalign(16, count * sizeof(ChunkVertex));
     if (!m) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     meshPass(w, ox, oz, y0, y1, m, layer, 0x7fffffff, leavesOpaque, leavesCull, lavaStart);
-    DrawVertex* d = chunkPack(m, count, ox, y0, oz);
+    DrawVertex* d = chunkPack(m, count, ox, y0, oz, ylo, yhi);
     free(m);
     if (!d) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     *outMesh = d; *outCount = count;
@@ -138,6 +144,8 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     if (!g_scratchN) g_scratchN = (ChunkVertex*)memalign(16, SCRATCH_VERTS_WL * sizeof(ChunkVertex));
 
     bool oom = false;
+
+    float plo[4] = { 1e9f, 1e9f, 1e9f, 1e9f }, phi[4] = { -1e9f, -1e9f, -1e9f, -1e9f };
     bool fast = g_scratch && g_scratchW && g_scratchL && g_scratchN;
     if (fast) {
         int n0, n1, n2, n3, nLava;
@@ -154,10 +162,10 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
 #endif
         if (rc == 0) {
             profBegin(PROF_MPACK);
-            s->mesh   = n0 ? chunkPack(g_scratch,  n0, ox, y0, oz) : 0; s->vertexCount = s->mesh   ? n0 : 0;
-            s->water  = n1 ? chunkPack(g_scratchW, n1, ox, y0, oz) : 0; s->waterCount  = s->water  ? n1 : 0;
-            s->leaves = n2 ? chunkPack(g_scratchL, n2, ox, y0, oz) : 0; s->leavesCount = s->leaves ? n2 : 0;
-            s->noMip  = n3 ? chunkPack(g_scratchN, n3, ox, y0, oz) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
+            s->mesh   = n0 ? chunkPack(g_scratch,  n0, ox, y0, oz, plo+0, phi+0) : 0; s->vertexCount = s->mesh   ? n0 : 0;
+            s->water  = n1 ? chunkPack(g_scratchW, n1, ox, y0, oz, plo+1, phi+1) : 0; s->waterCount  = s->water  ? n1 : 0;
+            s->leaves = n2 ? chunkPack(g_scratchL, n2, ox, y0, oz, plo+2, phi+2) : 0; s->leavesCount = s->leaves ? n2 : 0;
+            s->noMip  = n3 ? chunkPack(g_scratchN, n3, ox, y0, oz, plo+3, phi+3) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
             s->noMipLavaStart = s->noMip ? nLava : 0;
             profEnd(PROF_MPACK);
 
@@ -171,12 +179,12 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         }
     }
     if (!fast) {
-        buildLayer(w, ox, oz, y0, y1, 0, &s->mesh,   &s->vertexCount, leavesOpaque, leavesCull, &oom);
-        buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  leavesOpaque, leavesCull, &oom);
-        buildLayer(w, ox, oz, y0, y1, 2, &s->leaves, &s->leavesCount, leavesOpaque, leavesCull, &oom);
+        buildLayer(w, ox, oz, y0, y1, 0, &s->mesh,   &s->vertexCount, leavesOpaque, leavesCull, &oom, 0, plo+0, phi+0);
+        buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  leavesOpaque, leavesCull, &oom, 0, plo+1, phi+1);
+        buildLayer(w, ox, oz, y0, y1, 2, &s->leaves, &s->leavesCount, leavesOpaque, leavesCull, &oom, 0, plo+2, phi+2);
 
         buildLayer(w, ox, oz, y0, y1, 3, &s->noMip,  &s->noMipCount,  leavesOpaque, leavesCull, &oom,
-                   &s->noMipLavaStart);
+                   &s->noMipLavaStart, plo+3, phi+3);
     }
     s->leavesOpaqueBand = leavesOpaque;
     s->leavesCullBand = leavesCull;
@@ -191,21 +199,16 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         return;
     }
 
-    float ylo = 1e9f, yhi = -1e9f;
-    for (int i = 0; i < s->vertexCount; i++) { float y = s->mesh[i].y   / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
-    for (int i = 0; i < s->waterCount;  i++) { float y = s->water[i].y  / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
-    for (int i = 0; i < s->leavesCount; i++) { float y = s->leaves[i].y / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
-    for (int i = 0; i < s->noMipCount;  i++) { float y = s->noMip[i].y  / (float)POS_ENC + y0; if (y <ylo) ylo = y; if (y > yhi) yhi = y; }
+    float ylo = plo[0], yhi = phi[0];
+    for (int k = 1; k < 4; k++) { if (plo[k] < ylo) ylo = plo[k]; if (phi[k] > yhi) yhi = phi[k]; }
     if (ylo > yhi) { ylo = (float)y0; yhi = (float)y0; }
     s->by0 = ylo; s->by1 = yhi;
 
-    float lylo = 1e9f, lyhi = -1e9f;
-    for (int i = 0; i < s->leavesCount; i++) { float y = s->leaves[i].y / (float)POS_ENC + y0; if (y <lylo) lylo = y; if (y > lyhi) lyhi = y; }
+    float lylo = plo[2], lyhi = phi[2];
     if (lylo > lyhi) { lylo = (float)y0; lyhi = (float)y0; }
     s->lby0 = lylo; s->lby1 = lyhi;
 
-    float wylo = 1e9f, wyhi = -1e9f;
-    for (int i = 0; i < s->waterCount; i++) { float y = s->water[i].y / (float)POS_ENC + y0; if (y <wylo) wylo = y; if (y > wyhi) wyhi = y; }
+    float wylo = plo[1], wyhi = phi[1];
     if (wylo > wyhi) { wylo = (float)y0; wyhi = (float)y0; }
     s->wby0 = wylo; s->wby1 = wyhi;
 
@@ -214,6 +217,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
 }
 
 void chunkBuildMesh(ChunkMesh* c, const World* w, int ox, int oz) {
+    chunkMeshHeapProbe();
     c->ox = ox; c->oz = oz;
     c->cx = ox + CHUNK_SX * 0.5f;
     c->cz = oz + CHUNK_SZ * 0.5f;

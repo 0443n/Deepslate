@@ -178,10 +178,12 @@ static inline bool isOpaque(unsigned char id) { return Tile::tiles[id]->opaque; 
 
 static inline bool connectsFence(unsigned char nb) { return isFence(nb) || isFenceGate(nb) || isOpaque(nb); }
 
+static inline unsigned int div255(unsigned int x) { return (x + 1 + (x >> 8)) >> 8; }
+
 static inline unsigned int mulColor(unsigned int a, unsigned int b) {
-    unsigned int r = (((a)       & 0xFF) * ((b)       & 0xFF)) / 255;
-    unsigned int g = (((a >> 8)  & 0xFF) * ((b >> 8)  & 0xFF)) / 255;
-    unsigned int bl= (((a >> 16) & 0xFF) * ((b >> 16) & 0xFF)) / 255;
+    unsigned int r = div255(((a)       & 0xFF) * ((b)       & 0xFF));
+    unsigned int g = div255(((a >> 8)  & 0xFF) * ((b >> 8)  & 0xFF));
+    unsigned int bl= div255(((a >> 16) & 0xFF) * ((b >> 16) & 0xFF));
     return 0xFF000000u | (bl << 16) | (g << 8) | r;
 }
 
@@ -305,7 +307,8 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 int cap0, int cap1, int cap2, int cap3, int* n0, int* n1, int* n2, int* n3,
                 int* nLava, bool leavesOpaque, bool leavesCull);
 
-DrawVertex* chunkPack(const ChunkVertex* src, int n, int ox, int oy, int oz);
+DrawVertex* chunkPack(const ChunkVertex* src, int n, int ox, int oy, int oz,
+                      float* ylo = 0, float* yhi = 0);
 
 void chunkBuildMesh(ChunkMesh* c, const World* w, int ox, int oz);
 
@@ -314,6 +317,8 @@ void chunkInitLazy(ChunkMesh* c, int ox, int oz);
 bool sectionCannotEmit(const World* w, int ox, int oz, int si);
 
 void chunkBuildSection(ChunkMesh* c, const World* w, int si);
+
+void chunkMeshHeapProbe();
 void chunkDrawSection(const ChunkSection* s);
 void chunkDrawWaterSection(const ChunkSection* s);
 void chunkDrawLeavesSection(const ChunkSection* s);
