@@ -493,7 +493,7 @@ static void loadEntities(World* w, const char* absDir) {
     fclose(f);
 }
 
-extern int g_lowMemPsp;
+extern int g_lowMemHeap;
 
 namespace LevelStorage {
 
@@ -504,7 +504,7 @@ bool hasSave(const char* absDir) {
 bool save(World* w, const char* absDir, long seed, int gameType, const char* levelName,
           bool fullSave) {
 
-    if (g_lowMemPsp) {
+    if (g_lowMemHeap) {
         for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
             chunkFreeMesh(&w->chunks[i]);
             for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].dirty = true;

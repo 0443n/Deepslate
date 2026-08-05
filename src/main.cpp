@@ -47,14 +47,18 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 PSP_HEAP_SIZE_KB(-1024);
 
-int g_lowMemPsp = 0;
+int g_lowMemPsp  = 0;
+int g_lowMemHeap = 0;
 static void detectLowMemPsp(void) {
     enum { MAX_BLOCKS = 64 };
     void* blocks[MAX_BLOCKS];
     int n = 0;
     while (n < MAX_BLOCKS) { void* p = malloc(1024 * 1024); if (!p) break; blocks[n++] = p; }
     for (int i = 0; i < n; i++) free(blocks[i]);
-    g_lowMemPsp = (n < 32);
+
+    int stillFreeMB = (int)(sceKernelTotalFreeMemSize() / (1024u * 1024u));
+    g_lowMemHeap = (n < 32);
+    g_lowMemPsp  = (n + stillFreeMB) < 32;
 }
 
 static volatile int g_exitRequested = 0;

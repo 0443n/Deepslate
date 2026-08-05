@@ -14,11 +14,11 @@ extern volatile int g_meshOOM;
 unsigned int g_tCount = 0, g_tAlloc = 0, g_tEmit = 0, g_tPack = 0;
 #endif
 
-extern int g_lowMemPsp;
+extern int g_lowMemHeap;
 
 unsigned int g_meshFallbacks = 0;
-static int scratchVerts()   { return g_lowMemPsp ? 24576 : 65536; }
-static int scratchVertsWL() { return g_lowMemPsp ?  6144 : 16384; }
+static int scratchVerts()   { return g_lowMemHeap ? 24576 : 65536; }
+static int scratchVertsWL() { return g_lowMemHeap ?  6144 : 16384; }
 #define SCRATCH_VERTS    scratchVerts()
 #define SCRATCH_VERTS_WL scratchVertsWL()
 static ChunkVertex* g_scratch = 0;
@@ -29,7 +29,7 @@ static ChunkVertex* g_scratchN = 0;
 static bool g_heapOk = true;
 
 static bool meshHeapReserveProbe() {
-    unsigned MESH_HEAP_RESERVE = g_lowMemPsp ? (1u * 1024 * 1024) : (3u * 1024 * 1024);
+    unsigned MESH_HEAP_RESERVE = g_lowMemHeap ? (1u * 1024 * 1024) : (3u * 1024 * 1024);
     void* p = malloc(MESH_HEAP_RESERVE);
     if (!p) return false;
     free(p);
