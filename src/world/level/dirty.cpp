@@ -1,4 +1,5 @@
 #include "world/level/world.h"
+#include "util/prof.h"
 #include "world/level/chunk/chunk.h"
 #include <pspkernel.h>
 
@@ -13,7 +14,10 @@ static inline void markSecDirty(World* w, int cx, int cz, int y) {
     if (!worldChunkSettled(w, cx, cz)) return;
     if (y < 0 || y >= WORLD_H) return;
     int si = y / SECTION_SY;
-    worldMesh(w, cx, cz)->sec[si].dirty = true;
+
+    ChunkSection* csec = &worldMesh(w, cx, cz)->sec[si];
+    if (!csec->dirty) profAdd(PROFC_MARKED, 1);
+    csec->dirty = true;
 
     if (!w->lightReady) return;
 
@@ -76,11 +80,7 @@ bool worldSetBlockAndData(World* w, int x, int y, int z, unsigned char id, unsig
     return true;
 }
 
-void worldRebuildAroundNow(World* w, int x, int y, int z) {
-    if (y < 0 || y >= WORLD_H) return;
-    int cx = x >> 4, cz = z >> 4;
-    if (!worldChunkSettled(w, cx, cz)) return;
-    int ci = worldSlotIndex(w, cx, cz), si = y / SECTION_SY;
+static void editQueuePromote(int ci, int si) {
     if (!g_inEditQueue[ci][si]) return;
     for (int i = 0; i < g_editQueueN; i++) {
         if (g_editQueue[i][0] != ci || g_editQueue[i][1] != si) continue;
@@ -90,6 +90,20 @@ void worldRebuildAroundNow(World* w, int x, int y, int z) {
         }
         g_editQueue[0][0] = ci; g_editQueue[0][1] = si;
         return;
+    }
+}
+
+void worldRebuildAroundNow(World* w, int x, int y, int z) {
+    if (y < 0 || y >= WORLD_H) return;
+
+    for (int dz = 1; dz >= -1; dz--)
+    for (int dx = 1; dx >= -1; dx--)
+    for (int dy = 1; dy >= -1; dy--) {
+        int nx = x + dx, ny = y + dy, nz = z + dz;
+        if (ny < 0 || ny >= WORLD_H) continue;
+        int cx = nx >> 4, cz = nz >> 4;
+        if (!worldChunkSettled(w, cx, cz)) continue;
+        editQueuePromote(worldSlotIndex(w, cx, cz), ny / SECTION_SY);
     }
 }
 

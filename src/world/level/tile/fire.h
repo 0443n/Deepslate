@@ -13,4 +13,6 @@ void fireTileTick(World* w, int x, int y, int z);
 bool fireMayPlace(World* w, int x, int y, int z);
 void fireNeighborChanged(World* w, int x, int y, int z);
 
+bool fireExtinguishAt(World* w, int x, int y, int z, int face);
+
 void fireExtinguishFx(int x, int y, int z);

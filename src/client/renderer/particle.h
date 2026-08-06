@@ -29,6 +29,7 @@ void particlesMobDeath(float x, float y, float z, float w, float h);
 
 void particlesRedstonePoof(World* w, int x, int y, int z);
 
+void particlesSuspended(float x, float y, float z);
 void particlesBubble(float x, float y, float z, float xa, float ya, float za);
 
 void particlesSplash(float x, float y, float z, float xa, float ya, float za);

@@ -1,24 +1,50 @@
 #include "world/level/chunk/chunk.h"
+#include "util/prof.h"
+#include "world/level/chunk/mesh_sink.h"
+#include <string.h>
 #include <pspgu.h>
 #include <pspgum.h>
 #include <malloc.h>
 #include <pspkernel.h>
 #include <pspgum.h>
 
-DrawVertex* chunkPack(const ChunkVertex* s, int n, int ox, int oy, int oz,
-                      float* ylo, float* yhi) {
-    DrawVertex* d = (DrawVertex*)memalign(16, (size_t)n * sizeof(DrawVertex));
-    if (!d) return 0;
-
-    int qlo = 32767, qhi = -32768;
+void chunkPackInto(DrawVertex* d, const ChunkVertex* s, int n,
+                   int ox, int oy, int oz, int* qlo, int* qhi) {
+    profAdd(PROFC_PACKVERTS, n);
+    profBegin(PROF_MCONV);
+    int lo = *qlo, hi = *qhi;
     for (int i = 0; i < n; i++) {
         d[i].u = uvQ(s[i].u); d[i].v = uvQ(s[i].v); d[i].color = s[i].color;
         d[i].x = posQ(s[i].x - ox); d[i].y = posQ(s[i].y - oy); d[i].z = posQ(s[i].z - oz); d[i].w = 0;
-        if (d[i].y < qlo) qlo = d[i].y;
-        if (d[i].y > qhi) qhi = d[i].y;
+        if (d[i].y < lo) lo = d[i].y;
+        if (d[i].y > hi) hi = d[i].y;
     }
-    if (ylo) *ylo = (float)qlo / (float)POS_ENC + oy;
-    if (yhi) *yhi = (float)qhi / (float)POS_ENC + oy;
+    *qlo = lo; *qhi = hi;
+    profEnd(PROF_MCONV);
+}
+
+float chunkPackDecodeY(int q, int oy) { return (float)q / (float)POS_ENC + oy; }
+
+DrawVertex* chunkPackFinish(const DrawVertex* staging, int n) {
+    profBegin(PROF_MALLOC);
+    DrawVertex* d = (DrawVertex*)memalign(16, (size_t)n * sizeof(DrawVertex));
+    profEnd(PROF_MALLOC);
+    if (!d) return 0;
+    memcpy(d, staging, (size_t)n * sizeof(DrawVertex));
+    sceKernelDcacheWritebackInvalidateRange(d, (size_t)n * sizeof(DrawVertex));
+    return d;
+}
+
+DrawVertex* chunkPack(const ChunkVertex* s, int n, int ox, int oy, int oz,
+                      float* ylo, float* yhi) {
+    profBegin(PROF_MALLOC);
+    DrawVertex* d = (DrawVertex*)memalign(16, (size_t)n * sizeof(DrawVertex));
+    profEnd(PROF_MALLOC);
+    if (!d) return 0;
+    int qlo = 32767, qhi = -32768;
+    chunkPackInto(d, s, n, ox, oy, oz, &qlo, &qhi);
+    if (ylo) *ylo = chunkPackDecodeY(qlo, oy);
+    if (yhi) *yhi = chunkPackDecodeY(qhi, oy);
     sceKernelDcacheWritebackInvalidateRange(d, (size_t)n * sizeof(DrawVertex));
     return d;
 }

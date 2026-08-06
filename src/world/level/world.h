@@ -450,19 +450,35 @@ static inline void smoothFaceLight(const World* w, const unsigned char* lc,
         br[0][0] = br[0][1] = br[1][0] = br[1][1] = mid;
         return;
     }
+
+    int   ei[2], ej[2];
+    int   ep1[2][3], ep2[2][3];
+    float eb1[2], eb2[2];
+    bool  et1[2], et2[2];
+    for (int i = 0; i < 2; i++) {
+        const int d1 = i ? 1 : -1;
+        ei[i] = nbi + d1 * s1;
+        ep1[i][0] = p0[0]; ep1[i][1] = p0[1]; ep1[i][2] = p0[2]; ep1[i][a1] += d1;
+        eb1[i] = g_brightRamp[lightSample(w, llc, ei[i], ep1[i][0], ep1[i][1], ep1[i][2])];
+        et1[i] = translucentSample(w, lc, ei[i], ep1[i][0], ep1[i][1], ep1[i][2]);
+    }
+    for (int j = 0; j < 2; j++) {
+        const int d2 = j ? 1 : -1;
+        ej[j] = nbi + d2 * s2;
+        ep2[j][0] = p0[0]; ep2[j][1] = p0[1]; ep2[j][2] = p0[2]; ep2[j][a2] += d2;
+        eb2[j] = g_brightRamp[lightSample(w, llc, ej[j], ep2[j][0], ep2[j][1], ep2[j][2])];
+        et2[j] = translucentSample(w, lc, ej[j], ep2[j][0], ep2[j][1], ep2[j][2]);
+    }
     for (int i = 0; i < 2; i++)
     for (int j = 0; j < 2; j++) {
-        const int d1 = i ? 1 : -1, d2 = j ? 1 : -1;
-        const int i1 = nbi + d1 * s1, i2 = nbi + d2 * s2;
-        int p1[3] = { p0[0], p0[1], p0[2] }; p1[a1] += d1;
-        int p2[3] = { p0[0], p0[1], p0[2] }; p2[a2] += d2;
-        const float b1 = g_brightRamp[lightSample(w, llc, i1, p1[0], p1[1], p1[2])];
-        const float b2 = g_brightRamp[lightSample(w, llc, i2, p2[0], p2[1], p2[2])];
+        const int d2 = j ? 1 : -1;
+        const int i1 = ei[i];
+        const int* p1 = ep1[i];
+        const float b1 = eb1[i], b2 = eb2[j];
 
         float bc = (a == 2) ? b1 : b2;
 
-        if (translucentSample(w, lc, i1, p1[0], p1[1], p1[2]) ||
-            translucentSample(w, lc, i2, p2[0], p2[1], p2[2])) {
+        if (et1[i] || et2[j]) {
             int pd[3] = { p1[0], p1[1], p1[2] }; pd[a2] += d2;
             bc = g_brightRamp[lightSample(w, llc, i1 + d2 * s2, pd[0], pd[1], pd[2])];
         }

@@ -1,5 +1,6 @@
 
 #include "world/level/chunk/chunk.h"
+#include "world/level/chunk/mesh_sink.h"
 #include "client/renderer/tile/mesh_light.h"
 #include "world/level/world.h"
 #include "world/level/tile/fire.h"
@@ -502,11 +503,11 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
     return n;
 }
 
-int meshSection(const World* w, int ox, int oz, int y0, int y1,
-                ChunkVertex* out0, ChunkVertex* out1, ChunkVertex* out2, ChunkVertex* out3,
-                int cap0, int cap1, int cap2, int cap3, int* n0, int* n1, int* n2, int* n3,
-                int* nLava, bool leavesOpaque, bool leavesCull) {
-    int no = 0, nw = 0, nl = 0, nn = 0;
+int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
+                    MeshSink* skp, int* nLava, bool leavesOpaque, bool leavesCull) {
+    MeshSink& sk = *skp;
+
+    int& no = sk.n[0]; int& nw = sk.n[1]; int& nl = sk.n[2]; int& nn = sk.n[3];
     bool sawLava = false;
 
     unsigned char lc[18 * 18 * 18];
@@ -541,8 +542,8 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
         if (isSign(id) || id == BLOCK_CHEST) continue;
 
         if (isWaterId(id)) {
-            if (nw + 36 > cap1) return -1;
-            nw = emitLiquid(w, gx, y, gz, id, out1, nw);
+            if (!sinkReserve(&sk, 1, 36)) return -1;
+            nw = emitLiquid(w, gx, y, gz, id, sk.buf[1], nw);
             continue;
         }
         if (isLavaId(id)) {
@@ -550,83 +551,83 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
             continue;
         }
         if (id == BLOCK_MELON_STEM) {
-            if (nn + 36 > cap3) return -1;
-            nn = emitMelonStem(w, out3, nn, gx, y, gz, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
+            if (!sinkReserve(&sk, 3, 36)) return -1;
+            nn = emitMelonStem(w, sk.buf[3], nn, gx, y, gz, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         }
         if (id == BLOCK_WHEAT) {
-            if (nn + 48 > cap3) return -1;
-            nn = emitCropRows(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
+            if (!sinkReserve(&sk, 3, 48)) return -1;
+            nn = emitCropRows(sk.buf[3], nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         }
         if (isCrossShaped(id)) {
-            if (nn + 24 > cap3) return -1;
-            emitCross(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
+            if (!sinkReserve(&sk, 3, 24)) return -1;
+            emitCross(sk.buf[3], nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             nn += 24;
             continue;
         }
 
         if (id == BLOCK_FIRE) {
-            if (nn + 60 > cap3) return -1;
-            nn = emitFire(out3, nn, w, gx, y, gz, g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
+            if (!sinkReserve(&sk, 3, 60)) return -1;
+            nn = emitFire(sk.buf[3], nn, w, gx, y, gz, g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         }
 
         if (isLadder(id)) {
-            if (nn + 12 > cap3) return -1;
-            nn = emitLadder(out3, nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
+            if (!sinkReserve(&sk, 3, 12)) return -1;
+            nn = emitLadder(sk.buf[3], nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             continue;
         } else if (id == BLOCK_BED) {
-            if (nn + 36 > cap3) return -1;
-            nn = emitBed(w, gx, y, gz, id, worldData(w, gx, y, gz), out3, nn);
+            if (!sinkReserve(&sk, 3, 36)) return -1;
+            nn = emitBed(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[3], nn);
             continue;
         } else if (isTorch(id)) {
-            if (nn + 36 > cap3) return -1;
-            nn = emitTorch(w, gx, y, gz, id, worldData(w, gx, y, gz), out3, nn);
+            if (!sinkReserve(&sk, 3, 36)) return -1;
+            nn = emitTorch(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[3], nn);
             continue;
         }
 
         if (isSlab(id) || isStairs(id)) {
-            if (no + 108 > cap0) return -1;
+            if (!sinkReserve(&sk, 0, 108)) return -1;
 
-            no = isSlab(id) ? emitSlab(w, gx, y, gz, id, worldData(w, gx, y, gz), out0, no)
-                            : emitStairs(w, gx, y, gz, id, worldData(w, gx, y, gz), out0, no);
+            no = isSlab(id) ? emitSlab(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[0], no)
+                            : emitStairs(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[0], no);
             continue;
         }
 
         if (isPane(id)) {
-            if (nn + 72 > cap3) return -1;
-            nn = emitPane(w, gx, y, gz, id, worldData(w, gx, y, gz), out3, nn);
+            if (!sinkReserve(&sk, 3, 72)) return -1;
+            nn = emitPane(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[3], nn);
             continue;
         }
 
         if (isFence(id)) {
-            if (no + 324 > cap0) return -1;
-            no = emitFence(w, gx, y, gz, id, worldData(w, gx, y, gz), out0, no);
+            if (!sinkReserve(&sk, 0, 324)) return -1;
+            no = emitFence(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[0], no);
             continue;
         }
 
         if (isDoor(id)) {
-            if (nn + 36 > cap3) return -1;
-            nn = emitDoor(w, gx, y, gz, id, worldData(w, gx, y, gz), out3, nn);
+            if (!sinkReserve(&sk, 3, 36)) return -1;
+            nn = emitDoor(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[3], nn);
             continue;
         }
 
         if (isTrapdoor(id)) {
-            if (nn + 36 > cap3) return -1;
-            nn = emitTrapdoor(w, gx, y, gz, id, worldData(w, gx, y, gz), out3, nn);
+            if (!sinkReserve(&sk, 3, 36)) return -1;
+            nn = emitTrapdoor(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[3], nn);
             continue;
         }
 
         if (id == BLOCK_CAKE) {
-            if (nn + 36 > cap3) return -1;
-            nn = emitCake(w, gx, y, gz, id, worldData(w, gx, y, gz), out3, nn);
+            if (!sinkReserve(&sk, 3, 36)) return -1;
+            nn = emitCake(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[3], nn);
             continue;
         }
 
         if (isFenceGate(id)) {
-            if (no + 144 > cap0) return -1;
-            no = emitFenceGate(w, gx, y, gz, id, worldData(w, gx, y, gz), out0, no);
+            if (!sinkReserve(&sk, 0, 144)) return -1;
+            no = emitFenceGate(w, gx, y, gz, id, worldData(w, gx, y, gz), sk.buf[0], no);
             continue;
         }
 
@@ -634,10 +635,17 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
         bool leafTransparent = leaf && !leavesOpaque;
         bool leafOpaqueDst = leaf && !leafTransparent;
         bool noMip = (id == BLOCK_CACTUS) || isGlass(id) || leafTransparent;
-        ChunkVertex* dst = leafOpaqueDst ? out2 : noMip ? out3 : out0;
-        int nd = leafOpaqueDst ? nl : noMip ? nn : no;
-        int cap = leafOpaqueDst ? cap2 : noMip ? cap3 : cap0;
-        if (nd + 36 > cap) return -1;
+        int layer = leafOpaqueDst ? 2 : noMip ? 3 : 0;
+
+        bool grassSide = (id == BLOCK_GRASS) && (lc[base + 1] != BLOCK_TOPSNOW);
+
+        if (grassSide && !sinkReserve(&sk, 3, 24)) return -1;
+
+        if (!sinkReserve(&sk, layer, 36)) return -1;
+        ChunkVertex* dst = sk.buf[layer];
+        int nd = sk.n[layer];
+        ChunkVertex* ovl = sk.buf[3];
+        int nOvl = sk.n[3];
 
         unsigned char blockData = worldData(w, gx, y, gz);
 
@@ -701,25 +709,60 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 dst[nd + t].y = by;
                 dst[nd + t].z = bz;
             }
+
+            if (grassSide && f != F_TOP && f != F_DOWN) {
+                const unsigned int GRASS_TINT = 0xFF6BCB5Au;
+                float ou0 = 6 * TILE_UV, ov0 = 2 * TILE_UV;
+                for (int t = 0; t < 6; t++) {
+                    int k = tri[t];
+                    const signed char* c = kFaceCorner[f][k];
+                    ovl[nOvl + t].u = ou0 + (cTE + kFaceUV[f][k][0] * cInner);
+                    ovl[nOvl + t].v = ov0 + (cTE + kFaceUV[f][k][1] * cInner);
+                    ovl[nOvl + t].color = mulColor(cc[c[ca1]][c[ca2]], GRASS_TINT);
+                    ovl[nOvl + t].x = dst[nd + t].x;
+                    ovl[nOvl + t].y = dst[nd + t].y;
+                    ovl[nOvl + t].z = dst[nd + t].z;
+                }
+                nOvl += 6;
+            }
             nd += 6;
         }
-        if (leafOpaqueDst) nl = nd; else if (noMip) nn = nd; else no = nd;
+        sk.n[layer] = nd;
+        if (grassSide) sk.n[3] = nOvl;
     }
 
-    int nLavaStart = nn;
+    int nLavaStart = sinkCount(&sk, 3);
     if (sawLava) {
         for (int lx = 0; lx < CHUNK_SX; lx++)
         for (int lz = 0; lz < CHUNK_SZ; lz++)
         for (int y = y0; y < y1; y++) {
             unsigned char id = lc[(((lx + 1) * 18 + (lz + 1)) * 18) + (y - y0 + 1)];
             if (!isLavaId(id)) continue;
-            if (nn + 36 > cap3) return -1;
-            nn = emitLiquid(w, ox + lx, y, oz + lz, id, out3, nn);
+            if (!sinkReserve(&sk, 3, 36)) return -1;
+            nn = emitLiquid(w, ox + lx, y, oz + lz, id, sk.buf[3], nn);
         }
     }
     #undef LCB
     #undef LLB
-    *n0 = no; *n1 = nw; *n2 = nl; *n3 = nn;
+
+    if (sk.flush)
+        for (int L = 0; L < 4; L++)
+            if (sk.n[L] && !sk.flush(&sk, L)) return -1;
     *nLava = nLavaStart;
     return 0;
+}
+
+int meshSection(const World* w, int ox, int oz, int y0, int y1,
+                ChunkVertex* out0, ChunkVertex* out1, ChunkVertex* out2, ChunkVertex* out3,
+                int cap0, int cap1, int cap2, int cap3, int* n0, int* n1, int* n2, int* n3,
+                int* nLava, bool leavesOpaque, bool leavesCull) {
+    MeshSink sk;
+    sk.buf[0] = out0; sk.buf[1] = out1; sk.buf[2] = out2; sk.buf[3] = out3;
+    sk.cap[0] = cap0; sk.cap[1] = cap1; sk.cap[2] = cap2; sk.cap[3] = cap3;
+    for (int L = 0; L < 4; L++) { sk.n[L] = 0; sk.total[L] = 0; }
+    sk.flush = 0; sk.ctx = 0;
+    int rc = meshSectionSink(w, ox, oz, y0, y1, &sk, nLava, leavesOpaque, leavesCull);
+    *n0 = sinkCount(&sk, 0); *n1 = sinkCount(&sk, 1);
+    *n2 = sinkCount(&sk, 2); *n3 = sinkCount(&sk, 3);
+    return rc;
 }

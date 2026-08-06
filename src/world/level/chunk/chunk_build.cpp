@@ -1,4 +1,5 @@
 #include "world/level/chunk/chunk.h"
+#include "world/level/chunk/mesh_sink.h"
 #include "client/renderer/level/frustum.h"
 #include <malloc.h>
 #include <pspkernel.h>
@@ -21,10 +22,53 @@ static int scratchVerts()   { return g_lowMemHeap ? 24576 : 65536; }
 static int scratchVertsWL() { return g_lowMemHeap ?  6144 : 16384; }
 #define SCRATCH_VERTS    scratchVerts()
 #define SCRATCH_VERTS_WL scratchVertsWL()
+
 static ChunkVertex* g_scratch = 0;
-static ChunkVertex* g_scratchW = 0;
-static ChunkVertex* g_scratchL = 0;
-static ChunkVertex* g_scratchN = 0;
+
+#define TILE_VERTS(L) ((L) == 0 ? 512 : 128)
+static ChunkVertex* g_tile[4] = { 0, 0, 0, 0 };
+
+static DrawVertex* g_stage[4] = { 0, 0, 0, 0 };
+static int stageVerts(int L) { return L == 0 ? SCRATCH_VERTS : SCRATCH_VERTS_WL; }
+
+static bool tileAlloc() {
+    if (!g_tile[0]) {
+        size_t verts = 0;
+        for (int L = 0; L < 4; L++) verts += (size_t)TILE_VERTS(L);
+        ChunkVertex* base = (ChunkVertex*)memalign(16, verts * sizeof(ChunkVertex));
+        if (!base) return false;
+        size_t at = 0;
+        for (int L = 0; L < 4; L++) { g_tile[L] = base + at; at += (size_t)TILE_VERTS(L); }
+    }
+    if (!g_stage[0]) {
+        size_t verts = 0;
+        for (int L = 0; L < 4; L++) verts += (size_t)stageVerts(L);
+        DrawVertex* base = (DrawVertex*)memalign(16, verts * sizeof(DrawVertex));
+        if (!base) { return false; }
+        size_t at = 0;
+        for (int L = 0; L < 4; L++) { g_stage[L] = base + at; at += (size_t)stageVerts(L); }
+    }
+    return true;
+}
+
+struct TileCtx {
+    int ox, oy, oz;
+    int* qlo;
+    int* qhi;
+};
+
+static bool tileFlush(MeshSink* sk, int layer) {
+    TileCtx* tc = (TileCtx*)sk->ctx;
+    int n = sk->n[layer];
+    if (!n) return true;
+
+    if (sk->total[layer] + n > stageVerts(layer)) return false;
+    chunkPackInto(g_stage[layer] + sk->total[layer], sk->buf[layer], n,
+                  tc->ox, tc->oy, tc->oz, tc->qlo + layer, tc->qhi + layer);
+    sk->total[layer] += n;
+    sk->n[layer] = 0;
+    return true;
+}
 
 static bool g_heapOk = true;
 
@@ -138,36 +182,51 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     bool leavesOpaque = leafOpaqueBand(c, y0, y1, g_camX, g_camY, g_camZ, g_fancyGraphics != 0);
     bool leavesCull   = leafCullBand(c, y0, y1, g_camX, g_camY, g_camZ, g_fancyGraphics != 0);
 
-    if (!g_scratch)  g_scratch  = (ChunkVertex*)memalign(16, SCRATCH_VERTS    * sizeof(ChunkVertex));
-    if (!g_scratchW) g_scratchW = (ChunkVertex*)memalign(16, SCRATCH_VERTS_WL * sizeof(ChunkVertex));
-    if (!g_scratchL) g_scratchL = (ChunkVertex*)memalign(16, SCRATCH_VERTS_WL * sizeof(ChunkVertex));
-    if (!g_scratchN) g_scratchN = (ChunkVertex*)memalign(16, SCRATCH_VERTS_WL * sizeof(ChunkVertex));
+    if (!tileAlloc()) {
+
+    }
 
     bool oom = false;
 
+    int qlo[4] = { 32767, 32767, 32767, 32767 }, qhi[4] = { -32768, -32768, -32768, -32768 };
     float plo[4] = { 1e9f, 1e9f, 1e9f, 1e9f }, phi[4] = { -1e9f, -1e9f, -1e9f, -1e9f };
-    bool fast = g_scratch && g_scratchW && g_scratchL && g_scratchN;
+    bool fast = g_tile[0] && g_tile[1] && g_tile[2] && g_tile[3] &&
+                g_stage[0] && g_stage[1] && g_stage[2] && g_stage[3];
     if (fast) {
-        int n0, n1, n2, n3, nLava;
+        int nLava;
+        TileCtx tc;
+        tc.ox = ox; tc.oy = y0; tc.oz = oz; tc.qlo = qlo; tc.qhi = qhi;
+        MeshSink sk;
+        for (int L = 0; L < 4; L++) {
+            sk.buf[L]   = g_tile[L];
+            sk.cap[L]   = TILE_VERTS(L);
+            sk.n[L]     = 0;
+            sk.total[L] = 0;
+        }
+        sk.flush = tileFlush;
+        sk.ctx   = &tc;
 #if MESH_PROFILE
         unsigned int t0 = sceKernelGetSystemTimeLow();
 #endif
+
         profBegin(PROF_MEMIT);
-        int rc = meshSection(w, ox, oz, y0, y1, g_scratch, g_scratchW, g_scratchL, g_scratchN,
-                             SCRATCH_VERTS, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL, SCRATCH_VERTS_WL,
-                             &n0, &n1, &n2, &n3, &nLava, leavesOpaque, leavesCull);
+        int rc = meshSectionSink(w, ox, oz, y0, y1, &sk, &nLava, leavesOpaque, leavesCull);
         profEnd(PROF_MEMIT);
 #if MESH_PROFILE
         unsigned int t1 = sceKernelGetSystemTimeLow(); g_tEmit += t1 - t0;
 #endif
         if (rc == 0) {
+            int n0 = sinkCount(&sk, 0), n1 = sinkCount(&sk, 1);
+            int n2 = sinkCount(&sk, 2), n3 = sinkCount(&sk, 3);
             profBegin(PROF_MPACK);
-            s->mesh   = n0 ? chunkPack(g_scratch,  n0, ox, y0, oz, plo+0, phi+0) : 0; s->vertexCount = s->mesh   ? n0 : 0;
-            s->water  = n1 ? chunkPack(g_scratchW, n1, ox, y0, oz, plo+1, phi+1) : 0; s->waterCount  = s->water  ? n1 : 0;
-            s->leaves = n2 ? chunkPack(g_scratchL, n2, ox, y0, oz, plo+2, phi+2) : 0; s->leavesCount = s->leaves ? n2 : 0;
-            s->noMip  = n3 ? chunkPack(g_scratchN, n3, ox, y0, oz, plo+3, phi+3) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
+            s->mesh   = n0 ? chunkPackFinish(g_stage[0], n0) : 0; s->vertexCount = s->mesh   ? n0 : 0;
+            s->water  = n1 ? chunkPackFinish(g_stage[1], n1) : 0; s->waterCount  = s->water  ? n1 : 0;
+            s->leaves = n2 ? chunkPackFinish(g_stage[2], n2) : 0; s->leavesCount = s->leaves ? n2 : 0;
+            s->noMip  = n3 ? chunkPackFinish(g_stage[3], n3) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
             s->noMipLavaStart = s->noMip ? nLava : 0;
             profEnd(PROF_MPACK);
+            for (int L = 0; L < 4; L++)
+                if (qhi[L] >= qlo[L]) { plo[L] = chunkPackDecodeY(qlo[L], y0); phi[L] = chunkPackDecodeY(qhi[L], y0); }
 
             oom = (n0 && !s->mesh) || (n1 && !s->water) || (n2 && !s->leaves) || (n3 && !s->noMip);
 #if MESH_PROFILE

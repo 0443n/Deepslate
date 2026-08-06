@@ -12,6 +12,8 @@ struct SelectionAABB { float x0, y0, z0, x1, y1, z1; };
 static int getSelectionAABBs(const World* w, int x, int y, int z, SelectionAABB out[3], bool clipLiquids) {
     unsigned char id = worldBlock(w, x, y, z);
     if (id == BLOCK_AIR) return 0;
+
+    if (id == BLOCK_FIRE) return 0;
     if (isLiquidId(id)) {
 
         if (!clipLiquids || worldData(w, x, y, z) != 0) return 0;

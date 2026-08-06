@@ -29,6 +29,9 @@ enum {
 
     PROF_MEMIT,
     PROF_MPACK,
+    PROF_MALLOC,
+    PROF_MCONV,
+
     PROF_SKY,
     PROF_ENTITY,
     PROF_WATER,
@@ -40,7 +43,9 @@ enum {
 };
 
 enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
-       PROFC_DRAWLIVE, PROFC_N };
+       PROFC_DRAWLIVE, PROFC_PACKVERTS,
+
+       PROFC_MARKED, PROFC_N };
 
 #if PROF
 void profListBytes(unsigned bytes);

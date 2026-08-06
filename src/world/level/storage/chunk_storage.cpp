@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#include <pspkernel.h>
+#include <pspthreadman.h>
 
 #define STORAGE_LOG 0
 #if STORAGE_LOG
@@ -85,6 +87,20 @@ static RegionFile* regionFor(int cx, int cz, bool create) {
     return rf;
 }
 
+static SceUID s_lock = -1;
+static void storageLock() {
+    if (s_lock < 0) s_lock = sceKernelCreateSema("mcChunkStore", 0, 1, 1, NULL);
+    if (s_lock >= 0) sceKernelWaitSema(s_lock, 1, NULL);
+}
+static void storageUnlock() {
+    if (s_lock >= 0) sceKernelSignalSema(s_lock, 1);
+}
+
+namespace { struct StorageGuard {
+    StorageGuard()  { storageLock(); }
+    ~StorageGuard() { storageUnlock(); }
+}; }
+
 void chunkStorageInit(const char* absDir) {
     chunkStorageShutdown();
     snprintf(s_dir, sizeof(s_dir), "%s", absDir);
@@ -92,6 +108,7 @@ void chunkStorageInit(const char* absDir) {
 }
 
 void chunkStorageShutdown() {
+    StorageGuard guard;
     for (int i = 0; i < REGION_CACHE; i++) {
         if (s_cache[i].valid) delete s_cache[i].rf;
         s_cache[i].rf = 0; s_cache[i].valid = false;
@@ -126,6 +143,8 @@ void chunkStorageClearChestPositions() { std::vector<int>().swap(s_chestPosition
 bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopulated) {
     if (outGotLight) *outGotLight = true;
     if (outPopulated) *outPopulated = true;
+
+    StorageGuard guard;
     RegionFile* rf = regionFor(cx, cz, false);
     if (!rf) return false;
 
@@ -164,6 +183,7 @@ bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopu
 }
 
 bool chunkStorageSave(World* w, int cx, int cz) {
+    StorageGuard guard;
     RegionFile* rf = regionFor(cx, cz, true);
     if (!rf) return false;
     unsigned char* buf = payload();

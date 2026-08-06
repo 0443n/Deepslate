@@ -196,6 +196,18 @@ static void updateDayColors(float alpha) {
             g_skyColorNow = (g_skyColorNow & 0xFF000000u) | (nb << 16) | (ng << 8) | nr;
         }
     }
+
+    {
+        float yy = g_camY * (1.0f / 32.0f);
+        if (yy < 1.0f) {
+            if (yy < 0.0f) yy = 0.0f;
+            yy = yy * yy;
+            g_skyColorNow = scaleABGR(g_skyColorNow, yy, yy, yy);
+
+            g_skyDomeColorNow = scaleABGR(g_skyDomeColorNow, yy, yy, yy);
+            g_cloudColorNow   = scaleABGR(g_cloudColorNow, yy, yy, yy);
+        }
+    }
 }
 
 static inline int skyMoonPhase() {
@@ -373,14 +385,27 @@ static void renderSky(float px, float py, float pz) {
     sceGuEnable(GU_TEXTURE_2D);
 }
 
-static void renderClouds(float alpha, float px, float py, float pz) {
+int g_cloudMode = 1;
+
+static float        s_worldFogNear  = 0.0f;
+static float        s_worldFogFar   = WORLD_VIEW_DIST;
+static unsigned int s_worldFogColor = SKY_COLOR;
+
+#define CLOUD_FAST_HEIGHT 128.33f
+
+#define CLOUD_HEIGHT      CLOUD_FAST_HEIGHT
+
+#define CLOUD_FAR         320.0f
+
+static void renderCloudsFast(float alpha, float px, float py, float pz) {
+    (void)py;
     if (!g_haveClouds) return;
 
     textureBind(&g_clouds);
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuDisable(GU_ALPHA_TEST);
-    sceGuDisable(GU_DEPTH_TEST);
+    sceGuEnable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_TRUE);
     sceGuDisable(GU_CULL_FACE);
     sceGuTexWrap(GU_REPEAT, GU_REPEAT);
@@ -392,7 +417,7 @@ static void renderClouds(float alpha, float px, float py, float pz) {
     float time = (float)g_cloudTicks + alpha;
     float xo = px + time * 0.03f;
     float zo = pz;
-    ScePspFVector3 t = { px, 128.0f + 0.33f, pz };
+    ScePspFVector3 t = { px, CLOUD_FAST_HEIGHT, pz };
     sceGumTranslate(&t);
 
     unsigned int color = g_cloudColorNow;
@@ -421,12 +446,209 @@ static void renderClouds(float alpha, float px, float py, float pz) {
                    GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                    n, 0, v);
 
-    sceGuTexWrap(GU_CLAMP, GU_CLAMP);
+}
+
+#define CLOUD_THICKNESS  4.0f
+#define CLOUD_CELL       12.0f
+#define CLOUD_CELLS      32
+
+#define CLOUD_SUB        12
+#define CLOUD_SUB_VERTS  ((CLOUD_SUB * CLOUD_SUB * 2 + 4 * CLOUD_SUB * (int)CLOUD_THICKNESS) * 6)
+
+#define CLOUD_MAX_VERTS  (CLOUD_CELLS * CLOUD_CELLS * 36)
+static CloudVertex* g_cloudVertices = 0;
+static int   g_numCloudVertices = 0;
+static float g_lastCloudPx = -999999.0f;
+static float g_lastCloudPz = -999999.0f;
+static float g_lastCloudSnappedOffset = -999999.0f;
+static bool  g_lastWasInClouds = false;
+
+static void renderCloudsFancy(float alpha, float px, float py, float pz) {
+    if (!g_haveClouds || !g_clouds.data) return;
+    if (!g_cloudVertices) {
+        g_cloudVertices = (CloudVertex*)memalign(16, CLOUD_MAX_VERTS * sizeof(CloudVertex));
+        if (!g_cloudVertices) return;
+    }
+
+    const float qS = CLOUD_CELL;
+    const int   texW = g_clouds.texW, texH = g_clouds.texH;
+
+    unsigned char baseB = (g_cloudColorNow >> 16) & 0xFF;
+    unsigned char baseG = (g_cloudColorNow >> 8)  & 0xFF;
+    unsigned char baseR =  g_cloudColorNow        & 0xFF;
+
+    bool inClouds = (py >= CLOUD_HEIGHT - CLOUD_THICKNESS - 2.0f && py <= CLOUD_HEIGHT + 2.0f);
+    unsigned int aTop = inClouds ? 0xC0 : 0xD0, aSide = inClouds ? 0xB0 : 0xC0,
+                 aBot = inClouds ? 0x90 : 0xAA;
+    #define CLOUD_COL(a, f) (((unsigned int)(a) << 24) \
+        | ((unsigned int)(baseB * (f)) << 16) | ((unsigned int)(baseG * (f)) << 8) \
+        | (unsigned int)(baseR * (f)))
+    unsigned int colorTop    = CLOUD_COL(aTop,  1.0f);
+    unsigned int colorSide   = CLOUD_COL(aSide, 1.0f);
+    unsigned int colorBottom = CLOUD_COL(aBot,  0.75f);
+    #undef CLOUD_COL
+
+    float cloudOffset  = fmodf(((float)g_cloudTicks + alpha) * 0.0375f, texW * qS);
+    float gridPx = floorf(px / qS) * qS, gridPz = floorf(pz / qS) * qS;
+    float snappedOffset = floorf(cloudOffset / qS) * qS;
+    float slideOffset   = cloudOffset - snappedOffset;
+
+    if (gridPx != g_lastCloudPx || gridPz != g_lastCloudPz ||
+        snappedOffset != g_lastCloudSnappedOffset || inClouds != g_lastWasInClouds) {
+        g_lastCloudPx = gridPx; g_lastCloudPz = gridPz;
+        g_lastCloudSnappedOffset = snappedOffset; g_lastWasInClouds = inClouds;
+
+        const unsigned short* px16 = (const unsigned short*)g_clouds.data;
+
+        struct Solid {
+            const unsigned short* p; int w, h; float qS, off;
+            bool operator()(float wx, float wz) const {
+                int x = (int)floorf((wx + off) / qS) % w; if (x < 0) x += w;
+                int y = (int)floorf(wz / qS) % h;         if (y < 0) y += h;
+                return (p[y * w + x] & 0x8000) != 0;
+            }
+        } isSolid = { px16, texW, texH, qS, snappedOffset };
+
+        int n = 0;
+        CloudVertex* v = g_cloudVertices;
+        for (int cx = -CLOUD_CELLS / 2; cx < CLOUD_CELLS / 2; cx++) {
+            for (int cz = -CLOUD_CELLS / 2; cz < CLOUD_CELLS / 2; cz++) {
+                float x0 = gridPx + cx * qS, z0 = gridPz + cz * qS;
+                if (!isSolid(x0, z0)) continue;
+                if (n + CLOUD_SUB_VERTS > CLOUD_MAX_VERTS) break;
+                float x1 = x0 + qS, z1 = z0 + qS;
+                float y0 = CLOUD_HEIGHT - CLOUD_THICKNESS, y1 = CLOUD_HEIGHT;
+
+                float texX = fmodf(x0 + snappedOffset, texW * qS); if (texX < 0) texX += texW * qS;
+                float texZ = fmodf(z0, texH * qS);                 if (texZ < 0) texZ += texH * qS;
+                float u0 = texX / (texW * qS), u1 = (texX + qS) / (texW * qS);
+                float v0 = texZ / (texH * qS), v1 = (texZ + qS) / (texH * qS);
+
+                #define CLOUD_QUAD(tu0, tv0, tu1, tv1, col, ax,ay,az, bx,by,bz, cx_,cy_,cz_, dx,dy,dz) \
+                    do { \
+                        v[n++] = { tu0, tv0, col, ax,  ay,  az  }; \
+                        v[n++] = { tu0, tv1, col, cx_, cy_, cz_ }; \
+                        v[n++] = { tu1, tv0, col, bx,  by,  bz  }; \
+                        v[n++] = { tu1, tv0, col, bx,  by,  bz  }; \
+                        v[n++] = { tu0, tv1, col, cx_, cy_, cz_ }; \
+                        v[n++] = { tu1, tv1, col, dx,  dy,  dz  }; \
+                    } while (0)
+
+                float uM = (u0 + u1) * 0.5f, vM = (v0 + v1) * 0.5f;
+                bool openL = !isSolid(x0 - qS, z0), openR = !isSolid(x0 + qS, z0);
+                bool openF = !isSolid(x0, z0 - qS), openB = !isSolid(x0, z0 + qS);
+
+                int sub  = (inClouds && cx >= -1 && cx <= 1 && cz >= -1 && cz <= 1) ? CLOUD_SUB : 1;
+                int vsub = (sub == 1) ? 1 : (int)CLOUD_THICKNESS;
+                float sx = qS / sub, sy = CLOUD_THICKNESS / vsub;
+
+                for (int i = 0; i < sub; i++) {
+                    float ax0 = x0 + i * sx, ax1 = ax0 + sx;
+                    float au0 = u0 + (u1 - u0) * i / sub, au1 = u0 + (u1 - u0) * (i + 1) / sub;
+                    for (int j = 0; j < sub; j++) {
+                        float az0 = z0 + j * sx, az1 = az0 + sx;
+                        float av0 = v0 + (v1 - v0) * j / sub, av1 = v0 + (v1 - v0) * (j + 1) / sub;
+
+                        CLOUD_QUAD(au0, av0, au1, av1, colorBottom,
+                                   ax0,y0,az1, ax1,y0,az1, ax0,y0,az0, ax1,y0,az0);
+                        CLOUD_QUAD(au0, av0, au1, av1, colorTop,
+                                   ax0,y1,az0, ax1,y1,az0, ax0,y1,az1, ax1,y1,az1);
+
+                        for (int k = 0; k < vsub; k++) {
+                            float ay0 = y0 + k * sy, ay1 = ay0 + sy;
+                            if (openL && i == 0)
+                                CLOUD_QUAD(uM,vM,uM,vM, colorSide, x0,ay1,az0, x0,ay1,az1, x0,ay0,az0, x0,ay0,az1);
+                            if (openR && i == sub - 1)
+                                CLOUD_QUAD(uM,vM,uM,vM, colorSide, x1,ay1,az1, x1,ay1,az0, x1,ay0,az1, x1,ay0,az0);
+                            if (openF && j == 0)
+                                CLOUD_QUAD(uM,vM,uM,vM, colorSide, ax1,ay1,z0, ax0,ay1,z0, ax1,ay0,z0, ax0,ay0,z0);
+                            if (openB && j == sub - 1)
+                                CLOUD_QUAD(uM,vM,uM,vM, colorSide, ax0,ay1,z1, ax1,ay1,z1, ax0,ay0,z1, ax1,ay0,z1);
+                        }
+                    }
+                }
+                #undef CLOUD_QUAD
+            }
+        }
+        g_numCloudVertices = n;
+
+        if (n) sceKernelDcacheWritebackInvalidateRange(g_cloudVertices, n * sizeof(CloudVertex));
+    }
+    if (!g_numCloudVertices) return;
+
+    textureBind(&g_clouds);
     sceGuEnable(GU_CULL_FACE);
-    sceGuDepthMask(GU_FALSE);
+    sceGuFrontFace(GU_CCW);
+    sceGuEnable(GU_BLEND);
+    sceGuDisable(GU_ALPHA_TEST);
     sceGuEnable(GU_DEPTH_TEST);
+    sceGuTexWrap(GU_REPEAT, GU_REPEAT);
+    sceGuTexFilter(GU_NEAREST, GU_NEAREST);
+
+    sceGumMatrixMode(GU_MODEL);
+    sceGumPushMatrix();
+    sceGumLoadIdentity();
+    ScePspFVector3 slide = { -slideOffset, 0.0f, 0.0f };
+    sceGumTranslate(&slide);
+
+    const int fmt = GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D;
+
+    sceGuDepthMask(GU_FALSE);
+    sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0x00000000, 0xFFFFFFFF);
+    sceGumDrawArray(GU_TRIANGLES, fmt, g_numCloudVertices, 0, g_cloudVertices);
+    if (inClouds) {
+        sceGuFrontFace(GU_CW);
+        sceGumDrawArray(GU_TRIANGLES, fmt, g_numCloudVertices, 0, g_cloudVertices);
+        sceGuFrontFace(GU_CCW);
+    }
+
+    sceGuDepthMask(GU_TRUE);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGumDrawArray(GU_TRIANGLES, fmt, g_numCloudVertices, 0, g_cloudVertices);
+    if (inClouds) {
+        sceGuFrontFace(GU_CW);
+        sceGumDrawArray(GU_TRIANGLES, fmt, g_numCloudVertices, 0, g_cloudVertices);
+    }
+
+    sceGumPopMatrix();
+
+}
+
+static void renderCloudPass(float a, float px, float py, float pz) {
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+    sceGuEnable(GU_FOG);
+
+    bool fancy = (g_cloudMode == 2);
+    float distToCloud = fabsf((fancy ? CLOUD_HEIGHT : CLOUD_FAST_HEIGHT) - py);
+    float cloudFogNear = distToCloud * 0.8f;
+    if (cloudFogNear < 32.0f) cloudFogNear = 32.0f;
+
+    sceGuFog(cloudFogNear, fancy ? 280.0f : distToCloud + 64.0f, g_skyColorNow);
+
+    if (fancy) renderCloudsFancy(a, px, py, pz);
+    else       renderCloudsFast(a, px, py, pz);
+
+    sceGuFrontFace(GU_CCW);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuEnable(GU_ALPHA_TEST);
-    sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_FALSE);
+    sceGuTexWrap(GU_CLAMP, GU_CLAMP);
+    sceGuColor(0xFFFFFFFFu);
+
+    sceGuFog(s_worldFogNear, s_worldFogFar, s_worldFogColor);
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+}
+
+void cloudFreeMesh(void) {
+    free(g_cloudVertices);
+    g_cloudVertices = 0;
+    g_numCloudVertices = 0;
+    g_lastCloudPx = g_lastCloudPz = g_lastCloudSnappedOffset = -999999.0f;
 }
 
 static void drawInWallOverlay(float ix, float iy, float iz) {
@@ -1168,6 +1390,13 @@ void gameRender(MenuState& s) {
     worldSetFrustumCamera(ex, ey, ez, ifx, ify, ifz, iyaw, fov,
                           (float)GU_SCR_WIDTH / (float)GU_SCR_HEIGHT, NEAR_Z, g_viewDist);
 
+    if (g_cloudMode) {
+        sceGumMatrixMode(GU_PROJECTION);
+        sceGumLoadIdentity();
+        sceGumPerspective(fov, (float)GU_SCR_WIDTH / (float)GU_SCR_HEIGHT, NEAR_Z, CLOUD_FAR);
+        sceGumMatrixMode(GU_MODEL);
+    }
+
     g_camYawNow = iyaw; g_camPitchNow = ipitch;
     updateDayColors(a);
 
@@ -1191,23 +1420,9 @@ void gameRender(MenuState& s) {
         sceGumMatrixMode(GU_PROJECTION);
         sceGumPopMatrix();
 
-        sceGumMatrixMode(GU_PROJECTION);
-        sceGumPushMatrix();
-        sceGumLoadIdentity();
-        sceGumPerspective(fov, (float)GU_SCR_WIDTH / (float)GU_SCR_HEIGHT, 0.15f, 450.0f);
-        sceGumMatrixMode(GU_MODEL);
-        sceGumLoadIdentity();
-        float distToCloud = fabsf(128.0f - py0);
-        float cloudFogNear = distToCloud * 0.8f;
-        if (cloudFogNear < 32.0f) cloudFogNear = 32.0f;
-        sceGuFog(cloudFogNear, distToCloud + 64.0f, g_skyColorNow);
-        renderClouds(a, px0, py0, pz0);
-
-        sceGumMatrixMode(GU_PROJECTION);
-        sceGumPopMatrix();
-        sceGumMatrixMode(GU_MODEL);
-        sceGumLoadIdentity();
         sceGuEnable(GU_DEPTH_TEST);
+
+        sceGuDepthMask(GU_FALSE);
     }
     profEnd(PROF_SKY);
 
@@ -1235,6 +1450,11 @@ void gameRender(MenuState& s) {
 
     extern float g_fogCullDist;
     g_fogCullDist = 0.0f;
+
+    #define SET_WORLD_FOG(n, f, c) do { \
+        s_worldFogNear = (n); s_worldFogFar = (f); s_worldFogColor = (c); \
+        sceGuFog(s_worldFogNear, s_worldFogFar, s_worldFogColor); \
+    } while (0)
     int eyeBr = lightRawAt(&g_world, (int)floorf(ix), (int)floorf(iy), (int)floorf(iz));
     unsigned int M = g_brightColor[eyeBr] & 0xFF;
 
@@ -1242,18 +1462,33 @@ void gameRender(MenuState& s) {
         unsigned int b = (230 * M) / 255;
         unsigned int g = (102 * M) / 255;
         unsigned int r = (25 * M) / 255;
-        sceGuFog(0.0f, 25.0f, 0xFF000000u | (b << 16) | (g << 8) | r);
+        SET_WORLD_FOG(0.0f, 25.0f, 0xFF000000u | (b << 16) | (g << 8) | r);
         g_fogCullDist = 25.0f + 24.0f;
     }
     else if (isLavaId(eyeBlk)) {
         unsigned int b = (25 * M) / 255;
         unsigned int g = (51 * M) / 255;
         unsigned int r = (204 * M) / 255;
-        sceGuFog(0.0f, 3.0f, 0xFF000000u | (b << 16) | (g << 8) | r);
+        SET_WORLD_FOG(0.0f, 3.0f, 0xFF000000u | (b << 16) | (g << 8) | r);
         g_fogCullDist = 3.0f + 24.0f;
     }
     else {
-        sceGuFog(vdEff * 0.6f, vdEff, g_skyColorNow);
+
+        float fogDist = vdEff;
+        if (!g_level.player->inventory->isCreative()) {
+            int sky = lightSkyGet(&g_world, (int)floorf(ix), (int)floorf(iy), (int)floorf(iz));
+            float yy = (float)sky / 16.0f + (iy + 4.0f) / 32.0f;
+            if (yy < 1.0f) {
+                if (yy < 0.0f) yy = 0.0f;
+                float d = 100.0f * yy * yy;
+                if (d < 5.0f) d = 5.0f;
+                if (fogDist > d) fogDist = d;
+            }
+        }
+
+        SET_WORLD_FOG(fogDist * 0.25f, fogDist, g_skyColorNow);
+
+        if (fogDist < vdEff) g_fogCullDist = fogDist + 24.0f;
     }
 
     extern bool g_eyeInLava;
@@ -1278,6 +1513,12 @@ void gameRender(MenuState& s) {
         (g_thirdPerson && !(g_level.player && g_level.player->isSleeping())))
         playerModelRender(a);
     profEnd(PROF_ENTITY);
+
+    if (g_worldBuilt && g_beautifulSkies && g_cloudMode) {
+        loadWorldView(ex, ey, ez, ctrX, ctrY, ctrZ, roll, 0.0f, 0.0f, 0.0f);
+        renderCloudPass(a, px0, py0, pz0);
+        loadWorldView(ex, ey, ez, ctrX, ctrY, ctrZ, roll, g_relBaseX, g_relBaseY, g_relBaseZ);
+    }
 
     if (g_haveTerrain) { if (g_noMipmap) textureBindNoMip(&g_terrain); else textureBind(&g_terrain); }
     sceGuDepthMask(GU_TRUE);

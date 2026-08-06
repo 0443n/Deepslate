@@ -333,6 +333,14 @@ int main(int argc, char* argv[]) {
                         fontDrawTextShadow(&s.font, 10, ty, txBuf, 0xFF5050FFu, 1.0f);
                         ty += 12.0f;
                     }
+
+                    extern bool g_haveTerrain;
+                    if (g_worldBuilt && !g_haveTerrain) {
+                        fontDrawTextShadow(&s.font, 10, ty,
+                                           "NO TERRAIN ATLAS (data/images/terrain.png)",
+                                           0xFF5050FFu, 1.0f);
+                        ty += 12.0f;
+                    }
 #if MEM_OVERLAY
 
                     if (g_worldBuilt) {

@@ -20,7 +20,8 @@ extern unsigned int g_brightColor[16];
 namespace {
 
 enum Kind { K_TERRAIN, K_FLAME, K_SMOKE, K_BUBBLE, K_REDDUST, K_EXPLODE, K_LAVA, K_CRIT, K_SPLASH, K_HEART,
-            K_MOBFLAME };
+            K_MOBFLAME,
+            K_SUSPEND };
 
 struct P {
     float x, y, z, xo, yo, zo, xd, yd, zd;
@@ -149,6 +150,12 @@ void tickOne(World* w, P* p) {
         p->xd *= 0.999f; p->yd *= 0.999f; p->zd *= 0.999f;
         break;
     }
+    case K_SUSPEND:
+        move(w, p);
+        p->xd *= 0.99f;
+        p->yd *= 0.99f;
+        p->zd *= 0.99f;
+        break;
     case K_BUBBLE:
         p->yd += 0.002f;
         move(w, p);
@@ -381,6 +388,20 @@ void particlesFurnaceFire(int x, int y, int z, unsigned char dir) {
     flameSmokeAt(fx, fy, fz);
 }
 
+void particlesSuspended(float x, float y, float z) {
+    P* p = alloc(); if (!p) return;
+    baseInit(p, x, y, z, 0, 0, 0);
+    float br = frand() * 0.1f + 0.2f;
+    p->r = p->g = p->b = br;
+    p->tex = 0;
+    p->kind = K_SUSPEND;
+    p->noPhysics = true;
+    p->gravity = 0.0f;
+    p->size *= frand() * 0.6f + 0.5f;
+    p->xd *= 0.02f; p->yd *= 0.02f; p->zd *= 0.02f;
+    p->lifetime = (int)(20.0f / (frand() * 0.8f + 0.2f));
+}
+
 void particlesBubble(float x, float y, float z, float xa, float ya, float za) {
     if (tooFar(x, y, z)) return;
     P* p = alloc(); if (!p) return;
@@ -523,12 +544,26 @@ void particlesLargeSmoke(float x, float y, float z) {
 static void emitAmbient(World* w, float px, float py, float pz) {
     int cx = (int)floorf(px), cy = (int)floorf(py), cz = (int)floorf(pz);
     const int r = 16;
+
+    int freeSlots = 0;
+    for (int k = 0; k < MAX_PARTICLES; k++) if (!g_pool[k].active) freeSlots++;
+    int susp = 0;
     for (int i = 0; i < 100; i++) {
         int bx = cx + (rand() % r) - (rand() % r);
         int by = cy + (rand() % r) - (rand() % r);
         int bz = cz + (rand() % r) - (rand() % r);
         unsigned char id = worldBlock(w, bx, by, bz);
-        if (id == BLOCK_TORCH) {
+
+        if (id == BLOCK_AIR) {
+
+            const int RESERVE = 96;
+            int budget = (freeSlots - RESERVE) / 24;
+            if (budget > 12) budget = 12;
+            if (susp < budget && (rand() % 8) > by) {
+                particlesSuspended(bx + frand(), by + frand(), bz + frand());
+                susp++;
+            }
+        } else if (id == BLOCK_TORCH) {
             torchPoof(w, bx, by, bz, worldData(w, bx, by, bz));
         } else if (id == BLOCK_FURNACE_LIT) {
             particlesFurnaceFire(bx, by, bz, worldData(w, bx, by, bz) & 7);

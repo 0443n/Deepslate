@@ -201,7 +201,8 @@ static void breakTargetedBlock(const BlockHit& hit) {
     unsigned char brokenId = worldBlock(&g_world, hit.x, hit.y, hit.z);
     unsigned char brokenData = worldData(&g_world, hit.x, hit.y, hit.z);
 
-    if (brokenId == BLOCK_BEDROCK ||
+    if ((brokenId == BLOCK_BEDROCK && hit.y <= 0) ||
+        brokenId == BLOCK_INVISIBLE_BEDROCK ||
         !worldReady(&g_world, hit.x, hit.z) ||
         hit.y < 0 || hit.y >= WORLD_H) {
         return;
@@ -243,13 +244,8 @@ static void breakTargetedBlock(const BlockHit& hit) {
                 g_level.playSound(g_level.player, "random.break", 1.0f, 1.0f);
         }
 
-        if (brokenId == BLOCK_FIRE) {
-            fireExtinguishFx(hit.x, hit.y, hit.z);
-        } else {
-
-            particlesDestroyBlock(&g_world, hit.x, hit.y, hit.z, brokenId, brokenData);
-            playTileBreakSound(brokenId, hit.x, hit.y, hit.z);
-        }
+        particlesDestroyBlock(&g_world, hit.x, hit.y, hit.z, brokenId, brokenData);
+        playTileBreakSound(brokenId, hit.x, hit.y, hit.z);
 
         unsigned char leaves = BLOCK_AIR;
         if (brokenId == BLOCK_ICE) {
@@ -576,7 +572,9 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
         if (hit.hit) {
             if (pressed & PSP_CTRL_RTRIGGER) {
 
-                if (g_gameMode->isCreative()) breakTargetedBlock(hit);
+                bool putOut = fireExtinguishAt(&g_world, hit.x, hit.y, hit.z, hit.face);
+
+                if (g_gameMode->isCreative() && !putOut) breakTargetedBlock(hit);
             } else {
 
                 bool placedBlock = false;

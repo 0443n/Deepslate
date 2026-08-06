@@ -100,7 +100,9 @@ void quitToMenuNoSave(MenuState& s) {
     g_mining.active = false; g_mining.progress = 0.0f;
 
     extern void skyFreeStars(void);
+    extern void cloudFreeMesh(void);
     skyFreeStars();
+    cloudFreeMesh();
     worldFree(&g_world);
     g_level.removeAllEntities();
     g_level.removeAllTileEntities();

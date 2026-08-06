@@ -53,9 +53,10 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     {
 
         { "Graphics", "View Distance",   {"Tiny", "Short", "Normal", "Far"}, 4, 2 },
-        { 0,          "Fancy Graphics",  {"Off", "On", 0, 0}, 2, 0 },
 
-        { 0,          "Fancy Leaves",    {"Off", "On", 0, 0}, 2, 0 },
+        { 0,          "Clouds",          {"Off", "Fast", "Fancy"}, 3, 1 },
+
+        { 0,          "Leaves",          {"Off", "Fast", "Fancy"}, 3, 0 },
         { 0,          "View Bobbing",    {"Off", "On", 0, 0}, 2, 1 },
 
         { 0,          "Beautiful Skies", {"Off", "On", 0, 0}, 2, 1 },
@@ -80,6 +81,7 @@ extern float g_viewDist;
 extern int   g_viewBobbing;
 extern int   g_fancyGraphics;
 extern int   g_fancyLeaves;
+extern int   g_cloudMode;
 extern int   g_noMipmap;
 extern int   g_showFps;
 extern int   g_showCoords;
@@ -103,8 +105,8 @@ extern World g_world;
 
 #define CAT_GRAPHICS    2
 #define ROW_RENDERDIST  0
-#define ROW_FANCY       1
-#define ROW_FANCYLEAVES 2
+#define ROW_CLOUDS      1
+#define ROW_LEAVES      2
 #define ROW_BOBBING     3
 #define ROW_SKIES       4
 #define ROW_ANIMTEX     5
@@ -146,8 +148,11 @@ unsigned int optionsValueSig() {
 }
 
 static void optionsApply() {
-    g_fancyGraphics = g_optionValueIdx[CAT_GRAPHICS][ROW_FANCY];
-    g_fancyLeaves = g_optionValueIdx[CAT_GRAPHICS][ROW_FANCYLEAVES];
+
+    int leaves = g_optionValueIdx[CAT_GRAPHICS][ROW_LEAVES];
+    g_fancyGraphics = (leaves > 0);
+    g_fancyLeaves   = (leaves == 2);
+    g_cloudMode     = g_optionValueIdx[CAT_GRAPHICS][ROW_CLOUDS];
     g_viewBobbing = g_optionValueIdx[CAT_GRAPHICS][ROW_BOBBING];
     int rd = g_optionValueIdx[CAT_GRAPHICS][ROW_RENDERDIST];
     if (rd < 0) rd = 0; else if (rd > 3) rd = 3;
@@ -194,6 +199,7 @@ static void optionsSetDefaults() {
 
     if (g_lowMemPsp) {
         g_optionValueIdx[CAT_GRAPHICS][ROW_SKIES]       = 0;
+        g_optionValueIdx[CAT_GRAPHICS][ROW_CLOUDS]      = 0;
         g_optionValueIdx[CAT_GRAPHICS][ROW_SMOOTHLIGHT] = 0;
     }
 }
@@ -279,8 +285,8 @@ static bool optionRowIsBoolean(const OptionRowDef& row) {
 }
 
 static bool optionRowDisabled(int category, int row) {
-    return category == CAT_GRAPHICS && row == ROW_FANCYLEAVES &&
-           g_optionValueIdx[CAT_GRAPHICS][ROW_FANCY] == 0;
+    return category == CAT_GRAPHICS && row == ROW_CLOUDS &&
+           g_optionValueIdx[CAT_GRAPHICS][ROW_SKIES] == 0;
 }
 struct OptionsScreen : Screen {
     void renderContent(MenuState& s);

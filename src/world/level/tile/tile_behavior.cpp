@@ -4,7 +4,9 @@
 #include "world/level/tile/random_tick_pick.h"
 #include "world/level/level.h"
 #include "world/entity/falling_tile.h"
+#include "world/entity/local_player.h"
 #include <stdlib.h>
+#include <math.h>
 
 static inline bool heavyIsFree(World* w, int x, int y, int z) {
     unsigned char id = worldBlock(w, x, y, z);
@@ -38,13 +40,35 @@ void tileNeighborChanged(World* w, int x, int y, int z) {
 
 static unsigned int s_tick = 0;
 
+static inline int simDistChunks() {
+    extern float g_viewDist;
+    int d = (int)(g_viewDist / (float)CHUNK_SX) + 1;
+    return d < 2 ? 2 : d;
+}
+
 void tileRandomTick(World* w) {
     s_tick++;
+
+    const int simD = simDistChunks();
+    bool haveP = g_level.player != 0;
+    int pcx = 0, pcz = 0;
+    if (haveP) {
+
+        pcx = (int)floorf(g_level.player->x) >> 4;
+        pcz = (int)floorf(g_level.player->z) >> 4;
+    }
 
     for (int slot = 0; slot < w->slotN * w->slotN; slot++) {
         LevelChunk* lc = &w->slots[slot];
         if (!lc->isAt(lc->x, lc->z) || lc->generating) continue;
         int cx = lc->x, cz = lc->z;
+
+        if (haveP) {
+            int dx = cx - pcx, dz = cz - pcz;
+            if (dx < 0) dx = -dx;
+            if (dz < 0) dz = -dz;
+            if (dx > simD || dz > simD) continue;
+        }
         int xo = cx * CHUNK_SX, zo = cz * CHUNK_SZ;
 
         unsigned int chunkIndex = (unsigned int)slot;

@@ -67,7 +67,8 @@ static void setTile(World* w, int x, int y, int z, unsigned char id) {
 
 void firePlace(World* w, int x, int y, int z) {
     setTile(w, x, y, z, BLOCK_FIRE);
-    worldScheduleTick(w, x, y, z, BLOCK_FIRE, FIRE_TICK_DELAY);
+
+    worldScheduleTick(w, x, y, z, BLOCK_FIRE, FIRE_TICK_DELAY + rand() % 10);
 }
 
 void fireExtinguishFx(int x, int y, int z) {
@@ -101,9 +102,9 @@ void fireTileTick(World* w, int x, int y, int z) {
 
     int age = worldData(w, x, y, z);
 
-    if (age < 15) worldSetDataNoUpdate(w, x, y, z, (unsigned char)(age + 1));
+    if (age < 15) worldSetDataNoUpdate(w, x, y, z, (unsigned char)(age + rand() % 3 / 2));
 
-    worldScheduleTick(w, x, y, z, BLOCK_FIRE, FIRE_TICK_DELAY);
+    worldScheduleTick(w, x, y, z, BLOCK_FIRE, FIRE_TICK_DELAY + rand() % 10);
 
     if (!infiniBurn && !isValidFireLocation(w, x, y, z)) {
         if (!isSolidBlocking(worldBlock(w, x, y - 1, z)) || age > 3) extinguish(w, x, y, z);
@@ -154,6 +155,24 @@ void fireTileTick(World* w, int x, int y, int z) {
 
 bool fireMayPlace(World* w, int x, int y, int z) {
     return isSolidBlocking(worldBlock(w, x, y - 1, z)) || isValidFireLocation(w, x, y, z);
+}
+
+bool fireExtinguishAt(World* w, int x, int y, int z, int face) {
+
+    switch (face) {
+        case F_LEFT:    x--; break;
+        case F_RIGHT:   x++; break;
+        case F_DOWN:    y--; break;
+        case F_TOP:     y++; break;
+        case F_BACK:    z--; break;
+        case F_FORWARD: z++; break;
+        default: return false;
+    }
+    if (worldBlock(w, x, y, z) != BLOCK_FIRE) return false;
+
+    fireExtinguishFx(x, y, z);
+    setTile(w, x, y, z, BLOCK_AIR);
+    return true;
 }
 
 void fireNeighborChanged(World* w, int x, int y, int z) {
