@@ -551,7 +551,9 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
     g_level.removeAllTileEntities();
 
     loadLevelDat(w, absDir, outSeed, outGameType);
-    worldGenInit(outSeed ? *outSeed : 0, s_activeGenMask);
+
+    if (levelSourceFor(s_activeWorldType).supportsGenFeatures())
+        worldGenInit(outSeed ? *outSeed : 0, s_activeGenMask);
 
     chunkStorageInit(absDir);
 

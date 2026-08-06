@@ -5,6 +5,8 @@ struct World;
 
 void worldGenerateMCPE(World* w, long seed, int genMask);
 
+void worldGenerateWindow(World* w);
+
 void worldGenInit(long seed, int genMask);
 void worldGenFree();
 

@@ -2,6 +2,7 @@
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
 #include "world/level/levelgen/mcpegen.h"
+#include "world/level/levelgen/level_source.h"
 #include "world/level/storage/chunk_storage.h"
 
 #include <string.h>
@@ -45,6 +46,8 @@ static bool postProcessPhase(World* w, int cx, int cz, int phase) {
 
     if (phase > 0) return chunkPostProcessPhase(w, cx, cz, phase);
     if (c->terrainPopulated) return true;
+
+    if (!activeLevelSource().supportsGenFeatures()) { c->terrainPopulated = true; return true; }
 
     if (!worldNeighbourSettled(w, cx + 1, cz) || !worldNeighbourSettled(w, cx, cz + 1) ||
         !worldNeighbourSettled(w, cx + 1, cz + 1)) return true;
@@ -156,7 +159,7 @@ void worldGetChunk(World* w, int cx, int cz) {
             worldSlot(w, cx, cz)->terrainPopulated = populated;
         } else {
             profBegin(PROF_SGEN);
-            chunkGenerateTerrain(w, cx, cz);
+            activeLevelSource().buildChunk(w, cx, cz);
             profEnd(PROF_SGEN);
 
         }
@@ -181,7 +184,7 @@ static World* volatile s_genWorld = 0;
 static int genWorker(SceSize, void*) {
     while (!g_workerQuit) {
         if (!g_jobPending) { sceKernelDelayThread(2000); continue; }
-        chunkGenerateTerrain(s_genWorld, g_jobX, g_jobZ);
+        activeLevelSource().buildChunk(s_genWorld, g_jobX, g_jobZ);
         g_jobPending = false;
         g_jobDone = true;
     }
@@ -278,7 +281,7 @@ int worldStream(World* w, float px, float pz, int budgetMs) {
         if (s_workerThid < 0) {
             GenScope gen(w);
             profBegin(PROF_SGEN);
-            chunkGenerateTerrain(w, bestX, bestZ);
+            activeLevelSource().buildChunk(w, bestX, bestZ);
             profEnd(PROF_SGEN);
             finishBegin(w, bestX, bestZ);
             return brought;

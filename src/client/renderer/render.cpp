@@ -198,7 +198,8 @@ static void updateDayColors(float alpha) {
     }
 
     {
-        float yy = g_camY * (1.0f / 32.0f);
+
+        float yy = g_camY * activeLevelSource().clearColorScale();
         if (yy < 1.0f) {
             if (yy < 0.0f) yy = 0.0f;
             yy = yy * yy;
@@ -1475,7 +1476,8 @@ void gameRender(MenuState& s) {
     else {
 
         float fogDist = vdEff;
-        if (!g_level.player->inventory->isCreative()) {
+
+        if (activeLevelSource().hasBedrockFog() && !g_level.player->inventory->isCreative()) {
             int sky = lightSkyGet(&g_world, (int)floorf(ix), (int)floorf(iy), (int)floorf(iz));
             float yy = (float)sky / 16.0f + (iy + 4.0f) / 32.0f;
             if (yy < 1.0f) {

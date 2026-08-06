@@ -3,6 +3,7 @@
 
 extern float g_camX, g_camY, g_camZ;
 #include "world/level/world.h"
+#include "world/level/levelgen/level_source.h"
 #include "world/level/chunk/chunk.h"
 #include "gpu/texture.h"
 #include "world/level/level.h"
@@ -548,6 +549,8 @@ static void emitAmbient(World* w, float px, float py, float pz) {
     int freeSlots = 0;
     for (int k = 0; k < MAX_PARTICLES; k++) if (!g_pool[k].active) freeSlots++;
     int susp = 0;
+
+    const bool bedrockFog = activeLevelSource().hasBedrockFog();
     for (int i = 0; i < 100; i++) {
         int bx = cx + (rand() % r) - (rand() % r);
         int by = cy + (rand() % r) - (rand() % r);
@@ -559,7 +562,7 @@ static void emitAmbient(World* w, float px, float py, float pz) {
             const int RESERVE = 96;
             int budget = (freeSlots - RESERVE) / 24;
             if (budget > 12) budget = 12;
-            if (susp < budget && (rand() % 8) > by) {
+            if (bedrockFog && susp < budget && (rand() % 8) > by) {
                 particlesSuspended(bx + frand(), by + frand(), bz + frand());
                 susp++;
             }

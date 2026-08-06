@@ -387,6 +387,10 @@ bool chunkPostProcessPhase(World* w, int cx, int cz, int phase) {
 
 void worldGenerateMCPE(World* w, long seed, int genMask) {
     worldGenInit(seed, genMask);
+    worldGenerateWindow(w);
+}
+
+void worldGenerateWindow(World* w) {
 
     const int side = worldFitsInWindow(w) ? WORLD_SIZE_CHUNKS : WORLD_CHUNKS_X;
     int totalChunks = side * side;

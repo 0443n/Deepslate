@@ -12,9 +12,14 @@ public:
 
     virtual void buildTerrain(World* w, long seed) = 0;
 
+    virtual void buildChunk(World* w, int cx, int cz) = 0;
+
     virtual bool spawnsMobs() const { return true; }
 
     virtual bool supportsGenFeatures() const { return true; }
+
+    virtual bool hasBedrockFog() const { return true; }
+    virtual float clearColorScale() const { return 1.0f / 32.0f; }
 
     virtual int forcedGameType() const { return -1; }
 
