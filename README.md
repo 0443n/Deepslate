@@ -118,6 +118,8 @@ off a phone opens on the PSP.
 - [**MCPE-0.8.1**](https://github.com/oldminecraftcommunity/MCPE-0.8.1) — the
   0.8.1 decompilation, used as a source for the features 0.6.1 never had.
 - [**Oreo**](https://github.com/Oreo80) — helped with the porting.
+- [**CODINGBOTSTUDIO**](https://github.com/CODINGBOTSTUDIO) — contributed the
+  code the 3D clouds are based on.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
 
