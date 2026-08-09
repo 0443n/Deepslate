@@ -14,6 +14,8 @@ public:
     virtual void aiStep();
     virtual bool playerInteract();
 
+    bool canBeMilked() const { return milkedTicks > 20; }
+
     virtual const char* getAmbientSound() { return "mob.cow"; }
     virtual const char* getHurtSound()    { return "mob.cowhurt"; }
     virtual const char* getDeathSound()   { return "mob.cowhurt"; }

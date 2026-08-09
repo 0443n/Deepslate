@@ -167,7 +167,8 @@ int holdChargeUpdate(HoldCharge& c, int slotKey, int count, bool crossHeld) {
 #include "gpu/gui_atlas.h"
 
 void drawNinePatch(MenuState& s, float sx, float sy, float sw, float sh, float corner,
-                   float gx, float gy, float gw, float gh, float destCorner) {
+                   float gx, float gy, float gw, float gh, float destCorner,
+                   unsigned int tint) {
     if (!s.haveGui) {
         drawRect(gx * UI_SCALE, gy * UI_SCALE, gw * UI_SCALE, gh * UI_SCALE, 0xFF444444u);
         return;
@@ -185,7 +186,7 @@ void drawNinePatch(MenuState& s, float sx, float sy, float sw, float sh, float c
             float dw = xs[i + 1] - xs[i], dh = ys[j + 1] - ys[j];
             if (dw <= 0 || dh <= 0) continue;
             spriteDraw(&s.guiAtlas, (gx + xs[i]) * S, (gy + ys[j]) * S, dw * S, dh * S,
-                       sx + us[i], sy + vs[j], us[i + 1] - us[i], vs[j + 1] - vs[j], WHITE);
+                       sx + us[i], sy + vs[j], us[i + 1] - us[i], vs[j + 1] - vs[j], tint);
         }
 }
 

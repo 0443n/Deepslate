@@ -4,26 +4,24 @@
 #include <cstdio>
 #include <cstdlib>
 
-bool pngLoadRGBA(const char* path, unsigned char** outData, int* outW, int* outH) {
+struct PngReader {
+    png_structp png;
+    png_infop   info;
+    FILE*       fp;
+};
+
+PngReader* pngOpen(const char* path, int* outW, int* outH) {
     FILE* fp = fopen(path, "rb");
-    if (!fp)
-        return false;
+    if (!fp) return 0;
 
     png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
-    if (!png) {
-        fclose(fp);
-        return false;
-    }
+    if (!png) { fclose(fp); return 0; }
     png_infop info = png_create_info_struct(png);
-    if (!info) {
-        png_destroy_read_struct(&png, 0, 0);
-        fclose(fp);
-        return false;
-    }
+    if (!info) { png_destroy_read_struct(&png, 0, 0); fclose(fp); return 0; }
     if (setjmp(png_jmpbuf(png))) {
         png_destroy_read_struct(&png, &info, 0);
         fclose(fp);
-        return false;
+        return 0;
     }
 
     png_init_io(png, fp);
@@ -50,26 +48,29 @@ bool pngLoadRGBA(const char* path, unsigned char** outData, int* outW, int* outH
 
     png_read_update_info(png, info);
 
-    unsigned char* data = (unsigned char*)malloc((size_t)w * h * 4);
-    png_bytep* rows = (png_bytep*)malloc(sizeof(png_bytep) * h);
-    if (!data || !rows) {
-        free(data);
-        free(rows);
+    if (png_get_interlace_type(png, info) != PNG_INTERLACE_NONE) {
         png_destroy_read_struct(&png, &info, 0);
         fclose(fp);
-        return false;
+        return 0;
     }
-    for (int y = 0; y < h; y++)
-        rows[y] = data + (size_t)y * w * 4;
 
-    png_read_image(png, rows);
-
-    free(rows);
-    png_destroy_read_struct(&png, &info, 0);
-    fclose(fp);
-
-    *outData = data;
+    PngReader* r = (PngReader*)malloc(sizeof(PngReader));
+    if (!r) { png_destroy_read_struct(&png, &info, 0); fclose(fp); return 0; }
+    r->png = png; r->info = info; r->fp = fp;
     *outW = w;
     *outH = h;
+    return r;
+}
+
+bool pngReadRow(PngReader* r, unsigned char* rgbaRow) {
+    if (setjmp(png_jmpbuf(r->png))) return false;
+    png_read_row(r->png, (png_bytep)rgbaRow, 0);
     return true;
+}
+
+void pngClose(PngReader* r) {
+    if (!r) return;
+    png_destroy_read_struct(&r->png, &r->info, 0);
+    fclose(r->fp);
+    free(r);
 }

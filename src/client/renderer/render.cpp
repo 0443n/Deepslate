@@ -1025,6 +1025,7 @@ void gameRender(MenuState& s) {
         }
         if (g_genStage == GS_TERRAIN) {
 
+            textureForgetFailures();
             if (!g_haveTerrain) {
                 g_haveTerrain = loadTex(&g_terrain, "data/images/terrain.png");
                 if (g_haveTerrain) {

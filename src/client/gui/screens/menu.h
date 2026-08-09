@@ -26,7 +26,6 @@ struct MenuState {
     Texture logo;         bool haveLogo;
     Texture dirtBg;       bool haveBg;
     Texture touchGui;     bool haveTouch;
-    Texture spriteSheet;  bool haveSprite;
     Texture defaultWorld; bool haveDefaultWorld;
 
     WorldList worlds;
@@ -113,7 +112,8 @@ struct HoldCharge {
 int holdChargeUpdate(HoldCharge& c, int slotKey, int count, bool crossHeld);
 
 void drawNinePatch(MenuState& s, float sx, float sy, float sw, float sh, float corner,
-                   float gx, float gy, float gw, float gh, float destCorner = -1.0f);
+                   float gx, float gy, float gw, float gh, float destCorner = -1.0f,
+                   unsigned int tint = 0xFFFFFFFFu);
 void fontDrawTextClipped(const Font* font, float x, float y, const char* text,
                          unsigned int color, float scale, float maxWidthRaw);
 void fontDrawTextWrapped(const Font* font, float x, float y, const char* text,

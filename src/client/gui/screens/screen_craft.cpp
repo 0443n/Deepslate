@@ -247,9 +247,10 @@ void CraftScreen::renderContent(MenuState& s) {
 
         if (s.haveGui) {
             unsigned int tint = WHITE;
+            const float sz = (catH - 6) * 24.0f / 32.0f, off = 3 + (catH - 6) * 4.0f / 32.0f;
             textureBind(&s.guiAtlas);
-            spriteDraw(&s.guiAtlas, G(bx + 3), G(by + 3), G(catH - 6), G(catH - 6),
-                       GA_SS_CRAFTICONS_X + 32.0f * (icon / 2), GA_SS_CRAFTICONS_Y + (icon & 1) * 32.0f, 32, 32, tint);
+            spriteDraw(&s.guiAtlas, G(bx + off), G(by + off), G(sz), G(sz),
+                       GA_SS_CRAFTICONS_X + 24.0f * (icon / 2), GA_SS_CRAFTICONS_Y + (icon & 1) * 24.0f, 24, 24, tint);
         }
     }
 

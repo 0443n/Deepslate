@@ -13,6 +13,9 @@
 #include "world/entity/arrow.h"
 #include "world/entity/throwable.h"
 #include "world/entity/animal/pig.h"
+#include "world/entity/animal/sheep.h"
+#include "world/entity/animal/cow.h"
+#include "world/item/bucket_item.h"
 #include "world/entity/entity_types.h"
 #include "world/item/item.h"
 #include "world/item/tile_item.h"
@@ -639,6 +642,28 @@ CrosshairTarget gameModeCrosshairTarget() {
     if (sel && sel->id == ITEM_CAMERA) {
         t.useLabel = nearbyTripodCamera() ? "Take Picture" : "Place";
         return t;
+    }
+
+    if (sel) {
+        Entity* m = pickEntityOnViewRay(3.0f, 3.0f, true);
+        switch (m ? m->getEntityTypeId() : 0) {
+            case EntityTypes::IdCreeper:
+                if (sel->id == ITEM_FLINT_AND_STEEL) t.useLabel = "Ignite";
+                break;
+            case EntityTypes::IdSheep: {
+                Sheep* s = (Sheep*)m;
+                if (s->isBaby()) break;
+                if (sel->id == ITEM_BONEMEAL)              t.useLabel = "Dye";
+                else if (sel->id == ITEM_SHEARS && !s->isSheared()) t.useLabel = "Shear";
+                break;
+            }
+            case EntityTypes::IdCow:
+                if (sel->id == ITEM_BUCKET && sel->data == BUCKET_EMPTY &&
+                    !g_level.player->inventory->isCreative() && ((Cow*)m)->canBeMilked())
+                    t.useLabel = "Milk";
+                break;
+        }
+        if (t.useLabel) return t;
     }
 
     BlockHit hit = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z,

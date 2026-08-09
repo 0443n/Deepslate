@@ -4,6 +4,8 @@
 
 void soundInit(void);
 
+void soundShutdown(void);
+
 void soundPlay(const char* name, float volume, float pitch);
 
 void soundSetVolume(float volume);

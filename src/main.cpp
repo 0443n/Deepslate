@@ -19,6 +19,7 @@
 #include "world/level/storage/worldlist.h"
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
+#include "world/level/chunk/chunk_cache.h"
 #include "world/level/tile/tile.h"
 #include "client/gui/screens/menu.h"
 #include "client/gui/screens/screen.h"
@@ -473,6 +474,9 @@ int main(int argc, char* argv[]) {
 
         guEndFrame();
     }
+
+    soundShutdown();
+    worldGenWorkerStop();
 
     if (s.haveFont)  fontFree(&s.font);
     if (s.haveGui)   textureFree(&s.guiAtlas);

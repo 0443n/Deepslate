@@ -57,9 +57,9 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm) {
 
     memset(out, 0, sizeof(*out));
 
-    unsigned char* rgba = 0;
     int w = 0, h = 0;
-    if (!pngLoadRGBA(path, &rgba, &w, &h)) {
+    PngReader* png = pngOpen(path, &w, &h);
+    if (!png) {
         markFailed(path);
         return false;
     }
@@ -73,27 +73,37 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm) {
 
     void* data = memalign(16, bytes);
     if (!data) {
-        free(rgba);
+        pngClose(png);
         markFailed(path);
         return false;
     }
     memset(data, 0, bytes);
 
-    if (is16) {
-        for (int y = 0; y < h; y++) {
-            const unsigned char* s = rgba + (size_t)y * w * 4;
+    unsigned char* row = (unsigned char*)malloc((size_t)w * 4);
+    if (!row) {
+        free(data);
+        pngClose(png);
+        markFailed(path);
+        return false;
+    }
+    for (int y = 0; y < h; y++) {
+        if (!pngReadRow(png, row)) {
+            free(row); free(data);
+            pngClose(png);
+            markFailed(path);
+            return false;
+        }
+        if (is16) {
+            const unsigned char* s = row;
             unsigned short* d = (unsigned short*)data + (size_t)y * texW;
             for (int x = 0; x < w; x++, s += 4)
                 d[x] = pack16(s, psm);
+        } else {
+            memcpy((unsigned char*)data + (size_t)y * texW * 4, row, (size_t)w * 4);
         }
-    } else {
-        unsigned char* dst = (unsigned char*)data;
-        for (int y = 0; y < h; y++)
-            memcpy(dst + (size_t)y * texW * 4,
-                   rgba + (size_t)y * w * 4,
-                   (size_t)w * 4);
     }
-    free(rgba);
+    free(row);
+    pngClose(png);
 
     sceKernelDcacheWritebackRange(data, bytes);
 
@@ -130,14 +140,18 @@ void textureFree(Texture* tex) {
 
 bool textureLoadMipLevel(Texture* tex, int level, const char* path) {
     if (level < 0 || level >= TEXTURE_MAX_MIPS) return false;
-    unsigned char* rgba = 0;
     int w = 0, h = 0;
-    if (!pngLoadRGBA(path, &rgba, &w, &h)) return false;
+    PngReader* png = pngOpen(path, &w, &h);
+    if (!png) return false;
 
     void* data = memalign(16, (size_t)w * h * 4);
-    if (!data) { free(rgba); return false; }
-    memcpy(data, rgba, (size_t)w * h * 4);
-    free(rgba);
+    if (!data) { pngClose(png); return false; }
+
+    for (int y = 0; y < h; y++)
+        if (!pngReadRow(png, (unsigned char*)data + (size_t)y * w * 4)) {
+            free(data); pngClose(png); return false;
+        }
+    pngClose(png);
     sceKernelDcacheWritebackRange(data, (size_t)w * h * 4);
 
     if (tex->mip[level]) free(tex->mip[level]);

@@ -80,8 +80,10 @@ bool worldSetBlockAndData(World* w, int x, int y, int z, unsigned char id, unsig
     return true;
 }
 
-static void editQueuePromote(int ci, int si) {
-    if (!g_inEditQueue[ci][si]) return;
+static int g_editBurst = 0;
+
+static bool editQueuePromote(int ci, int si) {
+    if (!g_inEditQueue[ci][si]) return false;
     for (int i = 0; i < g_editQueueN; i++) {
         if (g_editQueue[i][0] != ci || g_editQueue[i][1] != si) continue;
         for (int j = i; j > 0; j--) {
@@ -89,13 +91,15 @@ static void editQueuePromote(int ci, int si) {
             g_editQueue[j][1] = g_editQueue[j-1][1];
         }
         g_editQueue[0][0] = ci; g_editQueue[0][1] = si;
-        return;
+        return true;
     }
+    return false;
 }
 
 void worldRebuildAroundNow(World* w, int x, int y, int z) {
     if (y < 0 || y >= WORLD_H) return;
 
+    int burst[8][2], nb = 0;
     for (int dz = 1; dz >= -1; dz--)
     for (int dx = 1; dx >= -1; dx--)
     for (int dy = 1; dy >= -1; dy--) {
@@ -103,8 +107,16 @@ void worldRebuildAroundNow(World* w, int x, int y, int z) {
         if (ny < 0 || ny >= WORLD_H) continue;
         int cx = nx >> 4, cz = nz >> 4;
         if (!worldChunkSettled(w, cx, cz)) continue;
-        editQueuePromote(worldSlotIndex(w, cx, cz), ny / SECTION_SY);
+        int ci = worldSlotIndex(w, cx, cz), si = ny / SECTION_SY;
+        if (!editQueuePromote(ci, si)) continue;
+        bool seen = false;
+        for (int k = 0; k < nb; k++) if (burst[k][0] == ci && burst[k][1] == si) { seen = true; break; }
+        if (!seen && nb < 8) { burst[nb][0] = ci; burst[nb][1] = si; nb++; }
     }
+
+    if (worldChunkSettled(w, x >> 4, z >> 4))
+        editQueuePromote(worldSlotIndex(w, x >> 4, z >> 4), y / SECTION_SY);
+    g_editBurst = nb;
 }
 
 int worldEditQueueDepth() { return g_editQueueN; }
@@ -113,8 +125,11 @@ int worldEditQueueFront(int field) { return g_editQueueN ? g_editQueue[0][field]
 void worldDrainPlayerEdits(World* w, int maxSections) {
 
     static const unsigned int TIME_BUDGET_US = 1000;
+
     unsigned int tStart = sceKernelGetSystemTimeLow();
+    int burst = g_editBurst; g_editBurst = 0;
     int n = g_editQueueN < maxSections ? g_editQueueN : maxSections;
+    if (n < burst) n = g_editQueueN < burst ? g_editQueueN : burst;
     for (int i = 0; i < n; i++) {
         int ci = g_editQueue[0][0], si = g_editQueue[0][1];
         for (int j = 1; j < g_editQueueN; j++) { g_editQueue[j-1][0] = g_editQueue[j][0]; g_editQueue[j-1][1] = g_editQueue[j][1]; }
@@ -122,7 +137,8 @@ void worldDrainPlayerEdits(World* w, int maxSections) {
         g_inEditQueue[ci][si] = false;
         ChunkMesh* c = &w->chunks[ci];
         if (c->sec[si].dirty) chunkBuildSection(c, w, si);
-        if (sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US) break;
+        if (i + 1 >= burst && sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US)
+            break;
     }
 }
 

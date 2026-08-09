@@ -12,6 +12,8 @@ public:
     virtual void tick();
     virtual int  getEntityTypeId() const;
 
+    virtual bool playerInteract();
+
     virtual const char* getHurtSound()  { return "mob.creeper"; }
     virtual const char* getDeathSound() { return "mob.creeperdeath"; }
 

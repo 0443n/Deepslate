@@ -39,6 +39,9 @@ static Voice              g_voices[MAX_VOICES];
 static int                g_channel = -1;
 static float              g_master  = 1.0f;
 
+static int                g_thid    = -1;
+static volatile int       g_mixerQuit = 0;
+
 static bool loadPack(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) return false;
@@ -131,7 +134,8 @@ static int mixerThread(SceSize , void* ) {
 
     static short out[2][SAMPLE_COUNT * 2];
     int buf = 0;
-    for (;;) {
+
+    while (!g_mixerQuit) {
         soundMixBlock(out[buf]);
 
         int vol = (int)(g_master * PSP_AUDIO_VOLUME_MAX);
@@ -154,10 +158,26 @@ void soundInit(void) {
     g_channel = sceAudioChReserve(0, SAMPLE_COUNT, PSP_AUDIO_FORMAT_STEREO);
     if (g_channel < 0) return;
 
-    int thid = sceKernelCreateThread("sound_thread", mixerThread, 0x12, 0x10000,
-                                     PSP_THREAD_ATTR_USER, 0);
-    if (thid < 0) return;
-    sceKernelStartThread(thid, 0, 0);
+    g_mixerQuit = 0;
+    g_thid = sceKernelCreateThread("sound_thread", mixerThread, 0x12, 0x10000,
+                                   PSP_THREAD_ATTR_USER, 0);
+    if (g_thid < 0) return;
+    sceKernelStartThread(g_thid, 0, 0);
+}
+
+void soundShutdown(void) {
+    if (g_thid >= 0) {
+        g_mixerQuit = 1;
+
+        SceUInt timeout = 1000 * 1000;
+        sceKernelWaitThreadEnd(g_thid, &timeout);
+        sceKernelDeleteThread(g_thid);
+        g_thid = -1;
+    }
+    if (g_channel >= 0) { sceAudioChRelease(g_channel); g_channel = -1; }
+    free((void*)g_pcm);  g_pcm = 0;
+    free(g_index);       g_index = 0;
+    g_count = 0;
 }
 
 void soundSetVolume(float volume) {

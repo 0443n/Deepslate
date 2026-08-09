@@ -250,8 +250,10 @@ void optionsLoad() {
 #define OPT_CAT_PITCH  27.0f
 #define OPT_CAT_X       5.0f
 
+#define OPT_CAT_ICON   24.0f
 static const float kCatIconUV[OPT_CATEGORIES][2] = {
-    { 28.0f, 0.0f }, { 0.0f, 0.0f }, { 28.0f, 28.0f }, { 0.0f, 28.0f },
+    { OPT_CAT_ICON, 0.0f }, { 0.0f, 0.0f },
+    { OPT_CAT_ICON, OPT_CAT_ICON }, { 0.0f, OPT_CAT_ICON },
 };
 
 static const float kOptRowH    = 14.0f;
@@ -381,10 +383,13 @@ void OptionsScreen::renderContent(MenuState& s) {
             if (s.haveGui) {
 
                 textureBind(&s.guiAtlas);
-                spriteDraw(&s.guiAtlas, OPT_CAT_X * UI_SCALE, cY * UI_SCALE,
-                           catBtn * UI_SCALE, catBtn * UI_SCALE,
+
+                const float isz = catBtn * OPT_CAT_ICON / 28.0f;
+                const float ioff = catBtn * 2.0f / 28.0f;
+                spriteDraw(&s.guiAtlas, (OPT_CAT_X + ioff) * UI_SCALE, (cY + ioff) * UI_SCALE,
+                           isz * UI_SCALE, isz * UI_SCALE,
                            GA_SS_OPTCAT_X + kCatIconUV[i][0],
-                           GA_SS_OPTCAT_Y + kCatIconUV[i][1], 28.0f, 28.0f, WHITE);
+                           GA_SS_OPTCAT_Y + kCatIconUV[i][1], OPT_CAT_ICON, OPT_CAT_ICON, WHITE);
             } else {
 
                 float tw = fontTextWidth(&font, g_optionCategoryNames[i]) * UI_SCALE;
