@@ -5,6 +5,8 @@
 class Mob;
 struct Texture;
 
+struct MobVertex { float u, v; float x, y, z; };
+
 struct SkinVertex { float u, v; unsigned int color; float x, y, z; };
 
 struct MobAnim {
@@ -18,11 +20,19 @@ MobAnim mobAnimSetup(Mob* mob, float rot, float a);
 
 #define MOB_MAX_PARTS 16
 
-struct MobPart { SkinVertex base[36]; SkinVertex mesh[36]; float px, py, pz; float xRot, yRot, zRot; bool head; };
+struct MobPart { MobVertex base[36]; float px, py, pz; float xRot, yRot, zRot; bool head; };
 
-void mobBuildBox(SkinVertex* out, float x0, float y0, float z0,
+void mobBuildBox(MobVertex* out, float x0, float y0, float z0,
                  float x1, float y1, float z1, int tx, int ty, int w, int h, int d,
                  bool mirror, float grow, float texW = 64.0f, float texH = 32.0f);
+
+inline void mobBoxToColoured(SkinVertex* dst, const MobVertex* src, int n, unsigned int col) {
+    for (int i = 0; i < n; i++) {
+        dst[i].u = src[i].u; dst[i].v = src[i].v;
+        dst[i].x = src[i].x; dst[i].y = src[i].y; dst[i].z = src[i].z;
+        dst[i].color = col;
+    }
+}
 
 void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
                     float x, float y, float z, float ibody, float a, unsigned int tint,

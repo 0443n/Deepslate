@@ -9,6 +9,7 @@ extern float g_camX, g_camY, g_camZ;
 #include "world/level/level.h"
 #include "world/entity/entity.h"
 
+#include "gpu/gu.h"
 #include <pspgu.h>
 #include <pspgum.h>
 #include <cmath>
@@ -602,7 +603,8 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
         const Texture* tx = pass == 0 ? misc : pass == 1 ? terrain : items;
         if (tx) textureBindNoMip(tx); else continue;
 
-        PVertex* v = (PVertex*)sceGuGetMemory(count * 6 * sizeof(PVertex));
+        PVertex* v = (PVertex*)guFrameAlloc(count * 6 * sizeof(PVertex));
+        if (!v) return;
         int n = 0;
         for (int i = 0; i < MAX_PARTICLES; i++) {
             P* p = &g_pool[i];

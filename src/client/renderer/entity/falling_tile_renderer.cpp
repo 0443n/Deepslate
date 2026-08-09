@@ -36,7 +36,8 @@ void FallingTileRenderer::render(Entity* entity, float x, float y, float z, floa
     int br = lightRawAt(&g_world, Mth::floor(x), Mth::floor(y), Mth::floor(z));
     unsigned int brCol = g_brightColor[br];
 
-    ChunkVertex* mesh = (ChunkVertex*)sceGuGetMemory(s_meshCount * sizeof(ChunkVertex));
+    ChunkVertex* mesh = (ChunkVertex*)guFrameAlloc(s_meshCount * sizeof(ChunkVertex));
+    if (!mesh) return;
     for (int i = 0; i < s_meshCount; i++) {
         mesh[i] = s_mesh[i];
         mesh[i].color = mulColor(s_mesh[i].color, brCol);

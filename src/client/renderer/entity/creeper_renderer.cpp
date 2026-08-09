@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/creeper_renderer.h"
+#include "platform/dcache.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/monster/creeper.h"
 #include <math.h>
@@ -24,6 +25,8 @@ static void build() {
         parts[P_LEG0+i].px = lp[i][0]; parts[P_LEG0+i].py = lp[i][1]; parts[P_LEG0+i].pz = lp[i][2];
     }
     parts[P_HEAD].head = true;
+
+    dcacheFlush(parts, sizeof(parts));
     g_built = true;
 }
 

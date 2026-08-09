@@ -16,25 +16,24 @@ extern World g_world;
 
 static const float DEG2RAD = 3.14159265f / 180.0f;
 
-void mobBuildBox(SkinVertex* out, float x0, float y0, float z0,
+void mobBuildBox(MobVertex* out, float x0, float y0, float z0,
                  float x1, float y1, float z1, int tx, int ty, int w, int h, int d,
                  bool mirror, float grow, float texW, float texH) {
     x0 -= grow; y0 -= grow; z0 -= grow;
     x1 += grow; y1 += grow; z1 += grow;
 
     const float W = texW, H = texH;
-    const unsigned int col = 0xFFFFFFFFu;
     int n = 0;
     auto addPoly = [&](float ax, float ay, float az, float bx, float by, float bz,
                        float cx, float cy, float cz, float dx, float dy, float dz,
                        float u0, float v0, float u1, float v1) {
         if (mirror) { float t = u0; u0 = u1; u1 = t; }
-        out[n++] = {u0, v0, col, ax, ay, az};
-        out[n++] = {u1, v0, col, bx, by, bz};
-        out[n++] = {u1, v1, col, cx, cy, cz};
-        out[n++] = {u1, v1, col, cx, cy, cz};
-        out[n++] = {u0, v1, col, dx, dy, dz};
-        out[n++] = {u0, v0, col, ax, ay, az};
+        out[n++] = {u0, v0, ax, ay, az};
+        out[n++] = {u1, v0, bx, by, bz};
+        out[n++] = {u1, v1, cx, cy, cz};
+        out[n++] = {u1, v1, cx, cy, cz};
+        out[n++] = {u0, v1, dx, dy, dz};
+        out[n++] = {u0, v0, ax, ay, az};
     };
     addPoly(x1,y0,z1, x0,y0,z1, x0,y0,z0, x1,y0,z0, (tx+d+w)/W,(ty)/H,     (tx+d)/W,(ty+d)/H);
     addPoly(x0,y0,z0, x0,y0,z1, x0,y1,z1, x0,y1,z0, (tx+d)/W,(ty+d)/H,     (tx)/W,(ty+d+h)/H);
@@ -87,13 +86,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         brCol = (brCol & 0xFF000000u) | (b << 16) | (g << 8) | r;
     }
 
-    void* meshes[MOB_MAX_PARTS];
     if (count > MOB_MAX_PARTS) count = MOB_MAX_PARTS;
-    for (int i = 0; i < count; i++) {
-        SkinVertex tmp[36];
-        for (int k = 0; k < 36; k++) { tmp[k] = parts[i].base[k]; tmp[k].color = brCol; }
-        meshes[i] = guFrameCopy(tmp, sizeof(tmp));
-    }
 
     textureBind(tex);
     sceGuDisable(GU_CULL_FACE);
@@ -135,6 +128,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
                                            g_nearZPlane, MOB_DEPTH_BIAS_BLOCKS));
     }
 
+    sceGuColor(brCol);
     for (int i = 0; i < count; i++) {
         sceGumPushMatrix();
         MOB_BABY_XFORM(i);
@@ -143,16 +137,17 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         if (parts[i].yRot != 0.0f) sceGumRotateY(parts[i].yRot);
         if (parts[i].xRot != 0.0f) sceGumRotateX(parts[i].xRot);
         sceGumDrawArray(GU_TRIANGLES,
-                        GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                        36, 0, meshes[i]);
+                        GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                        36, 0, parts[i].base);
         sceGumPopMatrix();
     }
 
     if (bowPartIndex >= 0) {
         MobPart& ap = parts[bowPartIndex];
         short drawId = heldItemId ? heldItemId : ITEM_BOW;
+
         static ItemModelRenderer heldModel;
-        if (heldModel.build(drawId, 0, -1)) {
+        if (heldModel.buildShared(drawId, 0, brCol)) {
             sceGumPushMatrix();
             ScePspFVector3 piv = { ap.px, ap.py, ap.pz }; sceGumTranslate(&piv);
             if (ap.zRot != 0.0f) sceGumRotateZ(ap.zRot);
@@ -172,7 +167,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
                 sceGumRotateX(-100.0f * DEG2RAD); sceGumRotateY(45.0f * DEG2RAD);
             }
             ItemModelRenderer::applyFlatPreTransform();
-            heldModel.draw(brCol, true);
+            heldModel.drawShared(true);
             sceGumPopMatrix();
             textureBind(tex);
         }
@@ -182,18 +177,13 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         unsigned int wa = (unsigned int)(overlayWhite * 255.0f); if (wa > 255) wa = 255;
         const unsigned int WHITE = (wa << 24) | 0x00FFFFFFu;
 
-        void* ovMeshes[MOB_MAX_PARTS];
-        for (int i = 0; i < count; i++) {
-            SkinVertex tmp[36];
-            for (int k = 0; k < 36; k++) { tmp[k] = parts[i].base[k]; tmp[k].color = WHITE; }
-            ovMeshes[i] = guFrameCopy(tmp, sizeof(tmp));
-        }
         sceGuEnable(GU_BLEND);
         sceGuTexFunc(GU_TFX_ADD, GU_TCC_RGBA);
         sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
         sceGuDepthMask(GU_TRUE);
         sceGuEnable(GU_CULL_FACE);
         sceGuFrontFace(GU_CCW);
+        sceGuColor(WHITE);
         for (int i = 0; i < count; i++) {
             sceGumPushMatrix();
             MOB_BABY_XFORM(i);
@@ -202,8 +192,8 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
             if (parts[i].yRot != 0.0f) sceGumRotateY(parts[i].yRot);
             if (parts[i].xRot != 0.0f) sceGumRotateX(parts[i].xRot);
             sceGumDrawArray(GU_TRIANGLES,
-                            GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                            36, 0, ovMeshes[i]);
+                            GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                            36, 0, parts[i].base);
             sceGumPopMatrix();
         }
         sceGuDisable(GU_CULL_FACE);
@@ -213,6 +203,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
     #undef MOB_BABY_XFORM
 
     sceGuDepthOffset(0);
+    sceGuColor(0xFFFFFFFFu);
 
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);

@@ -341,6 +341,17 @@ int main(int argc, char* argv[]) {
                             ty += 12.0f;
                         }
                     }
+
+                    {
+                        extern unsigned int g_frameAllocFails;
+                        if (g_frameAllocFails) {
+                            char faBuf[48];
+                            std::snprintf(faBuf, sizeof(faBuf), "GU-SCRATCH FULL %u",
+                                          g_frameAllocFails);
+                            fontDrawTextShadow(&s.font, 10, ty, faBuf, 0xFF50FFFFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
                     if (g_textureBindFailures) {
                         char txBuf[96];
                         std::snprintf(txBuf, sizeof(txBuf), "TEX FAIL %u: %s",

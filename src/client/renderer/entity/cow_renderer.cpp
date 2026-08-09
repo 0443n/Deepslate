@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/cow_renderer.h"
+#include "platform/dcache.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/mob.h"
 #include "gpu/texture.h"
@@ -37,6 +38,8 @@ static void build() {
         mobBuildBox(parts[P_LEG0+i].base, -2,0,-2, 2,12,2, 0,16, 4,12,4, false, 0);
         parts[P_LEG0+i].px = lp[i][0]; parts[P_LEG0+i].py = lp[i][1]; parts[P_LEG0+i].pz = lp[i][2];
     }
+
+    dcacheFlush(parts, sizeof(parts));
     g_built = true;
 }
 

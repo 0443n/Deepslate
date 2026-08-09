@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/humanoid_renderer.h"
+#include "platform/dcache.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/mob.h"
 #include <math.h>
@@ -42,6 +43,9 @@ static void build() {
     if (g_built) return;
     buildInto(partsN, false);
     buildInto(partsT, true);
+
+    dcacheFlush(partsN, sizeof(partsN));
+    dcacheFlush(partsT, sizeof(partsT));
     g_built = true;
 }
 

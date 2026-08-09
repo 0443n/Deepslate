@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/spider_renderer.h"
+#include "platform/dcache.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/mob.h"
 #include <math.h>
@@ -32,6 +33,8 @@ static void build() {
         parts[P_LEG0+i].pz = lz[i];
     }
     parts[P_HEAD].head = true;
+
+    dcacheFlush(parts, sizeof(parts));
     g_built = true;
 }
 

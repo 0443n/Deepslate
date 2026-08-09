@@ -12,6 +12,23 @@
 static unsigned int __attribute__((aligned(16))) g_list[524288 / 4];
 static void* g_listUncached = 0;
 
+#define GU_SCRATCH_BUDGET (384 * 1024)
+static unsigned int g_frameScratch = 0;
+static unsigned int g_frameId = 0;
+
+unsigned int g_frameAllocFails = 0;
+
+unsigned int guFrameId(void) { return g_frameId; }
+
+void* guFrameAlloc(int bytes) {
+    if (bytes <= 0) return 0;
+    if (g_frameScratch + (unsigned int)bytes > GU_SCRATCH_BUDGET) { g_frameAllocFails++; return 0; }
+    void* p = sceGuGetMemory(bytes);
+    if (!p) return 0;
+    g_frameScratch += (unsigned int)bytes;
+    return p;
+}
+
 static unsigned int g_vramOffset = 0;
 
 static void* g_fb[2] = { 0, 0 };
@@ -106,6 +123,8 @@ void guTerm(void) {
 
 void guStartFrame(unsigned int clearColor) {
     sceGuStart(GU_DIRECT, g_listUncached);
+    g_frameScratch = 0;
+    g_frameId++;
 
     {
         void* shown = 0; int bw = 0, pf = 0;

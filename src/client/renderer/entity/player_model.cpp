@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/player_model.h"
+#include "client/renderer/entity/mob_model.h"
 #include "platform/dcache.h"
 #include <pspgu.h>
 #include <pspgum.h>
@@ -32,9 +33,7 @@ extern bool    g_haveTerrain;
 static const float DEG2RAD = 3.14159265f / 180.0f;
 static const float PIF     = 3.14159265f;
 
-struct SkinVertex { float u, v; unsigned int color; float x, y, z; };
-
-struct Part { SkinVertex base[36]; SkinVertex mesh[36]; float px, py, pz; float xRot, yRot, zRot; };
+struct Part { MobVertex base[36]; float px, py, pz; float xRot, yRot, zRot; };
 enum { P_HEAD, P_BODY, P_ARM0, P_ARM1, P_LEG0, P_LEG1, P_COUNT };
 static Part parts[P_COUNT];
 static bool g_built = false;
@@ -61,22 +60,21 @@ static void loadCharTextureIfNeeded(void) {
     g_haveChar = textureLoad16("data/images/mob/char.png", &g_charTex, GU_PSM_5551);
 }
 
-static void buildBox(SkinVertex* out,
+static void buildBox(MobVertex* out,
                      float x0, float y0, float z0, float x1, float y1, float z1,
                      int tx, int ty, int w, int h, int d, bool mirror) {
     const float W = 64.0f, H = 32.0f;
-    const unsigned int col = 0xFFFFFFFFu;
     int n = 0;
     auto addPoly = [&](float ax, float ay, float az, float bx, float by, float bz,
                        float cx, float cy, float cz, float dx, float dy, float dz,
                        float u0, float v0, float u1, float v1) {
         if (mirror) { float t = u0; u0 = u1; u1 = t; }
-        out[n++] = {u0, v0, col, ax, ay, az};
-        out[n++] = {u1, v0, col, bx, by, bz};
-        out[n++] = {u1, v1, col, cx, cy, cz};
-        out[n++] = {u1, v1, col, cx, cy, cz};
-        out[n++] = {u0, v1, col, dx, dy, dz};
-        out[n++] = {u0, v0, col, ax, ay, az};
+        out[n++] = {u0, v0, ax, ay, az};
+        out[n++] = {u1, v0, bx, by, bz};
+        out[n++] = {u1, v1, cx, cy, cz};
+        out[n++] = {u1, v1, cx, cy, cz};
+        out[n++] = {u0, v1, dx, dy, dz};
+        out[n++] = {u0, v0, ax, ay, az};
     };
 
     addPoly(x1,y0,z1, x0,y0,z1, x0,y0,z0, x1,y0,z0,
@@ -113,15 +111,15 @@ static void buildParts(void) {
 
     buildBox(parts[P_LEG1].base, -2, 0,-2,  2,12, 2,  0, 16, 4,12,4, true);
     parts[P_LEG1].px = 2;  parts[P_LEG1].py = 12; parts[P_LEG1].pz = 0;
+    dcacheFlush(parts, sizeof(parts));
     g_built = true;
 }
 
-static SkinVertex g_armor1[P_COUNT][36];
-static SkinVertex g_armor05[P_COUNT][36];
-static bool       g_armorBuilt = false;
-static SkinVertex g_armorMesh[9][36];
+static MobVertex g_armor1[P_COUNT][36];
+static MobVertex g_armor05[P_COUNT][36];
+static bool      g_armorBuilt = false;
 
-static void buildArmorSet(SkinVertex set[][36], float inf) {
+static void buildArmorSet(MobVertex set[][36], float inf) {
     buildBox(set[P_HEAD], -4-inf,-8-inf,-4-inf,  4+inf, 0+inf, 4+inf,  0,  0, 8,8,8, false);
     buildBox(set[P_BODY], -4-inf, 0-inf,-2-inf,  4+inf,12+inf, 2+inf, 16, 16, 8,12,4, false);
     buildBox(set[P_ARM0], -3-inf,-2-inf,-2-inf,  1+inf,10+inf, 2+inf, 40, 16, 4,12,4, false);
@@ -133,6 +131,8 @@ static void buildArmor() {
     if (g_armorBuilt) return;
     buildArmorSet(g_armor1, 1.0f);
     buildArmorSet(g_armor05, 0.5f);
+    dcacheFlush(g_armor1,  sizeof(g_armor1));
+    dcacheFlush(g_armor05, sizeof(g_armor05));
     g_armorBuilt = true;
 }
 
@@ -152,6 +152,7 @@ static Texture* armorTexture(int mat, int file) {
 }
 
 static void drawArmorLayers(unsigned int brCol) {
+    sceGuColor(brCol);
     LocalPlayer* p = g_level.player;
     if (!p) return;
     buildArmor();
@@ -169,7 +170,6 @@ static void drawArmorLayers(unsigned int brCol) {
         { ArmorItem::SLOT_TORSO, torsoParts, 3, 0, false },
         { ArmorItem::SLOT_HEAD,  headParts,  1, 0, false },
     };
-    int drawn = 0;
     for (int li = 0; li < 4; li++) {
         const ArmorLayer& ly = layers[li];
         ItemInstance& ai = p->armor[ly.slot];
@@ -179,12 +179,9 @@ static void drawArmorLayers(unsigned int brCol) {
         Texture* tex = armorTexture((ai.id - 298) / 4, ly.file);
         if (!tex) continue;
         textureBind(tex);
-        SkinVertex (*set)[36] = ly.inner ? g_armor05 : g_armor1;
-        for (int k = 0; k < ly.n && drawn < 9; k++) {
+        MobVertex (*set)[36] = ly.inner ? g_armor05 : g_armor1;
+        for (int k = 0; k < ly.n; k++) {
             int i = ly.parts[k];
-            SkinVertex* m = g_armorMesh[drawn++];
-            for (int v = 0; v < 36; v++) { m[v] = set[i][v]; m[v].color = brCol; }
-            dcacheFlush(m, sizeof(g_armorMesh[0]));
             sceGumPushMatrix();
             ScePspFVector3 piv = { parts[i].px, parts[i].py, parts[i].pz };
             sceGumTranslate(&piv);
@@ -192,8 +189,8 @@ static void drawArmorLayers(unsigned int brCol) {
             if (parts[i].yRot != 0.0f) sceGumRotateY(parts[i].yRot);
             if (parts[i].xRot != 0.0f) sceGumRotateX(parts[i].xRot);
             sceGumDrawArray(GU_TRIANGLES,
-                GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                36, 0, m);
+                GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                36, 0, set[i]);
             sceGumPopMatrix();
         }
     }
@@ -294,11 +291,6 @@ void playerModelRender(float a) {
         unsigned int b  = (((brCol >> 16) & 0xFFu) * HURT_GB) / 255;
         brCol = (brCol & 0xFF000000u) | (b << 16) | (g << 8) | r;
     }
-    for (int i = 0; i < P_COUNT; i++) {
-        for (int k = 0; k < 36; k++) { parts[i].mesh[k] = parts[i].base[k]; parts[i].mesh[k].color = brCol; }
-        dcacheFlush(parts[i].mesh, sizeof(parts[i].mesh));
-    }
-
     textureBind(&g_localSkinTex);
     sceGuDisable(GU_CULL_FACE);
 
@@ -336,6 +328,7 @@ void playerModelRender(float a) {
     float gndY = -24.0f + (p->sneaking ? 3.0f : 0.0f);
     ScePspFVector3 gnd = { 0.0f, gndY, 0.0f };       sceGumTranslate(&gnd);
 
+    sceGuColor(brCol);
     for (int i = 0; i < P_COUNT; i++) {
         sceGumPushMatrix();
         ScePspFVector3 piv = { parts[i].px, parts[i].py, parts[i].pz };
@@ -344,12 +337,13 @@ void playerModelRender(float a) {
         if (parts[i].yRot != 0.0f) sceGumRotateY(parts[i].yRot);
         if (parts[i].xRot != 0.0f) sceGumRotateX(parts[i].xRot);
         sceGumDrawArray(GU_TRIANGLES,
-                        GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                        36, 0, parts[i].mesh);
+                        GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                        36, 0, parts[i].base);
         sceGumPopMatrix();
     }
 
     drawArmorLayers(brCol);
+    sceGuColor(0xFFFFFFFFu);
 
     if (g_haveTerrain) {
         ItemInstance* held = g_level.player->inventory->getSelected();
@@ -448,11 +442,6 @@ void playerModelRenderPreview(float sx, float sy, float scale) {
     parts[P_ARM0].zRot += bcos; parts[P_ARM1].zRot -= bcos;
     parts[P_ARM0].xRot += bsin; parts[P_ARM1].xRot -= bsin;
 
-    for (int i = 0; i < P_COUNT; i++) {
-        for (int k = 0; k < 36; k++) { parts[i].mesh[k] = parts[i].base[k]; parts[i].mesh[k].color = 0xFFFFFFFFu; }
-        dcacheFlush(parts[i].mesh, sizeof(parts[i].mesh));
-    }
-
     sceGumMatrixMode(GU_PROJECTION); sceGumPushMatrix(); sceGumLoadIdentity();
     sceGumOrtho(0.0f, 480.0f, 272.0f, 0.0f, -200.0f, 200.0f);
     sceGumMatrixMode(GU_VIEW); sceGumPushMatrix(); sceGumLoadIdentity();
@@ -473,6 +462,7 @@ void playerModelRenderPreview(float sx, float sy, float scale) {
 
     textureBind(&g_localSkinTex);
     sceGuDisable(GU_CULL_FACE);
+    sceGuColor(0xFFFFFFFFu);
     for (int i = 0; i < P_COUNT; i++) {
         sceGumPushMatrix();
         ScePspFVector3 piv = { parts[i].px, parts[i].py, parts[i].pz };
@@ -481,8 +471,8 @@ void playerModelRenderPreview(float sx, float sy, float scale) {
         if (parts[i].yRot != 0.0f) sceGumRotateY(parts[i].yRot);
         if (parts[i].xRot != 0.0f) sceGumRotateX(parts[i].xRot);
         sceGumDrawArray(GU_TRIANGLES,
-                        GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                        36, 0, parts[i].mesh);
+                        GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                        36, 0, parts[i].base);
         sceGumPopMatrix();
     }
     drawArmorLayers(0xFFFFFFFFu);

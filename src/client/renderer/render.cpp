@@ -369,7 +369,8 @@ static void renderSky(float px, float py, float pz) {
     sceGumTranslate(&t);
 
     int cells = (2 * d) * (2 * d);
-    ColorVertex* v = (ColorVertex*)sceGuGetMemory(cells * 6 * sizeof(ColorVertex));
+    ColorVertex* v = (ColorVertex*)guFrameAlloc(cells * 6 * sizeof(ColorVertex));
+    if (!v) return;
     unsigned int dc = g_skyDomeColorNow;
     int n = 0;
     for (int xx = -s * d; xx < s * d; xx += s) {
@@ -430,7 +431,8 @@ static void renderCloudsFast(float alpha, float px, float py, float pz) {
     unsigned int color = g_cloudColorNow;
 
     int cells = (2 * d) * (2 * d);
-    CloudVertex* v = (CloudVertex*)sceGuGetMemory(cells * 6 * sizeof(CloudVertex));
+    CloudVertex* v = (CloudVertex*)guFrameAlloc(cells * 6 * sizeof(CloudVertex));
+    if (!v) return;
     int n = 0;
     for (int xx = -s * d; xx < s * d; xx += s) {
         for (int zz = -s * d; zz < s * d; zz += s) {
@@ -753,7 +755,8 @@ static void renderMiningCrack(float ex, float ey, float ez) {
     static const signed char FAXIS[6] = { 1, 1, 2, 2, 0, 0 };
     static const signed char FSIGN[6] = { 1,-1, 1,-1, 1,-1 };
 
-    ChunkVertex* mesh = (ChunkVertex*)sceGuGetMemory(nb * 36 * sizeof(ChunkVertex));
+    ChunkVertex* mesh = (ChunkVertex*)guFrameAlloc(nb * 36 * sizeof(ChunkVertex));
+    if (!mesh) return;
     int total = 0;
     for (int b = 0; b < nb; b++) {
         float lo[3] = { boxes[b][0] - EPS, boxes[b][1] - EPS, boxes[b][2] - EPS };
@@ -845,7 +848,8 @@ static void renderSelectionOutline(float ex, float ey, float ez) {
 
         struct FillVtx { unsigned int color; float x, y, z; };
 
-        FillVtx* v = (FillVtx*)sceGuGetMemory((nb * 24 > 108 ? nb * 24 : 108) * sizeof(FillVtx));
+        FillVtx* v = (FillVtx*)guFrameAlloc((nb * 24 > 108 ? nb * 24 : 108) * sizeof(FillVtx));
+    if (!v) return;
         int n = 0;
 
         const float EPS = 1.0f / 512.0f;
@@ -1176,8 +1180,13 @@ void gameRender(MenuState& s) {
                     playerSpawnAt(feetY + PLAYER_EYE);
                 }
 
-                if (!g_level.getCubes(g_level.player, g_level.player->bb).empty())
-                    g_level.player->resetPos(true);
+                {
+                    const AABB& pb = g_level.player->bb;
+                    bool known = g_level.hasChunksAt(Mth::floor(pb.x0), Mth::floor(pb.y0), Mth::floor(pb.z0),
+                                                     Mth::floor(pb.x1), Mth::floor(pb.y1), Mth::floor(pb.z1));
+                    if (known && !g_level.getCubes(g_level.player, pb).empty())
+                        g_level.player->resetPos(true);
+                }
 
                 int gamemode = (s.worldSelected >= 0 && s.worldSelected < s.worlds.count)
                              ? s.worlds.gameModes[s.worldSelected] : 1;

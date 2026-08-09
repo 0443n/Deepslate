@@ -9,9 +9,13 @@
 extern "C" {
 #endif
 
+void* guFrameAlloc(int bytes);
+
+unsigned int guFrameId(void);
+
 static inline void* guFrameCopy(const void* src, int bytes) {
-    void* p = sceGuGetMemory(bytes);
-    memcpy(p, src, bytes);
+    void* p = guFrameAlloc(bytes);
+    if (p) memcpy(p, src, bytes);
     return p;
 }
 

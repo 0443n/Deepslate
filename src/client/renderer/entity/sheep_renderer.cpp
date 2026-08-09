@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/sheep_renderer.h"
+#include "platform/dcache.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/animal/sheep.h"
 #include "gpu/texture.h"
@@ -36,6 +37,9 @@ static void build() {
     for (int i = 0; i < 4; i++) { mobBuildBox(fur[P_LEG0+i].base, -2,0,-2, 2,6,2, 0,16, 4,6,4, false, 0.5f);
         setPiv(fur[P_LEG0+i], lp[i][0], lp[i][1], lp[i][2]); }
     base[P_HEAD].head = fur[P_HEAD].head = true;
+
+    dcacheFlush(base, sizeof(base));
+    dcacheFlush(fur, sizeof(fur));
     g_built = true;
 }
 

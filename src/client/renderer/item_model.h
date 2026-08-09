@@ -13,6 +13,9 @@ public:
 
     void draw(unsigned int brCol, bool noMip);
 
+    bool buildShared(short id, unsigned char data, unsigned int brCol);
+    void drawShared(bool noMip);
+
     static void drawMesh(ChunkVertex* m, int n, unsigned int brCol,
                          const Texture* tex, bool noMip);
 
@@ -28,4 +31,5 @@ private:
     unsigned char  m_data = 0xFF;
     int            m_bowStage = -2;
     const Texture* m_tex = 0;
+    int            m_sharedSlot = -1;
 };

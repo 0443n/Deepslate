@@ -32,7 +32,8 @@ bool ItemModelRenderer::build(short id, unsigned char data, int bowStage) {
 void ItemModelRenderer::draw(unsigned int brCol, bool noMip) {
     if (m_count <= 0) return;
 
-    ChunkVertex* v = (ChunkVertex*)sceGuGetMemory(m_count * sizeof(ChunkVertex));
+    ChunkVertex* v = (ChunkVertex*)guFrameAlloc(m_count * sizeof(ChunkVertex));
+    if (!v) return;
     for (int i = 0; i < m_count; i++) {
         v[i] = m_base[i];
         v[i].color = mulColor(m_base[i].color, brCol);
@@ -43,6 +44,66 @@ void ItemModelRenderer::draw(unsigned int brCol, bool noMip) {
                     m_count, 0, v);
 }
 
+namespace {
+struct SharedItem {
+    short          id;
+    unsigned char  data;
+    unsigned int   col;
+    int            count;
+    void*          verts;
+    const Texture* tex;
+};
+const int SHARED_SLOTS = 8;
+SharedItem   s_shared[SHARED_SLOTS];
+int          s_sharedN  = 0;
+unsigned int s_sharedFrame = 0;
+}
+
+bool ItemModelRenderer::buildShared(short id, unsigned char data, unsigned int brCol) {
+    if (s_sharedFrame != guFrameId()) { s_sharedFrame = guFrameId(); s_sharedN = 0; }
+
+    m_sharedSlot = -1;
+    for (int i = 0; i < s_sharedN; i++)
+        if (s_shared[i].id == id && s_shared[i].data == data && s_shared[i].col == brCol) {
+            m_sharedSlot = i;
+            return s_shared[i].count > 0;
+        }
+    if (s_sharedN >= SHARED_SLOTS) return false;
+
+    if (!build(id, data, -1)) {
+
+        s_shared[s_sharedN].id = id; s_shared[s_sharedN].data = data;
+        s_shared[s_sharedN].col = brCol;
+        s_shared[s_sharedN].count = 0; s_shared[s_sharedN].verts = 0;
+        s_shared[s_sharedN].tex = 0;
+        s_sharedN++;
+        return false;
+    }
+
+    ChunkVertex* v = (ChunkVertex*)guFrameAlloc(m_count * sizeof(ChunkVertex));
+    if (!v) return false;
+    for (int i = 0; i < m_count; i++) {
+        v[i] = m_base[i];
+        v[i].color = mulColor(m_base[i].color, brCol);
+    }
+    s_shared[s_sharedN].id = id; s_shared[s_sharedN].data = data;
+    s_shared[s_sharedN].col = brCol;
+    s_shared[s_sharedN].count = m_count; s_shared[s_sharedN].verts = v;
+    s_shared[s_sharedN].tex = m_tex;
+    m_sharedSlot = s_sharedN++;
+    return true;
+}
+
+void ItemModelRenderer::drawShared(bool noMip) {
+    if (m_sharedSlot < 0) return;
+    const SharedItem& s = s_shared[m_sharedSlot];
+    if (s.count <= 0 || !s.verts) return;
+    if (s.tex) { noMip ? textureBindNoMip(s.tex) : textureBind(s.tex); }
+    sceGumDrawArray(GU_TRIANGLES,
+                    GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                    s.count, 0, s.verts);
+}
+
 void ItemModelRenderer::drawMesh(ChunkVertex* m, int n, unsigned int brCol,
                                  const Texture* tex, bool noMip) {
     if (n <= 0) return;
@@ -51,6 +112,7 @@ void ItemModelRenderer::drawMesh(ChunkVertex* m, int n, unsigned int brCol,
     if (tex) { noMip ? textureBindNoMip(tex) : textureBind(tex); }
 
     void* v = guFrameCopy(m, n * sizeof(ChunkVertex));
+    if (!v) return;
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     n, 0, v);

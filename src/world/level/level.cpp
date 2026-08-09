@@ -5,6 +5,7 @@
 #include "world/entity/entity.h"
 #include "world/entity/local_player.h"
 #include "world/difficulty.h"
+#include "world/entity/mob_category.h"
 #include "world/level/tile/entity/tile_entity.h"
 #include "client/player/physics.h"
 #include "world/level/pathfinder/path_finder.h"
@@ -243,6 +244,46 @@ int Level::countInstanceOfType(int entityType) const {
             isLoadedAt(e->x, e->z)) n++;
     }
     return n;
+}
+
+bool Level::canCreateMore(int mobType, SpawnAttempt how, int* why) const {
+    if (why) *why = MobCap::OK;
+
+    const bool egg = (how == SPAWN_EGG);
+    const int  base = MobCategory::baseTypeOf(mobType);
+
+    if (base == EntityTypes::BaseEnemy) {
+        if (g_difficulty == Difficulty::PEACEFUL) {
+            if (why) *why = MobCap::PEACEFUL;
+            return false;
+        }
+
+        int max = egg ? MobCategory::MAX_MONSTERS_EGG : MobCategory::monster.maxPerLevel;
+        if (countInstanceOfBaseType(EntityTypes::BaseEnemy) >= max) {
+            if (why) *why = MobCap::TOO_MANY_ENEMIES;
+            return false;
+        }
+        return true;
+    }
+
+    if (base == EntityTypes::BaseCreature) {
+
+        if (mobType == EntityTypes::IdChicken) {
+            int max = egg ? MobCategory::MAX_CHICKENS_EGG : MobCategory::MAX_CHICKENS_BREED;
+            if (countInstanceOfType(EntityTypes::IdChicken) >= max) {
+                if (why) *why = MobCap::TOO_MANY_CHICKENS;
+                return false;
+            }
+        }
+        int max = egg ? MobCategory::MAX_ANIMALS_EGG : MobCategory::MAX_ANIMALS_BREED;
+        if (countInstanceOfBaseType(EntityTypes::BaseCreature) >= max) {
+            if (why) *why = MobCap::TOO_MANY_ANIMALS;
+            return false;
+        }
+        return true;
+    }
+
+    return true;
 }
 
 Entity* Level::getNearestPlayer(float px, float py, float pz, float maxDist) const {

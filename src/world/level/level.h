@@ -70,6 +70,9 @@ public:
 
     int  countInstanceOfType(int entityType) const;
 
+    enum SpawnAttempt { SPAWN_EGG, SPAWN_BREED };
+    bool canCreateMore(int mobType, SpawnAttempt how, int* why = 0) const;
+
     Entity* getNearestPlayer(float x, float y, float z, float maxDist) const;
     Entity* getEntity(int id) const;
     int  getDifficulty() const;

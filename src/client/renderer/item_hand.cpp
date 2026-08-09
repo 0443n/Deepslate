@@ -19,6 +19,7 @@
 #include "gpu/texture.h"
 #include "gpu/gu.h"
 #include "client/renderer/item_model.h"
+#include "client/renderer/entity/mob_model.h"
 #include "gpu/item_icons.h"
 #include "gpu/spawn_egg_colors.h"
 
@@ -346,48 +347,44 @@ const Texture* itemFlatIconUV(short id, unsigned char data,
 
 bool itemIsFlat2D(short id) { return isFlat2DItem(id); }
 
-struct SkinVertex { float u, v; unsigned int color; float x, y, z; };
-static SkinVertex  s_armMeshBase[36];
-static SkinVertex  s_armMesh[36];
-static bool        s_armBuilt = false;
+static MobVertex s_armMeshBase[36];
+static bool      s_armBuilt = false;
 
 static void buildArm(void) {
     if (s_armBuilt) return;
     const float W = 64.0f, H = 32.0f;
-    const unsigned int col32 = 0xFFFFFFFFu;
 
     int n = 0;
     auto addPoly = [&](float x0, float y0, float z0,
                        float x1, float y1, float z1,
                        float x2, float y2, float z2,
                        float x3, float y3, float z3,
-                       float u0, float v0, float u1, float v1, unsigned int color) {
-        s_armMeshBase[n++] = {u0, v0, color, x0, y0, z0};
-        s_armMeshBase[n++] = {u1, v0, color, x1, y1, z1};
-        s_armMeshBase[n++] = {u1, v1, color, x2, y2, z2};
-        s_armMeshBase[n++] = {u1, v1, color, x2, y2, z2};
-        s_armMeshBase[n++] = {u0, v1, color, x3, y3, z3};
-        s_armMeshBase[n++] = {u0, v0, color, x0, y0, z0};
+                       float u0, float v0, float u1, float v1) {
+        s_armMeshBase[n++] = {u0, v0, x0, y0, z0};
+        s_armMeshBase[n++] = {u1, v0, x1, y1, z1};
+        s_armMeshBase[n++] = {u1, v1, x2, y2, z2};
+        s_armMeshBase[n++] = {u1, v1, x2, y2, z2};
+        s_armMeshBase[n++] = {u0, v1, x3, y3, z3};
+        s_armMeshBase[n++] = {u0, v0, x0, y0, z0};
     };
 
     float vx0 = -3.0f/16.0f, vx1 = 1.0f/16.0f;
     float vy0 = -2.0f/16.0f, vy1 = 10.0f/16.0f;
     float vz0 = -2.0f/16.0f, vz1 =  2.0f/16.0f;
 
-    addPoly(vx1, vy0, vz1,  vx0, vy0, vz1,  vx0, vy0, vz0,  vx1, vy0, vz0,  48/W, 16/H, 44/W, 20/H, col32);
+    addPoly(vx1, vy0, vz1,  vx0, vy0, vz1,  vx0, vy0, vz0,  vx1, vy0, vz0,  48/W, 16/H, 44/W, 20/H);
 
-    addPoly(vx0, vy0, vz0,  vx0, vy0, vz1,  vx0, vy1, vz1,  vx0, vy1, vz0,  44/W, 20/H, 40/W, 32/H, col32);
+    addPoly(vx0, vy0, vz0,  vx0, vy0, vz1,  vx0, vy1, vz1,  vx0, vy1, vz0,  44/W, 20/H, 40/W, 32/H);
 
-    addPoly(vx1, vy0, vz1,  vx1, vy0, vz0,  vx1, vy1, vz0,  vx1, vy1, vz1,  52/W, 20/H, 48/W, 32/H, col32);
+    addPoly(vx1, vy0, vz1,  vx1, vy0, vz0,  vx1, vy1, vz0,  vx1, vy1, vz1,  52/W, 20/H, 48/W, 32/H);
 
-    addPoly(vx1, vy1, vz0,  vx0, vy1, vz0,  vx0, vy1, vz1,  vx1, vy1, vz1,  48/W, 20/H, 52/W, 16/H, col32);
+    addPoly(vx1, vy1, vz0,  vx0, vy1, vz0,  vx0, vy1, vz1,  vx1, vy1, vz1,  48/W, 20/H, 52/W, 16/H);
 
-    addPoly(vx1, vy0, vz0,  vx0, vy0, vz0,  vx0, vy1, vz0,  vx1, vy1, vz0,  48/W, 20/H, 44/W, 32/H, col32);
+    addPoly(vx1, vy0, vz0,  vx0, vy0, vz0,  vx0, vy1, vz0,  vx1, vy1, vz0,  48/W, 20/H, 44/W, 32/H);
 
-    addPoly(vx0, vy0, vz1,  vx1, vy0, vz1,  vx1, vy1, vz1,  vx0, vy1, vz1,  56/W, 20/H, 52/W, 32/H, col32);
+    addPoly(vx0, vy0, vz1,  vx1, vy0, vz1,  vx1, vy1, vz1,  vx0, vy1, vz1,  56/W, 20/H, 52/W, 32/H);
 
-    memcpy(s_armMesh, s_armMeshBase, sizeof(s_armMesh));
-    dcacheFlush(s_armMesh, sizeof(s_armMesh));
+    dcacheFlush(s_armMeshBase, sizeof(s_armMeshBase));
     s_armBuilt = true;
 }
 
@@ -414,12 +411,6 @@ void itemHandDraw(float a, float bs, float bc) {
     } else {
         loadCharIfNeeded();
         buildArm();
-        if (s_armBuilt) {
-            for (int i = 0; i < 36; i++) {
-                s_armMesh[i].color = mulColor(s_armMeshBase[i].color, brCol);
-            }
-            dcacheFlush(s_armMesh, sizeof(s_armMesh));
-        }
     }
 
     guPerspective(70.0f, 0.02f, 4.0f);
@@ -572,9 +563,11 @@ void itemHandDraw(float a, float bs, float bc) {
 
         if (g_haveChar) {
             textureBind(&g_charTex);
+            sceGuColor(brCol);
             sceGumDrawArray(GU_TRIANGLES,
-                        GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                        36, 0, s_armMesh);
+                        GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                        36, 0, s_armMeshBase);
+            sceGuColor(0xFFFFFFFFu);
         }
 
     }

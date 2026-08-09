@@ -109,7 +109,8 @@ bool panoramaRender() {
 
         sceGuColor(0xFFFFFFFFu);
         const int N = PANORAMA_SUBDIV;
-        PanoVertex* q = (PanoVertex*)sceGuGetMemory(N * N * 6 * sizeof(PanoVertex));
+        PanoVertex* q = (PanoVertex*)guFrameAlloc(N * N * 6 * sizeof(PanoVertex));
+        if (!q) return false;
         int n = 0;
         for (int cy = 0; cy < N; cy++) {
             for (int cx = 0; cx < N; cx++) {

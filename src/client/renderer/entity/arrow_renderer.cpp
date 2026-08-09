@@ -40,6 +40,7 @@ static inline int quad(AVert* m, int n, unsigned int col,
 static void drawMesh(AVert* m, int n) {
 
     void* v = guFrameCopy(m, n * sizeof(AVert));
+    if (!v) return;
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     n, 0, v);

@@ -102,7 +102,7 @@ void renderEntityShadow(float x, float y, float z, float off, float radius, floa
     { ScePspFVector3 b = { -g_relBaseX, -g_relBaseY, -g_relBaseZ }; sceGumTranslate(&b); }
     textureBindNoMip(&s_shadowTex);
     void* v = guFrameCopy(s_verts, s_vcount * sizeof(ChunkVertex));
-    sceGumDrawArray(GU_TRIANGLES,
+    if (v) sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     s_vcount, 0, v);
     sceGumPopMatrix();
@@ -168,7 +168,7 @@ void renderEntityFlame(float x, float y, float z, float bbY0, float w, float h) 
 
     textureBindNoMip(&g_terrain);
     void* v = guFrameCopy(s_verts, s_vcount * sizeof(ChunkVertex));
-    sceGumDrawArray(GU_TRIANGLES,
+    if (v) sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     s_vcount, 0, v);
     sceGumPopMatrix();

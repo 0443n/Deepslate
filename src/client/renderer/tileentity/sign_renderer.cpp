@@ -128,7 +128,7 @@ static void renderSign(SignTileEntity* sign, float a) {
     textureBind(&s_signTex);
 
     void* mv = guFrameCopy(s_model, n * sizeof(PVert));
-    sceGumDrawArray(GU_TRIANGLES,
+    if (mv) sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     n, 0, mv);
     sceGumPopMatrix();
@@ -170,7 +170,7 @@ static void renderSign(SignTileEntity* sign, float a) {
             sceGuDepthMask(GU_TRUE);
             textureBind(&s_font.tex);
             void* tv = guFrameCopy(s_text, tn * sizeof(PVert));
-            sceGumDrawArray(GU_TRIANGLES,
+            if (tv) sceGumDrawArray(GU_TRIANGLES,
                             GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                             tn, 0, tv);
             sceGuDepthMask(GU_FALSE);

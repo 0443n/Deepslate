@@ -130,7 +130,7 @@ void PaintingRenderer::render(Entity* entity, float x, float y, float z, float r
     textureBind(&s_art);
 
     void* v = guFrameCopy(s_mesh, n * sizeof(PVert));
-    sceGumDrawArray(GU_TRIANGLES,
+    if (v) sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     n, 0, v);
     sceGuEnable(GU_CULL_FACE);

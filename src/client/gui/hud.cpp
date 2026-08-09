@@ -19,17 +19,21 @@
 #include "gpu/item_icons.h"
 #include "gpu/spawn_egg_colors.h"
 
-#define CHAT_LINES 4
+#define CHAT_LINES  10
+#define CHAT_S      1.0f
+#define CHAT_STEP   9.0f
 #define CHAT_SHOW_S 10.0f
 static char  s_chat[CHAT_LINES][64];
 static float s_chatTime[CHAT_LINES];
 
-void hudChatMessage(const char* msg) {
+static const Font* s_chatFont = 0;
+
+static void chatPush(const char* line) {
     for (int i = 0; i < CHAT_LINES - 1; i++) {
         strcpy(s_chat[i], s_chat[i + 1]);
         s_chatTime[i] = s_chatTime[i + 1];
     }
-    strncpy(s_chat[CHAT_LINES - 1], msg, sizeof(s_chat[0]) - 1);
+    strncpy(s_chat[CHAT_LINES - 1], line, sizeof(s_chat[0]) - 1);
     s_chat[CHAT_LINES - 1][sizeof(s_chat[0]) - 1] = '\0';
     s_chatTime[CHAT_LINES - 1] = gameSeconds();
 }
@@ -41,6 +45,53 @@ extern bool    g_haveGuiBlocks;
 
 #define HUD_S   2.0f
 #define HUD_N   (HOTBAR_SLOTS + 1)
+
+void hudChatMessage(const char* msg) {
+    if (!msg || !*msg) return;
+
+    const float MAX_W = (480.0f - 4.0f - 4.0f * CHAT_S) / CHAT_S;
+    const Font* font  = s_chatFont;
+
+    const int LCE_MAX_CHARS = 55;
+    int maxC = LCE_MAX_CHARS;
+    if (!font) {
+
+        int byWidth = (int)(MAX_W / 6.0f);
+        if (byWidth < maxC) maxC = byWidth;
+    }
+    if (maxC > (int)sizeof(s_chat[0]) - 1) maxC = (int)sizeof(s_chat[0]) - 1;
+    const int MAX_C = maxC;
+
+    char line[sizeof(s_chat[0])];
+    int  n = 0;
+    int  lastSpace = -1;
+
+    for (const char* p = msg; ; p++) {
+        if (*p && *p != '\n') {
+            if (*p == ' ') lastSpace = n;
+            if (n < MAX_C) line[n++] = *p;
+            line[n] = '\0';
+
+            if (!font || fontTextWidth(font, line) <= MAX_W) {
+                if (n < MAX_C) continue;
+            }
+
+            int cut = (lastSpace > 0) ? lastSpace : n - 1;
+            char keep[sizeof(s_chat[0])];
+            int  k = 0;
+            for (int i = (lastSpace > 0) ? cut + 1 : cut; i < n; i++) keep[k++] = line[i];
+            keep[k] = '\0';
+            line[cut] = '\0';
+            chatPush(line);
+            strcpy(line, keep);
+            n = k; lastSpace = -1;
+            continue;
+        }
+        if (n > 0) chatPush(line);
+        if (!*p) break;
+        n = 0; line[0] = '\0'; lastSpace = -1;
+    }
+}
 
 #define HB_S       2.0f
 
@@ -884,6 +935,7 @@ void hotbarDraw(MenuState& s) {
         }
     }
 
+    if (s.haveFont) s_chatFont = &s.font;
     if (!overlayUp && s.haveFont) {
         float now = gameSeconds();
         float ly = HUD_HOTBAR_TOP - 14.0f;
@@ -895,13 +947,13 @@ void hotbarDraw(MenuState& s) {
             if (age > CHAT_SHOW_S - 1.0f) alpha = (int)(255.0f * (CHAT_SHOW_S - age));
             if (alpha < 0) alpha = 0;
 
-            float tw = fontTextWidth(&s.font, s_chat[i]) * HUD_S;
+            float tw = fontTextWidth(&s.font, s_chat[i]) * CHAT_S;
 
-            guiFill(2.0f, ly - 1.0f * HUD_S, tw + 4.0f * HUD_S, 10.0f * HUD_S,
+            guiFill(2.0f, ly - 1.0f * CHAT_S, tw + 4.0f * CHAT_S, CHAT_STEP * CHAT_S,
                     (unsigned int)((alpha / 2) << 24));
             fontDrawTextShadow(&s.font, 4.0f, ly, s_chat[i],
-                               0x00FFFFFFu | ((unsigned int)alpha << 24), HUD_S);
-            ly -= 10.0f * HUD_S;
+                               0x00FFFFFFu | ((unsigned int)alpha << 24), CHAT_S);
+            ly -= CHAT_STEP * CHAT_S;
         }
     }
 

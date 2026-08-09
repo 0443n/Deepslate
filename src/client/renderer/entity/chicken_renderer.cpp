@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/chicken_renderer.h"
+#include "platform/dcache.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/mob.h"
 #include "world/entity/animal/chicken.h"
@@ -35,6 +36,8 @@ static void build() {
     mobBuildBox(parts[P_WING1].base,  -1,0,-3, 0,4,3, 24,13, 1,4,6, false, 0);
     parts[P_WING1].px = 4; parts[P_WING1].py = -3 + yo; parts[P_WING1].pz = 0;
     parts[P_HEAD].head = parts[P_BEAK].head = parts[P_WATTLE].head = true;
+
+    dcacheFlush(parts, sizeof(parts));
     g_built = true;
 }
 
