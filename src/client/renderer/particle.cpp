@@ -21,7 +21,6 @@ extern unsigned int g_brightColor[16];
 namespace {
 
 enum Kind { K_TERRAIN, K_FLAME, K_SMOKE, K_BUBBLE, K_REDDUST, K_EXPLODE, K_LAVA, K_CRIT, K_SPLASH, K_HEART,
-            K_MOBFLAME,
             K_SUSPEND };
 
 struct P {
@@ -34,10 +33,6 @@ struct P {
     unsigned char kind;
     bool  active, onGround, noPhysics, terrainAtlas, fullBright;
     bool  itemsAtlas;
-    bool  fireAtlas;
-
-    int   entId;
-    float xOff, yOff, zOff, rise;
 };
 
 const int MAX_PARTICLES = 384;
@@ -99,21 +94,6 @@ void tickOne(World* w, P* p) {
     if (p->age++ >= p->lifetime) { p->active = false; return; }
 
     switch (p->kind) {
-    case K_MOBFLAME: {
-
-        Entity* e = g_level.getEntity(p->entId);
-        p->yOff += p->rise;
-        if (!e || !e->isOnFire() || e->onFire < 2) {
-            p->entId = 0;
-            p->active = false;
-            return;
-        }
-        p->rise += e->bbHeight * 0.002f;
-        p->x = e->x + p->xOff;
-        p->y = (e->y - e->heightOffset) + p->yOff;
-        p->z = e->z + p->zOff;
-        break;
-    }
     case K_FLAME:
         move(w, p);
         p->xd *= 0.96f; p->yd *= 0.96f; p->zd *= 0.96f;
@@ -494,30 +474,7 @@ void particlesEntityFlame(int entityId, float x, float feetY, float z,
             p->lifetime = (int)(8.0f / (frand() * 0.8f + 0.2f)) / 2 + 1;
         }
     }
-
-    if (++s_tick >= 10) {
-        s_tick = 0;
-        P* p = alloc();
-        if (!p) return;
-        baseInit(p, rx, feetY, rz, 0, 0, 0);
-        p->kind = K_MOBFLAME; p->fireAtlas = true;
-        p->noPhysics = true; p->fullBright = true;
-        p->lifetime = 25;
-        p->size *= 3.0f; p->oSize = p->size;
-        p->xd = p->xd * 0.1f + xd * 0.5f;
-        p->yd = p->yd * 0.1f;
-        p->zd = p->zd * 0.1f + zd * 0.5f;
-
-        p->entId = entityId;
-        float hw = w * 0.5f;
-        p->y += 0.7f;
-        p->xOff = (p->x - x) * hw + ((frand() * 2.0f) - 1.0f) * 0.1f;
-        p->yOff = p->y - feetY;
-        p->zOff = (p->z - z) * hw + ((frand() * 2.0f) - 1.0f) * 0.1f;
-        p->rise = h * 0.5f * 0.01f;
-        p->x = x + p->xOff; p->y = feetY + p->yOff; p->z = z + p->zOff;
-        p->xo = p->x; p->yo = p->y; p->zo = p->z;
-    }
+    s_tick++;
 }
 
 void particlesSmoke(float x, float y, float z) {
@@ -610,19 +567,17 @@ struct PVertex { float u, v; unsigned int color; float x, y, z; };
 }
 
 void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
-                     const Texture* terrain, const Texture* misc, const Texture* items,
-                     const Texture* fire) {
+                     const Texture* terrain, const Texture* misc, const Texture* items) {
 
-    int nMisc = 0, nTerr = 0, nItems = 0, nFire = 0;
+    int nMisc = 0, nTerr = 0, nItems = 0;
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!g_pool[i].active) continue;
-        if (g_pool[i].fireAtlas) nFire++;
-        else if (g_pool[i].itemsAtlas) nItems++;
+        if (g_pool[i].itemsAtlas) nItems++;
         else if (g_pool[i].terrainAtlas) nTerr++;
         else nMisc++;
     }
-    if (nMisc == 0 && nTerr == 0 && nItems == 0 && nFire == 0) return;
-    profAdd(PROFC_PARTICLES, nMisc + nTerr + nItems + nFire);
+    if (nMisc == 0 && nTerr == 0 && nItems == 0) return;
+    profAdd(PROFC_PARTICLES, nMisc + nTerr + nItems);
 
     const float D2R = 3.14159265f / 180.0f;
     float cy = cosf(yawDeg * D2R), sy = sinf(yawDeg * D2R);
@@ -640,11 +595,11 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
     sceGuEnable(GU_ALPHA_TEST);
     sceGuAlphaFunc(GU_GREATER, 0, 0xff);
 
-    for (int pass = 0; pass < 4; pass++) {
+    for (int pass = 0; pass < 3; pass++) {
         bool terr = (pass == 1);
-        int count = pass == 0 ? nMisc : pass == 1 ? nTerr : pass == 2 ? nItems : nFire;
+        int count = pass == 0 ? nMisc : pass == 1 ? nTerr : nItems;
         if (count == 0) continue;
-        const Texture* tx = pass == 0 ? misc : pass == 1 ? terrain : pass == 2 ? items : fire;
+        const Texture* tx = pass == 0 ? misc : pass == 1 ? terrain : items;
         if (tx) textureBindNoMip(tx); else continue;
 
         PVertex* v = (PVertex*)sceGuGetMemory(count * 6 * sizeof(PVertex));
@@ -652,13 +607,12 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
         for (int i = 0; i < MAX_PARTICLES; i++) {
             P* p = &g_pool[i];
             if (!p->active) continue;
-            int pp = p->fireAtlas ? 3 : p->itemsAtlas ? 2 : p->terrainAtlas ? 1 : 0;
+            int pp = p->itemsAtlas ? 2 : p->terrainAtlas ? 1 : 0;
             if (pp != pass) continue;
 
             float sz = p->size;
             float sfrac = (p->age + alpha) / (float)p->lifetime;
-            if (p->kind == K_MOBFLAME) sz = p->oSize;
-            else if (p->kind == K_FLAME) sz = p->oSize * (1 - sfrac * sfrac * 0.5f);
+            if (p->kind == K_FLAME) sz = p->oSize * (1 - sfrac * sfrac * 0.5f);
             else if (p->kind == K_LAVA) sz = p->oSize * (1 - sfrac * sfrac);
             else if (p->kind == K_SMOKE || p->kind == K_REDDUST || p->kind == K_CRIT) {
                 float l = sfrac * 32.0f; if (l > 1) l = 1; if (l < 0) l = 0; sz = p->oSize * l;
@@ -666,14 +620,7 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
             float r = 0.1f * sz;
 
             float u0, u1, v0, v1;
-            if (p->fireAtlas) {
-
-                int fr = (int)((p->age + alpha) / (float)p->lifetime * 32.0f);
-                if (fr < 0) fr = 0; else if (fr > 31) fr = 31;
-                const float FH = 1.0f / 32.0f, HT = 1.0f / 1024.0f;
-                u0 = 0.0f; u1 = 1.0f;
-                v0 = fr * FH + HT; v1 = (fr + 1) * FH - HT;
-            } else if (p->itemsAtlas) {
+            if (p->itemsAtlas) {
 
                 const float INV = 1.0f / 512.0f, HT = INV / 2.0f;
                 float ub = ((p->tex & 31) * 16.0f + p->uo * 4.0f) * INV;

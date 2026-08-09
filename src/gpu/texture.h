@@ -6,6 +6,8 @@
 
 #define TEXTURE_FORCE_8888 0
 
+#define TEXTURE_USE_VRAM 1
+
 struct Texture {
     int realW, realH;
     int texW, texH;
@@ -13,6 +15,7 @@ struct Texture {
     void* mip[TEXTURE_MAX_MIPS];
     int   mipCount;
     bool  swizzled;
+    bool  vram;
     int   psm;
 };
 
@@ -21,6 +24,8 @@ bool textureLoad(const char* path, Texture* out);
 bool textureLoad4444(const char* path, Texture* out);
 
 bool textureLoad16(const char* path, Texture* out, int psm);
+
+bool textureLoadVram(const char* path, Texture* out, int psm);
 
 void textureFree(Texture* tex);
 

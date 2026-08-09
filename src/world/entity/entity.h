@@ -83,6 +83,8 @@ public:
     virtual bool isSneaking();
     virtual bool isAlive();
     virtual bool isOnFire();
+
+    void setOnFire(int seconds);
     virtual bool isPlayer();
     virtual bool isCreativeModeAllowed();
 

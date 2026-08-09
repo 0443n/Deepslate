@@ -1,4 +1,5 @@
 #include "client/renderer/render.h"
+#include "platform/dcache.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include "client/player/player.h"
@@ -75,8 +76,6 @@ Texture g_moon;
 bool    g_haveMoon = false;
 Texture g_particles;
 bool    g_haveParticles = false;
-Texture g_fireAtlas;
-bool    g_haveFireAtlas = false;
 
 extern int g_cloudTicks;
 
@@ -98,6 +97,10 @@ static bool loadTex4444(Texture* out, const char* rel) {
 
 static bool loadTex16(Texture* out, const char* rel, int psm) {
     return textureLoad16(assetPath(rel), out, psm) || textureLoad16(rel, out, psm);
+}
+
+static bool loadTexVram(Texture* out, const char* rel, int psm) {
+    return textureLoadVram(assetPath(rel), out, psm) || textureLoadVram(rel, out, psm);
 }
 
 float g_camX = 0.0f, g_camY = 0.0f, g_camZ = 0.0f;
@@ -165,7 +168,8 @@ static float skySunIntensity(float alpha, float yawDeg, float pitchDeg, float mi
     return (d - minDot) / (1.0f - minDot);
 }
 
-static float g_camYawNow = 0.0f, g_camPitchNow = 0.0f;
+float g_camYawNow = 0.0f;
+static float g_camPitchNow = 0.0f;
 
 static void updateDayColors(float alpha) {
     float td = worldTimeOfDay(g_world.dayTime, alpha);
@@ -314,6 +318,8 @@ void skyBuildStars(void) {
         g_stars[n++] = corner[0]; g_stars[n++] = corner[2]; g_stars[n++] = corner[3];
     }
     g_starVerts = n;
+
+    dcacheFlush(g_stars, (size_t)g_starVerts * sizeof(StarVertex));
 }
 
 void skyFreeStars(void) { free(g_stars); g_stars = 0; g_starVerts = 0; }
@@ -573,7 +579,7 @@ static void renderCloudsFancy(float alpha, float px, float py, float pz) {
         }
         g_numCloudVertices = n;
 
-        if (n) sceKernelDcacheWritebackInvalidateRange(g_cloudVertices, n * sizeof(CloudVertex));
+        if (n) dcacheFlush(g_cloudVertices, n * sizeof(CloudVertex));
     }
     if (!g_numCloudVertices) return;
 
@@ -1026,8 +1032,9 @@ void gameRender(MenuState& s) {
         if (g_genStage == GS_TERRAIN) {
 
             textureForgetFailures();
+
             if (!g_haveTerrain) {
-                g_haveTerrain = loadTex(&g_terrain, "data/images/terrain.png");
+                g_haveTerrain = loadTexVram(&g_terrain, "data/images/terrain.png", GU_PSM_8888);
                 if (g_haveTerrain) {
                     bool m1 = loadTexMip(&g_terrain, 0, "data/images/terrainMipMapLevel2.png");
                     bool m2 = loadTexMip(&g_terrain, 1, "data/images/terrainMipMapLevel3.png");
@@ -1035,7 +1042,7 @@ void gameRender(MenuState& s) {
                 }
             }
             if (!g_haveGuiBlocks)
-                g_haveGuiBlocks = loadTex16(&g_guiBlocks, "data/images/gui/gui_blocks.png", GU_PSM_5551);
+                g_haveGuiBlocks = loadTexVram(&g_guiBlocks, "data/images/gui/gui_blocks.png", GU_PSM_5551);
             if (!g_haveClouds)
                 g_haveClouds = loadTex16(&g_clouds, "data/images/environment/clouds.png", GU_PSM_5551);
 
@@ -1046,8 +1053,6 @@ void gameRender(MenuState& s) {
             skyBuildStars();
             if (!g_haveParticles)
                 g_haveParticles = loadTex(&g_particles, "data/images/particles.png");
-            if (!g_haveFireAtlas)
-                g_haveFireAtlas = loadTex(&g_fireAtlas, "data/images/fire_atlas.png");
 
             bool sel = (s.worldSelected >= 0 && s.worldSelected < s.worlds.count);
             long seedVal = sel ? s.worlds.seeds[s.worldSelected] : 0;
@@ -1229,9 +1234,6 @@ void gameRender(MenuState& s) {
 
     float px0 = ix, py0 = iy, pz0 = iz;
 
-    unsigned char eyeBlk = worldBlock(&g_world, Mth::floor(ix), Mth::floor(iy), Mth::floor(iz));
-    float fov = isWaterId(eyeBlk) ? 60.0f : 70.0f;
-
     float cp = cosf(ipitch * DEG2RAD), sp = sinf(ipitch * DEG2RAD);
     float cy = cosf(iyaw * DEG2RAD),   sy = sinf(iyaw * DEG2RAD);
     float fx = cp * sy, fy = sp, fz = cp * cy;
@@ -1345,6 +1347,20 @@ void gameRender(MenuState& s) {
     float NEAR_Z = s_nearZ;
 
     g_nearZPlane = NEAR_Z;
+
+    float camEyeX = ix - fx * camBack + dpCamX;
+    float camEyeY = iy - fy * camBack + dpCamY;
+    float camEyeZ = iz - fz * camBack + dpCamZ;
+    int   camBx = Mth::floor(camEyeX), camBy = Mth::floor(camEyeY), camBz = Mth::floor(camEyeZ);
+    unsigned char eyeBlk = worldBlock(&g_world, camBx, camBy, camBz);
+
+    if (isWaterId(eyeBlk) || isLavaId(eyeBlk)) {
+        float hh = liquidTileHeight(worldData(&g_world, camBx, camBy, camBz)) - 1.0f / 9.0f;
+        if (camEyeY >= (float)(camBy + 1) - hh)
+            eyeBlk = worldBlock(&g_world, camBx, camBy + 1, camBz);
+    }
+
+    float fov = isWaterId(eyeBlk) ? 60.0f : 70.0f;
 
     guPerspective(fov, NEAR_Z, g_viewDist);
 
@@ -1536,8 +1552,7 @@ void gameRender(MenuState& s) {
     if (g_haveParticles)
         particlesRender(&g_world, iyaw, ipitch, a,
                         g_haveTerrain ? &g_terrain : 0, &g_particles,
-                        g_haveGuiBlocks ? &g_guiBlocks : 0,
-                        g_haveFireAtlas ? &g_fireAtlas : 0);
+                        g_haveGuiBlocks ? &g_guiBlocks : 0);
     profEnd(PROF_PART);
 
     sceGuDepthMask(GU_FALSE);
@@ -1566,7 +1581,7 @@ void gameRender(MenuState& s) {
     sceGuFrontFace(GU_CW);
     sceGuScissor(0, 0, 480, 272);
 
-    if (g_worldBuilt) drawInWallOverlay(px0, py0, pz0);
+    if (g_worldBuilt) drawInWallOverlay(camEyeX, camEyeY, camEyeZ);
 
     if (g_worldBuilt && g_level.player && g_level.player->isSleeping())
         inBedRenderFade(s);

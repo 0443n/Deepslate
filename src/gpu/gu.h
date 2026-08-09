@@ -21,6 +21,10 @@ static inline void* guFrameCopy(const void* src, int bytes) {
 
 void guInit(void);
 
+void* guVramAllocTexture(unsigned int bytes);
+
+unsigned int guVramFree(void);
+
 void guTerm(void);
 
 void guStartFrame(unsigned int clearColor);

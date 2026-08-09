@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef PROF
-#define PROF 1
+#define PROF 0
 #endif
 
 enum {

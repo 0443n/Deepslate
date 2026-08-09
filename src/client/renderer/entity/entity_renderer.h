@@ -9,6 +9,8 @@ class EntityRenderDispatcher;
 
 void renderEntityShadow(float x, float y, float z, float off, float radius, float pow);
 
+void renderEntityFlame(float x, float y, float z, float bbY0, float w, float h);
+
 class EntityRenderer {
 public:
     virtual ~EntityRenderer() {}

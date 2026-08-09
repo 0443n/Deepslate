@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/player_model.h"
+#include "platform/dcache.h"
 #include <pspgu.h>
 #include <pspgum.h>
 #include <pspkernel.h>
@@ -183,7 +184,7 @@ static void drawArmorLayers(unsigned int brCol) {
             int i = ly.parts[k];
             SkinVertex* m = g_armorMesh[drawn++];
             for (int v = 0; v < 36; v++) { m[v] = set[i][v]; m[v].color = brCol; }
-            sceKernelDcacheWritebackInvalidateRange(m, sizeof(g_armorMesh[0]));
+            dcacheFlush(m, sizeof(g_armorMesh[0]));
             sceGumPushMatrix();
             ScePspFVector3 piv = { parts[i].px, parts[i].py, parts[i].pz };
             sceGumTranslate(&piv);
@@ -295,7 +296,7 @@ void playerModelRender(float a) {
     }
     for (int i = 0; i < P_COUNT; i++) {
         for (int k = 0; k < 36; k++) { parts[i].mesh[k] = parts[i].base[k]; parts[i].mesh[k].color = brCol; }
-        sceKernelDcacheWritebackInvalidateRange(parts[i].mesh, sizeof(parts[i].mesh));
+        dcacheFlush(parts[i].mesh, sizeof(parts[i].mesh));
     }
 
     textureBind(&g_localSkinTex);
@@ -415,6 +416,9 @@ void playerModelRender(float a) {
     sceGuEnable(GU_CULL_FACE);
 
     renderEntityShadow(ix, feet, iz, 0.0f, 0.5f, 1.0f);
+
+    if (p->isOnFire())
+        renderEntityFlame(ix, feet, iz, feet, p->bbWidth, p->bbHeight);
 }
 
 void playerModelRenderPreview(float sx, float sy, float scale) {
@@ -446,7 +450,7 @@ void playerModelRenderPreview(float sx, float sy, float scale) {
 
     for (int i = 0; i < P_COUNT; i++) {
         for (int k = 0; k < 36; k++) { parts[i].mesh[k] = parts[i].base[k]; parts[i].mesh[k].color = 0xFFFFFFFFu; }
-        sceKernelDcacheWritebackInvalidateRange(parts[i].mesh, sizeof(parts[i].mesh));
+        dcacheFlush(parts[i].mesh, sizeof(parts[i].mesh));
     }
 
     sceGumMatrixMode(GU_PROJECTION); sceGumPushMatrix(); sceGumLoadIdentity();

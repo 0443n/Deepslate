@@ -548,6 +548,12 @@ ItemEntity* Entity::spawnAtLocation(int resource, int count, float yOffs) {
 }
 
 bool Entity::isOnFire() { return onFire > 0; }
+
+void Entity::setOnFire(int seconds) {
+    int ticks = seconds * TicksPerSecond;
+    if (onFire < ticks) onFire = ticks;
+}
+
 bool Entity::interactPreventDefault() { return false; }
 bool Entity::isItemEntity() { return false; }
 bool Entity::isHangingEntity() { return false; }

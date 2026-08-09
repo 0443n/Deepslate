@@ -681,6 +681,15 @@ CrosshairTarget gameModeCrosshairTarget() {
             (id == BLOCK_SAPLING || id == BLOCK_WHEAT || id == BLOCK_MELON_STEM ||
              id == BLOCK_GRASS   || id == BLOCK_REEDS))                t.useLabel = "Grow";
         else if (id == BLOCK_TNT && sel && sel->id == ITEM_FLINT_AND_STEEL) t.useLabel = "Ignite";
+
+        else if (sel && sel->id == ITEM_FLINT_AND_STEEL &&
+                 worldBlock(&g_world, hit.x + kFaceNeighbor[hit.face][0],
+                                      hit.y + kFaceNeighbor[hit.face][1],
+                                      hit.z + kFaceNeighbor[hit.face][2]) == BLOCK_AIR &&
+                 fireMayPlace(&g_world, hit.x + kFaceNeighbor[hit.face][0],
+                                        hit.y + kFaceNeighbor[hit.face][1],
+                                        hit.z + kFaceNeighbor[hit.face][2]))
+                                                                       t.useLabel = "Ignite";
         else if (id == BLOCK_BED)                                      t.useLabel = "Sleep";
         else if (id == BLOCK_NETHER_REACTOR)                           t.useLabel = "Activate";
         else if (isUsableBlockId(id))                                  t.useLabel = "Use";

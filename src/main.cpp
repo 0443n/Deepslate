@@ -91,6 +91,10 @@ static bool loadTex16(Texture* out, const char* rel, int psm) {
     return textureLoad16(assetPath(rel), out, psm) || textureLoad16(rel, out, psm);
 }
 
+static bool loadTexVram(Texture* out, const char* rel, int psm) {
+    return textureLoadVram(assetPath(rel), out, psm) || textureLoadVram(rel, out, psm);
+}
+
 static bool screenNeedsTouchGui(int screen, bool worldLoaded) {
     if (screen == SCREEN_OPTIONS) return !worldLoaded;
     return screen == SCREEN_TITLE  || screen == SCREEN_WORLDS ||
@@ -175,7 +179,7 @@ int main(int argc, char* argv[]) {
 
     s.haveFont         = loadFnt(&s.font, "data/images/font/default8.png");
 
-    s.haveGui          = loadTex16(&s.guiAtlas, "data/images/gui/gui_game.png", GU_PSM_4444);
+    s.haveGui          = loadTexVram(&s.guiAtlas, "data/images/gui/gui_game.png", GU_PSM_4444);
     s.haveLogo         = loadTex16(&s.logo, "data/images/gui/title.png", GU_PSM_5551);
     s.haveBg           = loadTex(&s.dirtBg, "data/images/gui/background.png");
     s.haveTouch        = loadTex(&s.touchGui, "data/images/gui/touchgui.png");
@@ -327,6 +331,16 @@ int main(int argc, char* argv[]) {
                     fontDrawTextShadow(&s.font, 10, ty, fpsBuf, 0xFFE0E0E0u, 1.0f);
                     ty += 12.0f;
 
+                    {
+                        extern unsigned int g_drawLiveHits;
+                        if (g_drawLiveHits) {
+                            char dlBuf[48];
+                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u (corrected)",
+                                          g_drawLiveHits);
+                            fontDrawTextShadow(&s.font, 10, ty, dlBuf, 0xFF50FFFFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
                     if (g_textureBindFailures) {
                         char txBuf[96];
                         std::snprintf(txBuf, sizeof(txBuf), "TEX FAIL %u: %s",

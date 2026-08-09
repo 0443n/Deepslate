@@ -1,6 +1,7 @@
 #include "gpu/texture.h"
 
 #include "platform/png_loader.h"
+#include "gpu/gu.h"
 
 #include <pspgu.h>
 #include <pspkernel.h>
@@ -49,7 +50,18 @@ static inline unsigned short pack16(const unsigned char* s, int psm) {
     return (unsigned short)(((s[2] >> 3) << 11) | ((s[1] >> 2) << 5) | (s[0] >> 3));
 }
 
-static bool textureLoadPsm(const char* path, Texture* out, int psm) {
+static void* texAlloc(bool wantVram, size_t bytes, bool* gotVram) {
+#if !TEXTURE_USE_VRAM
+    wantVram = false;
+#endif
+    if (wantVram) {
+        if (void* v = guVramAllocTexture((unsigned int)bytes)) { *gotVram = true; return v; }
+    }
+    *gotVram = false;
+    return memalign(64, bytes);
+}
+
+static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVram = false) {
 #if TEXTURE_FORCE_8888
     psm = GU_PSM_8888;
 #endif
@@ -71,7 +83,7 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm) {
     const size_t bpp = is16 ? 2 : 4;
     const size_t bytes = (size_t)texW * texH * bpp;
 
-    void* data = memalign(16, bytes);
+    void* data = texAlloc(wantVram, bytes, &out->vram);
     if (!data) {
         pngClose(png);
         markFailed(path);
@@ -81,14 +93,15 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm) {
 
     unsigned char* row = (unsigned char*)malloc((size_t)w * 4);
     if (!row) {
-        free(data);
+        if (!out->vram) free(data);
         pngClose(png);
         markFailed(path);
         return false;
     }
     for (int y = 0; y < h; y++) {
         if (!pngReadRow(png, row)) {
-            free(row); free(data);
+            free(row);
+            if (!out->vram) free(data);
             pngClose(png);
             markFailed(path);
             return false;
@@ -128,13 +141,19 @@ bool textureLoad16(const char* path, Texture* out, int psm) {
     return textureLoadPsm(path, out, psm);
 }
 
+bool textureLoadVram(const char* path, Texture* out, int psm) {
+    return textureLoadPsm(path, out, psm, true);
+}
+
 void textureFree(Texture* tex) {
 
     if (tex == s_lastBound) s_lastBound = 0;
-    if (tex->data)
-        free(tex->data);
-    for (int i = 0; i < tex->mipCount; i++)
-        if (tex->mip[i]) free(tex->mip[i]);
+
+    if (!tex->vram) {
+        if (tex->data) free(tex->data);
+        for (int i = 0; i < tex->mipCount; i++)
+            if (tex->mip[i]) free(tex->mip[i]);
+    }
     memset(tex, 0, sizeof(*tex));
 }
 
@@ -144,17 +163,19 @@ bool textureLoadMipLevel(Texture* tex, int level, const char* path) {
     PngReader* png = pngOpen(path, &w, &h);
     if (!png) return false;
 
-    void* data = memalign(16, (size_t)w * h * 4);
+    bool gotVram = false;
+    void* data = texAlloc(tex->vram, (size_t)w * h * 4, &gotVram);
     if (!data) { pngClose(png); return false; }
 
     for (int y = 0; y < h; y++)
         if (!pngReadRow(png, (unsigned char*)data + (size_t)y * w * 4)) {
-            free(data); pngClose(png); return false;
+            if (!gotVram) free(data);
+            pngClose(png); return false;
         }
     pngClose(png);
     sceKernelDcacheWritebackRange(data, (size_t)w * h * 4);
 
-    if (tex->mip[level]) free(tex->mip[level]);
+    if (tex->mip[level] && !tex->vram) free(tex->mip[level]);
     tex->mip[level] = data;
     if (level + 1 > tex->mipCount) tex->mipCount = level + 1;
     return true;
@@ -197,7 +218,8 @@ void textureGenMips(Texture* tex, int minSize) {
     while (w / 2 >= minSize && h / 2 >= minSize && i < TEXTURE_MAX_MIPS) {
         int dstW = w / 2, dstH = h / 2;
         if (!tex->mip[i]) {
-            tex->mip[i] = memalign(16, (size_t)dstW * dstH * 4);
+            bool gotVram = false;
+            tex->mip[i] = texAlloc(tex->vram, (size_t)dstW * dstH * 4, &gotVram);
             if (!tex->mip[i]) break;
         }
         downsample2x(src, w, h, (unsigned char*)tex->mip[i]);

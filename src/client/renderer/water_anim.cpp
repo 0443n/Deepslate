@@ -1,4 +1,5 @@
 #include "client/renderer/water_anim.h"
+#include "platform/dcache.h"
 #include "gpu/texture.h"
 #include "platform/time.h"
 #include <pspkernel.h>
@@ -207,8 +208,8 @@ void animateWaterTexture() {
         }
     }
 
-    sceKernelDcacheWritebackInvalidateRange(&texPixels[16 * texW], 32 * texW * sizeof(unsigned int));
+    dcacheFlush(&texPixels[16 * texW], 32 * texW * sizeof(unsigned int));
 
-    sceKernelDcacheWritebackInvalidateRange(&texPixels[192 * texW],
+    dcacheFlush(&texPixels[192 * texW],
                                             (256 - 192) * texW * sizeof(unsigned int));
 }

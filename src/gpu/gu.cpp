@@ -1,4 +1,5 @@
 #include "gpu/gu.h"
+#include "platform/dcache.h"
 
 #include <pspdisplay.h>
 #include <pspge.h>
@@ -15,6 +16,8 @@ static unsigned int g_vramOffset = 0;
 
 static void* g_fb[2] = { 0, 0 };
 static int   g_drawIdx = 0;
+
+unsigned int g_drawLiveHits = 0;
 
 static unsigned int guMemSize(unsigned int width, unsigned int height,
                               unsigned int psm) {
@@ -38,6 +41,21 @@ static void* guVramAlloc(unsigned int width, unsigned int height,
     void* result = (void*)(unsigned long)g_vramOffset;
     g_vramOffset += guMemSize(width, height, psm);
     return result;
+}
+
+#define VRAM_TOTAL (2u * 1024 * 1024)
+
+void* guVramAllocTexture(unsigned int bytes) {
+    bytes = (bytes + 63u) & ~63u;
+    if (bytes > VRAM_TOTAL || g_vramOffset > VRAM_TOTAL - bytes)
+        return 0;
+    void* off = (void*)(unsigned long)g_vramOffset;
+    g_vramOffset += bytes;
+    return (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)off);
+}
+
+unsigned int guVramFree(void) {
+    return g_vramOffset >= VRAM_TOTAL ? 0u : VRAM_TOTAL - g_vramOffset;
 }
 
 void guInit(void) {
@@ -89,13 +107,17 @@ void guTerm(void) {
 void guStartFrame(unsigned int clearColor) {
     sceGuStart(GU_DIRECT, g_listUncached);
 
-    sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
     {
         void* shown = 0; int bw = 0, pf = 0;
         sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
         void* about = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]);
-        if (shown == about) profAdd(PROFC_DRAWLIVE, 1);
+        if (shown == about) {
+            g_drawLiveHits++;
+            profAdd(PROFC_DRAWLIVE, 1);
+            g_drawIdx ^= 1;
+        }
     }
+    sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
 
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
 
@@ -143,7 +165,7 @@ bool guSavePhotoPng(const char* path, int shrink) {
     unsigned short* shot = (unsigned short*)memalign(64, shotBytes);
     if (!shot) return false;
 
-    sceKernelDcacheWritebackInvalidateRange(shot, shotBytes);
+    dcacheFlush(shot, shotBytes);
     sceGuStart(GU_DIRECT, g_listUncached);
     sceGuCopyImage(GU_PSM_5650, 0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT, GU_BUF_WIDTH,
                    (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]),

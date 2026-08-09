@@ -33,8 +33,7 @@ void Monster::updateSunburn() {
     if (!worldCanSeeSky(level->w, xt, yt, zt)) return;
     if (sharedRandom.nextFloat() * 3.5f >= (br - 0.4f)) return;
 
-    int burn = 8 * TicksPerSecond;
-    if (onFire <= 0) onFire = burn;
+    setOnFire(8);
     for (int i = 0; i < 2; i++) {
         float ox = x + sharedRandom.nextFloat() * bbWidth * 2.0f - bbWidth;
         float oy = (y - heightOffset) + sharedRandom.nextFloat() * bbHeight;

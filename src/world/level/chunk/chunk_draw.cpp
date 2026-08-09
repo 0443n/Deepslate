@@ -1,4 +1,5 @@
 #include "world/level/chunk/chunk.h"
+#include "platform/dcache.h"
 #include "util/prof.h"
 #include "world/level/chunk/mesh_sink.h"
 #include <string.h>
@@ -31,7 +32,7 @@ DrawVertex* chunkPackFinish(const DrawVertex* staging, int n) {
     profEnd(PROF_MALLOC);
     if (!d) return 0;
     memcpy(d, staging, (size_t)n * sizeof(DrawVertex));
-    sceKernelDcacheWritebackInvalidateRange(d, (size_t)n * sizeof(DrawVertex));
+    dcacheFlush(d, (size_t)n * sizeof(DrawVertex));
     return d;
 }
 
@@ -45,7 +46,7 @@ DrawVertex* chunkPack(const ChunkVertex* s, int n, int ox, int oy, int oz,
     chunkPackInto(d, s, n, ox, oy, oz, &qlo, &qhi);
     if (ylo) *ylo = chunkPackDecodeY(qlo, oy);
     if (yhi) *yhi = chunkPackDecodeY(qhi, oy);
-    sceKernelDcacheWritebackInvalidateRange(d, (size_t)n * sizeof(DrawVertex));
+    dcacheFlush(d, (size_t)n * sizeof(DrawVertex));
     return d;
 }
 

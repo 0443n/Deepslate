@@ -99,6 +99,8 @@ void quitToMenuNoSave(MenuState& s) {
     extern MiningState g_mining;
     g_mining.active = false; g_mining.progress = 0.0f;
 
+    soundStopAll();
+
     extern void skyFreeStars(void);
     extern void cloudFreeMesh(void);
     skyFreeStars();
@@ -313,6 +315,8 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
     if (pressed & PSP_CTRL_SELECT) {
         g_paused = true;
         g_pauseSel = 0;
+
+        soundStopAll();
         return;
     }
 

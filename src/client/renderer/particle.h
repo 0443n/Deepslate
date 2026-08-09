@@ -9,8 +9,7 @@ void particlesReset();
 void particlesTick(World* w, float px, float py, float pz);
 
 void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
-                     const Texture* terrain, const Texture* misc, const Texture* items,
-                     const Texture* fire);
+                     const Texture* terrain, const Texture* misc, const Texture* items);
 
 void particlesDestroyBlock(World* w, int x, int y, int z, unsigned char id, unsigned char data);
 

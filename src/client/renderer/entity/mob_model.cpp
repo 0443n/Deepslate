@@ -87,22 +87,6 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         brCol = (brCol & 0xFF000000u) | (b << 16) | (g << 8) | r;
     }
 
-    if (mob->isOnFire()) {
-        float f = (float)mob->onFire / 100.0f * 0.5f;
-        if (f < 0.0f) f = 0.0f;
-        float a2 = (powf(f, 0.3f) + 0.25f + 0.1f) * 0.6f;
-        if (a2 > 1.0f) a2 = 1.0f;
-
-        float fr = (1.0f - a2) + a2 * 0.800f;
-        float fg = (1.0f - a2) + a2 * 0.256f;
-        float fb = (1.0f - a2) + a2 * 0.000f;
-        unsigned int r = (unsigned int)(( brCol         & 0xFFu) * fr);
-        unsigned int g = (unsigned int)(((brCol >> 8)  & 0xFFu) * fg);
-        unsigned int b = (unsigned int)(((brCol >> 16) & 0xFFu) * fb);
-        if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
-        brCol = (brCol & 0xFF000000u) | (b << 16) | (g << 8) | r;
-    }
-
     void* meshes[MOB_MAX_PARTS];
     if (count > MOB_MAX_PARTS) count = MOB_MAX_PARTS;
     for (int i = 0; i < count; i++) {

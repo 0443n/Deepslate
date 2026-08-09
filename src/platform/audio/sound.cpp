@@ -227,3 +227,8 @@ void soundPlay(const char* name, float volume, float pitch) {
     s->vol        = (int)(volume * 4096.0f);
     s->playing    = 1;
 }
+
+void soundStopAll(void) {
+
+    for (int v = 0; v < MAX_VOICES; v++) g_voices[v].playing = 0;
+}

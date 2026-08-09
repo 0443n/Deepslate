@@ -1,5 +1,6 @@
 
 #include "item_hand.h"
+#include "platform/dcache.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include <pspgu.h>
@@ -386,7 +387,7 @@ static void buildArm(void) {
     addPoly(vx0, vy0, vz1,  vx1, vy0, vz1,  vx1, vy1, vz1,  vx0, vy1, vz1,  56/W, 20/H, 52/W, 32/H, col32);
 
     memcpy(s_armMesh, s_armMeshBase, sizeof(s_armMesh));
-    sceKernelDcacheWritebackInvalidateRange(s_armMesh, sizeof(s_armMesh));
+    dcacheFlush(s_armMesh, sizeof(s_armMesh));
     s_armBuilt = true;
 }
 
@@ -417,7 +418,7 @@ void itemHandDraw(float a, float bs, float bc) {
             for (int i = 0; i < 36; i++) {
                 s_armMesh[i].color = mulColor(s_armMeshBase[i].color, brCol);
             }
-            sceKernelDcacheWritebackInvalidateRange(s_armMesh, sizeof(s_armMesh));
+            dcacheFlush(s_armMesh, sizeof(s_armMesh));
         }
     }
 
