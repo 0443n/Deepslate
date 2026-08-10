@@ -1,5 +1,6 @@
 
 #include "world/level/tile/tile_behavior.h"
+#include "world/level/tile/material.h"
 
 bool reedCanSurvive(World* w, int x, int y, int z) {
     unsigned char below = worldBlock(w, x, y - 1, z);
@@ -10,8 +11,8 @@ bool reedCanSurvive(World* w, int x, int y, int z) {
 }
 
 bool cactusCanSurvive(World* w, int x, int y, int z) {
-    if (isSolidPhys(worldBlock(w, x - 1, y, z)) || isSolidPhys(worldBlock(w, x + 1, y, z)) ||
-        isSolidPhys(worldBlock(w, x, y, z - 1)) || isSolidPhys(worldBlock(w, x, y, z + 1))) return false;
+    if (materialOf(worldBlock(w, x - 1, y, z)).isSolid() || materialOf(worldBlock(w, x + 1, y, z)).isSolid() ||
+        materialOf(worldBlock(w, x, y, z - 1)).isSolid() || materialOf(worldBlock(w, x, y, z + 1)).isSolid()) return false;
     unsigned char below = worldBlock(w, x, y - 1, z);
     return below == BLOCK_CACTUS || below == BLOCK_SAND;
 }
