@@ -552,6 +552,8 @@ void worldUpdateNeighbors(World* w, int x, int y, int z, unsigned char id);
 void liquidFlow(const World* w, int x, int y, int z, unsigned char id,
                 float* fx, float* fy, float* fz);
 
+bool liquidStopsWater(unsigned char id);
+
 void worldNotifyNeighborsChanged(World* w, int x, int y, int z);
 
 bool worldSetTileUpdate(World* w, int x, int y, int z, unsigned char id, unsigned char data);

@@ -15,11 +15,14 @@ extern Level g_level;
 #include <pspkernel.h>
 #include "util/prof.h"
 
+bool liquidStopsWater(unsigned char id) {
+    return id == BLOCK_REEDS || isSign(id) || isLadder(id) || id == BLOCK_DOOR_WOOD;
+}
+
 static bool isWaterBlocking(const World* w, int x, int y, int z) {
     unsigned char id = worldBlock(w, x, y, z);
     if (id == BLOCK_AIR) return false;
-
-    if (id == BLOCK_REEDS || isSign(id)) return true;
+    if (liquidStopsWater(id)) return true;
 
     return isSolidPhys(id);
 }

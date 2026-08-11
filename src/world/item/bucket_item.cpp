@@ -29,6 +29,8 @@ bool BucketItem::emptyBucket(World* world, int type, int x, int y, int z) {
     unsigned char old = worldBlock(world, x, y, z);
     if (old != BLOCK_AIR && materialOf(old).isSolid()) return false;
 
+    if (liquidStopsWater(old)) return false;
+
     worldSetBlockAndData(world, x, y, z, (unsigned char)type, 0);
     worldScheduleTick(world, x, y, z, (unsigned char)type,
                       liquidTickDelay((unsigned char)type));
