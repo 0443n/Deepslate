@@ -207,6 +207,10 @@ PSP_EBOOT_SND0  = $(if $(wildcard $(PRESENT)/SND0.AT3),$(PRESENT)/SND0.AT3,NULL)
 # has shipped MEMSIZE=2, and without the expansion every 64MB PSP runs as a 1000.
 PSP_LARGE_MEMORY = 1
 
+# Relocatable module instead of a static ELF, so the kernel's module manager can
+# unload us cleanly on exit.
+BUILD_PRX = 1
+
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
 
