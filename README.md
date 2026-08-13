@@ -130,8 +130,10 @@ renderer and mesher, the GU/graphics layer, and everything else authored here
 for the PSP — is released under the **GNU General Public License v3.0**
 (see [LICENSE](LICENSE)). In short: use it, study it, fork it — but if you
 distribute a modified version or a binary built from it, you have to release
-its complete source under the same license. It was MIT-licensed before; that
-does not un-license copies already taken under those terms.
+its complete source under the same license. This covers **every version of the
+project, including the earlier ones** — there is no MIT branch of it still on
+offer. (Copies someone already received under the old MIT terms keep those
+rights; that part is not up to anyone.)
 
 **What the GPL does not cover:** the gameplay and world logic in this project is
 ported from the Minecraft Pocket Edition 0.6.1 sources, and Minecraft is the

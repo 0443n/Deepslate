@@ -33,9 +33,15 @@ a modified version -- a fork, a rebuild, a binary you hand to someone else --
 you must release its complete source under this same license. Keeping changes
 to yourself is fine; shipping them without the source is not.
 
-This project was previously released under the MIT License. That does not
-un-license copies already obtained under those terms; it only covers this
-version onward.
+THIS APPLIES TO THE EARLIER VERSIONS TOO. Every version of this project,
+including everything released before this file changed, is offered under the
+GPL -- there is no older MIT branch of it still on offer.
+
+One thing the copyright holder cannot do, and this is a fact about copyright
+rather than a choice being made here: a copy someone already received under the
+MIT License keeps the rights that copy was given. Those rights do not expire and
+cannot be withdrawn. What changes is what is offered from here on, for every
+version, to everyone who obtains it now.
 
 Each source file may carry the standard notice:
 
