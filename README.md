@@ -127,17 +127,21 @@ off a phone opens on the PSP.
 
 The original engine code written for this port — the world storage, the PSP
 renderer and mesher, the GU/graphics layer, and everything else authored here
-for the PSP — is released under the MIT License (see [LICENSE](LICENSE)).
+for the PSP — is released under the **GNU General Public License v3.0**
+(see [LICENSE](LICENSE)). In short: use it, study it, fork it — but if you
+distribute a modified version or a binary built from it, you have to release
+its complete source under the same license. It was MIT-licensed before; that
+does not un-license copies already taken under those terms.
 
-**What MIT does not cover:** the gameplay and world logic in this project is
+**What the GPL does not cover:** the gameplay and world logic in this project is
 ported from the Minecraft Pocket Edition 0.6.1 sources, and Minecraft is the
 intellectual property of Mojang / Microsoft. That copyright, and the
-"Minecraft" trademark, are theirs — the MIT grant applies only to the original
+"Minecraft" trademark, are theirs — the GPL grant applies only to the original
 PSP engine work, not to anything derived from Mojang's code.
 
 This is a non-commercial, educational project and is not affiliated with,
 endorsed by, or associated with Mojang or Microsoft. The game assets bundled
 under `data/` (textures such as `terrain.png`, sounds, the font, mob and GUI
-art) are the property of Mojang / Microsoft and are not covered by the MIT
-license above; they are included only to make this educational port runnable.
+art) are the property of Mojang / Microsoft and are not covered by the GPL
+above; they are included only to make this educational port runnable.
 If you are a rights holder and want anything removed, open an issue.
