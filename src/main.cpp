@@ -224,6 +224,8 @@ int main(int argc, char* argv[]) {
             fpsLastTime = now;
         }
 
+        scePowerTick(0);
+
         SceCtrlData pad;
         sceCtrlReadBufferPositive(&pad, 1);
 
@@ -330,13 +332,19 @@ int main(int argc, char* argv[]) {
 #endif
                     fontDrawTextShadow(&s.font, 10, ty, fpsBuf, 0xFFE0E0E0u, 1.0f);
                     ty += 12.0f;
+                }
+
+                {
+
+#if DIAG_OVERLAY
 
                     {
-                        extern unsigned int g_drawLiveHits;
+                        extern unsigned int g_drawLiveHits, g_drawLiveNext;
                         if (g_drawLiveHits) {
                             char dlBuf[48];
-                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u (corrected)",
-                                          g_drawLiveHits);
+
+                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u/%u (corrected)",
+                                          g_drawLiveHits, g_drawLiveNext);
                             fontDrawTextShadow(&s.font, 10, ty, dlBuf, 0xFF50FFFFu, 1.0f);
                             ty += 12.0f;
                         }
@@ -352,6 +360,28 @@ int main(int argc, char* argv[]) {
                             ty += 12.0f;
                         }
                     }
+
+                    {
+                        extern unsigned int g_emptyFrames, g_emptyFrameNo;
+                        if (g_emptyFrames) {
+                            char efBuf[48];
+                            std::snprintf(efBuf, sizeof(efBuf), "EMPTY-FRAME %u (last %u)",
+                                          g_emptyFrames, g_emptyFrameNo);
+                            fontDrawTextShadow(&s.font, 10, ty, efBuf, 0xFF50FFFFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
+                    {
+                        extern unsigned int g_shortListHits, g_shortListBytes, g_shortListPeak;
+                        if (g_shortListHits) {
+                            char slBuf[64];
+                            std::snprintf(slBuf, sizeof(slBuf), "SHORT-LIST %u (%u/%u)",
+                                          g_shortListHits, g_shortListBytes, g_shortListPeak);
+                            fontDrawTextShadow(&s.font, 10, ty, slBuf, 0xFF50FFFFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
+#endif
                     if (g_textureBindFailures) {
                         char txBuf[96];
                         std::snprintf(txBuf, sizeof(txBuf), "TEX FAIL %u: %s",
@@ -502,6 +532,7 @@ int main(int argc, char* argv[]) {
 
     soundShutdown();
     worldGenWorkerStop();
+    guDumpFrameLog();
 
     if (s.haveFont)  fontFree(&s.font);
     if (s.haveGui)   textureFree(&s.guiAtlas);

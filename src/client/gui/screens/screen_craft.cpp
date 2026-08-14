@@ -81,7 +81,8 @@ static CraftItem* currentItem() {
 
 static void recheckRecipes() {
     ItemPack ip;
-    for (int i = 0; i < g_level.player->inventory->getContainerSize(); ++i) {
+    for (int i = g_level.player->inventory->firstGridSlot();
+         i < g_level.player->inventory->getContainerSize(); ++i) {
         ItemInstance* it = g_level.player->inventory->getItem(i);
         if (it && !it->isNull())
             ip.add(ItemPack::getIdForItemInstance(it), it->count);

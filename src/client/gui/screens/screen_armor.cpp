@@ -28,7 +28,9 @@ static int s_focus = 0;
 
 static void updateItems() {
     s_list.clear();
-    for (int i = 0; i < g_level.player->inventory->getContainerSize(); ++i) {
+
+    for (int i = g_level.player->inventory->firstGridSlot();
+         i < g_level.player->inventory->getContainerSize(); ++i) {
         ItemInstance* it = g_level.player->inventory->getItem(i);
         if (!it || it->isNull()) continue;
         Item* item = it->getItem();

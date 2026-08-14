@@ -23,6 +23,23 @@ static inline void* guFrameCopy(const void* src, int bytes) {
 #define GU_SCR_WIDTH  480
 #define GU_SCR_HEIGHT 272
 
+static inline int guShortListTrigger(unsigned before, unsigned mid,
+                                     unsigned after, unsigned peak) {
+    if (peak <= 4096) return 0;
+    return mid < peak / 4 && before > peak / 2 && after > peak / 2;
+}
+
+#define DIAG_OVERLAY 0
+
+static inline int guRowIsUniform(const unsigned short* row, int x0, int step, int count) {
+    const unsigned short first = row[x0];
+    for (int i = 1; i < count; i++)
+        if (row[x0 + i * step] != first) return 0;
+    return 1;
+}
+
+void guDumpFrameLog(void);
+
 void guInit(void);
 
 void* guVramAllocTexture(unsigned int bytes);

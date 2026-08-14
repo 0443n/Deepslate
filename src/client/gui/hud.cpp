@@ -136,16 +136,16 @@ static short guiBlockIcon(short id) {
         case BLOCK_NETHERRACK: return 20;
         case BLOCK_GLOWSTONE: return 54;
         case BLOCK_NETHER_BRICK: return 19;
-        case BLOCK_TNT: return 80;
-        case BLOCK_BOOKSHELF: return 75;
+        case BLOCK_TNT: return 65;
+        case BLOCK_BOOKSHELF: return 60;
         case BLOCK_GLASS: return 53;
-        case BLOCK_MELON: return 82;
-        case BLOCK_STONECUTTER: return 77;
-        case BLOCK_CRAFTING_TABLE: return 76;
-        case BLOCK_FURNACE: case BLOCK_FURNACE_LIT: return 79;
-        case BLOCK_CHEST: return 78;
+        case BLOCK_MELON: return 67;
+        case BLOCK_STONECUTTER: return 62;
+        case BLOCK_CRAFTING_TABLE: return 61;
+        case BLOCK_FURNACE: case BLOCK_FURNACE_LIT: return 64;
+        case BLOCK_CHEST: return 63;
         case BLOCK_NETHER_REACTOR: return 55;
-        case BLOCK_CACTUS: return 81;
+        case BLOCK_CACTUS: return 66;
         case BLOCK_REEDS: return 138;
         case BLOCK_FLOWER: return 134;
         case BLOCK_ROSE: return 135;
@@ -162,10 +162,10 @@ static short guiBlockIcon(short id) {
         case BLOCK_STAIRS_QUARTZ: return 27;
 
         case BLOCK_GLASS_PANE: return 130;
-        case BLOCK_FENCE: return 73;
+        case BLOCK_FENCE: return 58;
         case BLOCK_DOOR_WOOD: return 131;
-        case BLOCK_TRAPDOOR: return 72;
-        case BLOCK_FENCE_GATE: return 74;
+        case BLOCK_TRAPDOOR: return 57;
+        case BLOCK_FENCE_GATE: return 59;
         case BLOCK_BED: return 132;
         case BLOCK_WOOD_SLAB_DOUBLE: return 30;
         default: return -1;
@@ -216,9 +216,9 @@ static inline int slabGuiIcon(short id, unsigned char data) {
 
 static inline int leafGuiIcon(unsigned char data) {
     switch (data & LEAF_TYPE_MASK) {
-        case LEAF_SPRUCE: return 84;
-        case LEAF_BIRCH:  return 85;
-        default:          return 83;
+        case LEAF_SPRUCE: return 69;
+        case LEAF_BIRCH:  return 70;
+        default:          return 68;
     }
 }
 
@@ -230,16 +230,31 @@ static inline int saplingGuiIcon(unsigned char data) {
     }
 }
 
-static const short kWoolGuiIcon[16] = {
-    56, 63, 62, 61, 60, 59, 58, 57,
-    71, 70, 69, 68, 67, 66, 65, 64,
+static const unsigned int kWoolTint[16] = {
+    0xFFFFFFFFu,
+    0xFF3F92FFu,
+    0xFFE757DBu,
+    0xFFF3A077u,
+    0xFF20D0DFu,
+    0xFF37D944u,
+    0xFFB297FAu,
+    0xFF4C4C4Cu,
+    0xFFBEBEB6u,
+    0xFFAC862Du,
+    0xFFE13E95u,
+    0xFFB13B2Cu,
+    0xFF203B63u,
+    0xFF1C5840u,
+    0xFF2F33BCu,
+    0xFF1B1B1Fu,
 };
+#define WOOL_GUI_ICON 56
 
 int getGuiBlockIcon(short id, unsigned char data) {
     if (id >= 256) return -2;
     return isLeaf(id) ? leafGuiIcon(data)
          : (id == BLOCK_SAPLING) ? saplingGuiIcon(data)
-         : isWool(id) ? kWoolGuiIcon[data & 0xF]
+         : isWool(id) ? WOOL_GUI_ICON
          : isLog(id) ? logGuiIcon(data)
          : (id == BLOCK_SANDSTONE) ? sandstoneGuiIcon(data)
          : (id == BLOCK_QUARTZ_BLOCK) ? quartzGuiIcon(data)
@@ -288,6 +303,8 @@ void drawBlockIcon(short id, unsigned char data, float x, float y, float sizePx,
         float sx, sy, ss;
         if (i < 128) { ss = 48.0f; sx = (i % 10) * 48.0f;         sy = (i / 10) * 48.0f; }
         else { i -= 128; ss = 16.0f; sx = (i & 31) * 16.0f; sy = (27 + (i >> 5)) * 16.0f; }
+
+        if (isWool(id)) colorTint = eggMul(kWoolTint[data & 0xF], colorTint);
         textureBind(&g_guiBlocks);
         spriteDraw(&g_guiBlocks, x, y, sizePx, sizePx, sx, sy, ss, ss, colorTint);
     } else if (g_haveTerrain) {

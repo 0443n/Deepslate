@@ -86,6 +86,7 @@ bool panoramaRender() {
 
     struct PanoVertex { float u, v; float x, y, z; };
 
+    bool ok = true;
     sceGumMatrixMode(GU_MODEL);
     sceGumPushMatrix();
     for (int i = 0; i < FACES; i++) {
@@ -110,7 +111,8 @@ bool panoramaRender() {
         sceGuColor(0xFFFFFFFFu);
         const int N = PANORAMA_SUBDIV;
         PanoVertex* q = (PanoVertex*)guFrameAlloc(N * N * 6 * sizeof(PanoVertex));
-        if (!q) return false;
+
+        if (!q) { ok = false; break; }
         int n = 0;
         for (int cy = 0; cy < N; cy++) {
             for (int cx = 0; cx < N; cx++) {
@@ -144,5 +146,5 @@ bool panoramaRender() {
     sceGuDisable(GU_DEPTH_TEST);
     guiFillGradient(0.0f, 0.0f, 480.0f, 272.0f, 0x59FFFFFFu, 0x59000000u);
     sceGuEnable(GU_DEPTH_TEST);
-    return true;
+    return ok;
 }

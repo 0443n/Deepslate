@@ -216,6 +216,8 @@ static int loadRadius(const World* w) {
     extern float g_viewDistEff;
     float d = (g_viewDistEff > 0.0f) ? g_viewDistEff : WORLD_VIEW_DIST;
     int r = (int)(d / 16.0f) + 2;
+
+    if (r < 4) r = 4;
     int cap = w->slotN / 2;
     return r > cap ? cap : r;
 }

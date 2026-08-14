@@ -18,6 +18,27 @@ static unsigned int g_frameId = 0;
 
 unsigned int g_frameAllocFails = 0;
 
+unsigned int g_shortListHits = 0;
+unsigned int g_shortListBytes = 0;
+unsigned int g_shortListPeak = 0;
+
+struct ShortListEvent {
+    unsigned frameNo, bytes, peak, prevBytes, nextBytes;
+    unsigned shown, drawn;
+    unsigned scratch, allocFails, drawLive;
+};
+static ShortListEvent s_events[32];
+static unsigned s_eventCount = 0;
+
+unsigned int g_emptyFrames = 0;
+unsigned int g_emptyFrameNo = 0;
+
+static unsigned int g_alarmFrames = 0;
+
+struct EmptyFrameEvent { unsigned frameNo, shown, drawn, listBytes; };
+static EmptyFrameEvent s_empties[16];
+static unsigned s_emptyCount = 0;
+
 unsigned int guFrameId(void) { return g_frameId; }
 
 void* guFrameAlloc(int bytes) {
@@ -31,10 +52,13 @@ void* guFrameAlloc(int bytes) {
 
 static unsigned int g_vramOffset = 0;
 
-static void* g_fb[2] = { 0, 0 };
+#define GU_FB_COUNT 3
+static void* g_fb[GU_FB_COUNT] = { 0, 0, 0 };
 static int   g_drawIdx = 0;
 
 unsigned int g_drawLiveHits = 0;
+
+unsigned int g_drawLiveNext = 0;
 
 static unsigned int guMemSize(unsigned int width, unsigned int height,
                               unsigned int psm) {
@@ -79,8 +103,8 @@ void guInit(void) {
 
     g_listUncached = (void*)((unsigned int)g_list | 0x40000000u);
 
-    g_fb[0] = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_5650);
-    g_fb[1] = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_5650);
+    for (int i = 0; i < GU_FB_COUNT; i++)
+        g_fb[i] = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_5650);
     void* zbp = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_4444);
     g_drawIdx = 0;
 
@@ -126,14 +150,25 @@ void guStartFrame(unsigned int clearColor) {
     g_frameScratch = 0;
     g_frameId++;
 
+#if DIAG_OVERLAY
+    if (g_alarmFrames) { g_alarmFrames--; clearColor = 0xFF0000FFu; }
+#endif
+
     {
-        void* shown = 0; int bw = 0, pf = 0;
-        sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
+        void* shownNow = 0; void* shownNext = 0; int bw = 0, pf = 0;
+        sceDisplayGetFrameBuf(&shownNow,  &bw, &pf, 0);
+        sceDisplayGetFrameBuf(&shownNext, &bw, &pf, 1);
         void* about = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]);
-        if (shown == about) {
+        if (shownNow == about || shownNext == about) {
+            if (shownNow != about) g_drawLiveNext++;
             g_drawLiveHits++;
             profAdd(PROFC_DRAWLIVE, 1);
-            g_drawIdx ^= 1;
+
+            for (int i = 1; i < GU_FB_COUNT; i++) {
+                int cand = (g_drawIdx + i) % GU_FB_COUNT;
+                void* p = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[cand]);
+                if (p != shownNow && p != shownNext) { g_drawIdx = cand; break; }
+            }
         }
     }
     sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
@@ -148,8 +183,103 @@ void guStartFrame(unsigned int clearColor) {
 void guFinishFrame(void) {
     profBegin(PROF_GESYNC);
 
-    profListBytes((unsigned)sceGuFinish());
+    unsigned listBytes = (unsigned)sceGuFinish();
+    profListBytes(listBytes);
+
+    {
+        extern bool g_worldBuilt;
+        static unsigned s_listPeak = 0;
+        static unsigned s_frameNo = 0;
+
+        static unsigned s_hist[2] = { 0, 0 };
+        static unsigned s_histShown[2] = { 0, 0 };
+        static unsigned s_histDrawn[2] = { 0, 0 };
+
+        if (!g_worldBuilt) {
+            s_listPeak = 0;
+            s_hist[0] = s_hist[1] = 0;
+        } else {
+            s_frameNo++;
+            if (listBytes > s_listPeak) s_listPeak = listBytes;
+
+            if (guShortListTrigger(s_hist[0], s_hist[1], listBytes, s_listPeak)) {
+                g_shortListHits++;
+                g_shortListBytes = s_hist[1];
+                g_shortListPeak  = s_listPeak;
+
+                if (s_eventCount < 32) {
+                    ShortListEvent* e = &s_events[s_eventCount];
+                    e->frameNo    = s_frameNo - 1;
+                    e->bytes      = s_hist[1];
+                    e->peak       = s_listPeak;
+                    e->prevBytes  = s_hist[0];
+                    e->nextBytes  = listBytes;
+                    e->shown      = s_histShown[1];
+                    e->drawn      = s_histDrawn[1];
+                    e->scratch    = g_frameScratch;
+                    e->allocFails = g_frameAllocFails;
+                    e->drawLive   = g_drawLiveHits;
+                }
+                s_eventCount++;
+            }
+
+            void* shown = 0; int bw = 0, pf = 0;
+            sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
+            s_hist[0] = s_hist[1];
+            s_hist[1] = listBytes;
+            s_histShown[0] = s_histShown[1];
+            s_histShown[1] = (unsigned)shown;
+            s_histDrawn[0] = s_histDrawn[1];
+            s_histDrawn[1] = (unsigned)sceGeEdramGetAddr() + (unsigned)g_fb[g_drawIdx];
+        }
+    }
     sceGuSync(0, 0);
+
+#if DIAG_OVERLAY
+    {
+
+        extern bool g_photoPending;
+        bool gameProgressScreenUp();
+
+        static bool s_hadContent[2] = { false, false };
+
+        static unsigned s_prevShown = 0, s_prevDrawn = 0, s_prevList = 0;
+
+        if (g_photoPending || gameProgressScreenUp()) {
+
+        } else {
+
+            const unsigned short* fb = (const unsigned short*)
+                (((unsigned)sceGeEdramGetAddr() + (unsigned)g_fb[g_drawIdx]) | 0x40000000u);
+
+            const bool hasContent =
+                !guRowIsUniform(fb + 255 * GU_BUF_WIDTH, 20, 28, 16);
+
+            if (s_hadContent[0] && !s_hadContent[1] && hasContent) {
+                g_emptyFrames++;
+                g_emptyFrameNo = g_frameId - 1;
+                g_alarmFrames = 30;
+                if (s_emptyCount < 16) {
+                    EmptyFrameEvent* e = &s_empties[s_emptyCount];
+                    e->frameNo   = g_frameId - 1;
+                    e->shown     = s_prevShown;
+                    e->drawn     = s_prevDrawn;
+                    e->listBytes = s_prevList;
+                }
+                s_emptyCount++;
+            }
+            {
+                void* shown = 0; int bw = 0, pf = 0;
+                sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
+                s_prevShown = (unsigned)shown;
+                s_prevDrawn = (unsigned)sceGeEdramGetAddr() + (unsigned)g_fb[g_drawIdx];
+                s_prevList  = listBytes;
+            }
+            s_hadContent[0] = s_hadContent[1];
+            s_hadContent[1] = hasContent;
+        }
+    }
+#endif
     profEnd(PROF_GESYNC);
 }
 
@@ -158,7 +288,8 @@ void guPresent(void) {
     void* addr = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]);
     sceDisplaySetFrameBuf(addr, GU_BUF_WIDTH, PSP_DISPLAY_PIXEL_FORMAT_565,
                           PSP_DISPLAY_SETBUF_NEXTFRAME);
-    g_drawIdx ^= 1;
+
+    g_drawIdx = (g_drawIdx + 1) % GU_FB_COUNT;
 
     profBegin(PROF_VBLANK);
     sceDisplayWaitVblankStart();
@@ -258,4 +389,42 @@ void guPerspective(float fovDeg, float nearZ, float farZ) {
 
     sceGumMatrixMode(GU_MODEL);
     sceGumLoadIdentity();
+}
+
+#include "platform/path.h"
+void guDumpFrameLog(void) {
+    if (!s_eventCount && !s_emptyCount) return;
+
+    FILE* fp = fopen(assetPath("framelog.txt"), "w");
+    if (!fp) fp = fopen("ms0:/framelog.txt", "w");
+    if (!fp) return;
+
+    fprintf(fp, "empty frames: %u (first %u kept)\n",
+            s_emptyCount, s_emptyCount < 16 ? s_emptyCount : 16u);
+    {
+        unsigned n = s_emptyCount < 16 ? s_emptyCount : 16u;
+        for (unsigned i = 0; i < n; i++) {
+            const EmptyFrameEvent* e = &s_empties[i];
+            fprintf(fp, "frame %u | shown %08x drawn %08x %s | list %u\n",
+                    e->frameNo, e->shown, e->drawn,
+                    (e->shown == e->drawn) ? "SAME-BUFFER" : "ok",
+                    e->listBytes);
+        }
+    }
+
+    fprintf(fp, "short-list events: %u (first %u kept)\n",
+            s_eventCount, s_eventCount < 32 ? s_eventCount : 32u);
+    unsigned n = s_eventCount < 32 ? s_eventCount : 32u;
+    for (unsigned i = 0; i < n; i++) {
+        const ShortListEvent* e = &s_events[i];
+
+        fprintf(fp, "frame %u | list %u prev %u next %u peak %u (%u%%) | shown %08x drawn %08x %s"
+                    " | scratch %u fails %u drawlive %u\n",
+                e->frameNo, e->bytes, e->prevBytes, e->nextBytes, e->peak,
+                e->peak ? e->bytes * 100 / e->peak : 0,
+                e->shown, e->drawn,
+                (e->shown == e->drawn) ? "SAME-BUFFER" : "ok",
+                e->scratch, e->allocFails, e->drawLive);
+    }
+    fclose(fp);
 }

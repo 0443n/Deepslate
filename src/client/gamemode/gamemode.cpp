@@ -51,7 +51,9 @@ static bool s_drawing = false;
 
 static bool canDrawBow() {
     if (g_level.player->inventory->isCreative()) return true;
-    for (int i = 0; i < g_level.player->inventory->getContainerSize(); i++) {
+
+    for (int i = g_level.player->inventory->firstGridSlot();
+         i < g_level.player->inventory->getContainerSize(); i++) {
         ItemInstance* it = g_level.player->inventory->getItem(i);
         if (it && it->id == ITEM_ARROW && it->count > 0) return true;
     }

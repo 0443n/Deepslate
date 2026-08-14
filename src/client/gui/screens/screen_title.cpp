@@ -24,12 +24,22 @@ static PocketButton buttons[3] = {
     { (spacingV + 2 * (btnSizeV + spacingV)) * UI_SCALE, yBaseV * UI_SCALE, btnSizeV * UI_SCALE, 0.0f,  26.0f, 75.0f, "Options",    true },
 };
 static const int numButtons = 3;
+
+static const unsigned int kTitleSeed[3] = {
+    0x0251B8B0u, 0x1360B0C0u, 0x00000275u
+};
+#define TITLE_SEED_LEN 14
+static int s_seedHold = 0;
+
 struct TitleScreen : Screen {
     void renderContent(MenuState& s);
     void handleInput(MenuState& s, unsigned int pressed, unsigned int held);
 };
 
-void TitleScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
+void TitleScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int held) {
+
+    static const unsigned int SEED_MASK = PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER | PSP_CTRL_UP;
+    s_seedHold = ((held & SEED_MASK) == SEED_MASK) ? (s_seedHold + 1) : 0;
 
     int& selected = s.selected;
     AppScreen& screen = s.screen;
@@ -119,6 +129,17 @@ void TitleScreen::renderContent(MenuState& s) {
         const char* copyright = "\xffMojang AB";
         float cw = fontTextWidth(&font, copyright) * UI_SCALE;
         fontDrawTextShadow(&font, 480.0f - cw - 4.0f, 272.0f - 9.0f * UI_SCALE, copyright, WHITE, UI_SCALE);
+        if (s_seedHold > 30) {
+            char line[TITLE_SEED_LEN + 1];
+            for (int i = 0; i < TITLE_SEED_LEN; i++) {
+                unsigned int v = (kTitleSeed[i / 6] >> (5 * (i % 6))) & 31u;
+                line[i] = v ? (char)(0x40u + v) : ' ';
+            }
+            line[TITLE_SEED_LEN] = '\0';
+            float lw = fontTextWidth(&font, line) * UI_SCALE;
+            fontDrawTextShadow(&font, (480.0f - lw) * 0.5f, 272.0f - 20.0f * UI_SCALE,
+                               line, 0xFF80FFFFu, UI_SCALE);
+        }
         sceGuEnable(GU_DEPTH_TEST);
     }
 }
