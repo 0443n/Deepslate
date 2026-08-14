@@ -99,7 +99,6 @@ protected:
     virtual void readAdditionalSaveData(CompoundTag* tag);
     virtual void addAdditonalSaveData(CompoundTag* tag);
 
-    void mobMoveRelative(float xs, float yf, float speed);
     bool isFreeM(float dx, float dy, float dz);
     unsigned char bodyBlock();
     virtual bool onLadder();

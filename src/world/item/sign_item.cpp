@@ -19,8 +19,7 @@ extern Level g_level;
 void signStartEdit(SignTileEntity* ste);
 
 static inline int facingFromYaw16(float yawDeg) {
-
-    return ((int)floorf((180.0f - yawDeg) * 16.0f / 360.0f + 0.5f)) & 15;
+    return ((int)floorf((yawDeg + 180.0f) * 16.0f / 360.0f + 0.5f)) & 15;
 }
 
 SignItem::SignItem(short id, int icon) : Item(id), icon(icon) {

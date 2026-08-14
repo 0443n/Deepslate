@@ -55,7 +55,7 @@ void CowRenderer::render(Entity* e, float x, float y, float z, float rot, float 
     float ws = m.speed, wp = m.pos;
     float pend = cosf(wp * 0.6662f) * 1.4f * ws;
 
-    float hx = -ipitch * DEG2RAD, hy = -dHead * DEG2RAD;
+    float hx = -ipitch * DEG2RAD, hy = dHead * DEG2RAD;
     parts[P_HEAD].xRot = hx; parts[P_HEAD].yRot = hy; parts[P_HEAD].zRot = 0;
     parts[P_HORN0].xRot = hx; parts[P_HORN0].yRot = hy; parts[P_HORN0].zRot = 0;
     parts[P_HORN1].xRot = hx; parts[P_HORN1].yRot = hy; parts[P_HORN1].zRot = 0;

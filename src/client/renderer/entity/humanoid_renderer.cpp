@@ -66,7 +66,7 @@ void HumanoidRenderer::render(Entity* e, float x, float y, float z, float rot, f
     float t = wp * 0.6662f;
     float tcos0 = cosf(t) * ws, tcos1 = cosf(t + PIF) * ws;
 
-    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = -dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
+    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
     parts[P_BODY].xRot = parts[P_BODY].yRot = parts[P_BODY].zRot = 0;
     parts[P_LEG0].xRot = tcos0 * 1.4f; parts[P_LEG0].yRot = parts[P_LEG0].zRot = 0;
     parts[P_LEG1].xRot = tcos1 * 1.4f; parts[P_LEG1].yRot = parts[P_LEG1].zRot = 0;

@@ -222,7 +222,7 @@ void playerModelRender(float a) {
     float t  = wp * 0.6662f;
     float tcos0 = cosf(t) * ws, tcos1 = cosf(t + PIF) * ws;
 
-    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = -dHead * DEG2RAD;
+    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = dHead * DEG2RAD;
     parts[P_BODY].xRot = parts[P_BODY].yRot = parts[P_BODY].zRot = 0.0f;
     parts[P_ARM0].xRot = tcos1; parts[P_ARM0].yRot = parts[P_ARM0].zRot = 0.0f;
     parts[P_ARM1].xRot = tcos0; parts[P_ARM1].yRot = parts[P_ARM1].zRot = 0.0f;
@@ -314,8 +314,7 @@ void playerModelRender(float a) {
         sceGumRotateZ(-90.0f * DEG2RAD);
         sceGumRotateY( 90.0f * DEG2RAD);
     } else {
-
-        sceGumRotateY((ibody + 180.0f) * DEG2RAD);
+        sceGumRotateY((180.0f - ibody) * DEG2RAD);
 
         if (p->deathTime > 0) {
             float fall = sqrtf(((p->deathTime + a - 1.0f) / 20.0f) * 1.6f);

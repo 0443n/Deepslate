@@ -72,8 +72,8 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
         }
     }
 
-    if (btn & PSP_CTRL_SQUARE)   yRot += LOOK;
-    if (btn & PSP_CTRL_CIRCLE)   yRot -= LOOK;
+    if (btn & PSP_CTRL_SQUARE)   yRot -= LOOK;
+    if (btn & PSP_CTRL_CIRCLE)   yRot += LOOK;
     const float PITCH = g_invertY ? -LOOK : LOOK;
     if (btn & PSP_CTRL_TRIANGLE) xRot += PITCH;
     if (btn & PSP_CTRL_CROSS)    xRot -= PITCH;
@@ -113,7 +113,7 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     extern int g_autoJump;
     if (g_autoJump && onGround && horizontalCollision && !flying && !isInWater() && !isInLava()) {
         float sy = sinf(yRot * 3.14159265f / 180.0f), cy = cosf(yRot * 3.14159265f / 180.0f);
-        float dirX = xs * cy + yf * sy, dirZ = yf * cy - xs * sy;
+        float dirX = xs * cy - yf * sy, dirZ = yf * cy + xs * sy;
         float d = sqrtf(dirX * dirX + dirZ * dirZ);
         if (d > 0.01f) {
             dirX /= d; dirZ /= d;
@@ -150,7 +150,7 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     float bxd = x - xo, bzd = z - zo;
     float sideDist = sqrtf(bxd * bxd + bzd * bzd);
     float yBodyRotT = yBodyRot;
-    if (sideDist > 0.05f) yBodyRotT = atan2f(bxd, bzd) * RADDEG;
+    if (sideDist > 0.05f) yBodyRotT = atan2f(-bxd, bzd) * RADDEG;
     extern float g_attackAnim;
     if (g_attackAnim > 0.0f) yBodyRotT = yRot;
     float yBodyRotD = yBodyRotT - yBodyRot;

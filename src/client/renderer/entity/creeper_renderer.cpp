@@ -46,7 +46,7 @@ void CreeperRenderer::render(Entity* e, float x, float y, float z, float rot, fl
     float t = wp * 0.6662f;
     float sA = cosf(t) * 1.4f * ws, sB = cosf(t + PIF) * 1.4f * ws;
 
-    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = -dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
+    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
     parts[P_BODY].xRot = parts[P_BODY].yRot = parts[P_BODY].zRot = 0;
     parts[P_LEG0].xRot = sA; parts[P_LEG1].xRot = sB; parts[P_LEG2].xRot = sB; parts[P_LEG3].xRot = sA;
     for (int i = P_LEG0; i <= P_LEG3; i++) { parts[i].yRot = parts[i].zRot = 0; }

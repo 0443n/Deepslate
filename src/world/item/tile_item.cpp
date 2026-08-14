@@ -60,12 +60,8 @@ bool SlabItem::useOn(ItemInstance* item, Player* player, World* w, int x, int y,
         currentTile == tileId && slabType == (item->data & DSLAB_MAT_MASK)) {
 
         Tile* dbl = Tile::tiles[doubleId];
-        BlockAABB boxes[3];
-        int n = dbl->getAABB(w, x, y, z, boxes);
-        for (int i = 0; i < n; i++) {
-            AABB box(boxes[i].x0, boxes[i].y0, boxes[i].z0, boxes[i].x1, boxes[i].y1, boxes[i].z1);
-            if (!g_level.isUnobstructed(box)) return true;
-        }
+        if (!tileUnobstructedAt(w, (unsigned char)doubleId, x, y, z))
+            return true;
         if (worldSetBlockAndData(w, x, y, z, (unsigned char)doubleId, (unsigned char)slabType)) {
             const SoundType& snd = g_tileSounds[dbl->soundType];
             if (snd.stepSound)
@@ -85,8 +81,7 @@ static int placementQuadrant(Player* p) {
     float yaw = p ? p->yRot : 0.0f;
     while (yaw < 0.0f)    yaw += 360.0f;
     while (yaw >= 360.0f) yaw -= 360.0f;
-    int q = ((int)floorf(yaw * 4.0f / 360.0f + 0.5f)) & 3;
-    return (4 - q) & 3;
+    return ((int)floorf(yaw * 4.0f / 360.0f + 0.5f)) & 3;
 }
 
 static void doorPlace(World* w, int x, int y, int z, int dir, short tileId) {
@@ -132,6 +127,9 @@ bool DoorItem::useOn(ItemInstance* item, Player* player, World* w, int x, int y,
 
     if (!Tile::tiles[tileId & 0xFF]->mayPlace(w, x, y, z)) return false;
 
+    if (!tileUnobstructedAt(w, (unsigned char)tileId, x, y, z)) return false;
+    if (!tileUnobstructedAt(w, (unsigned char)tileId, x, y + 1, z)) return false;
+
     int dir = (placementQuadrant(player) + 1) & 3;
     doorPlace(w, x, y, z, dir, tileId);
     if (player) player->inventory->consumeSelected();
@@ -152,6 +150,9 @@ bool BedItem::useOn(ItemInstance* item, Player* player, World* w, int x, int y, 
 
     if (worldBlock(w, x, y, z) != BLOCK_AIR) return false;
     if (worldBlock(w, x + xra, y, z + zra) != BLOCK_AIR) return false;
+
+    if (!tileUnobstructedAt(w, (unsigned char)tileId, x, y, z)) return false;
+    if (!tileUnobstructedAt(w, (unsigned char)tileId, x + xra, y, z + zra)) return false;
     if (!isSolidPhys(worldBlock(w, x, y - 1, z))) return false;
     if (!isSolidPhys(worldBlock(w, x + xra, y - 1, z + zra))) return false;
 

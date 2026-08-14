@@ -54,7 +54,7 @@ void ChickenRenderer::render(Entity* e, float x, float y, float z, float rot, fl
     float ws = m.speed, wp = m.pos;
 
     float hx = -(ipitch * DEG2RAD);
-    float hy  = -(dHead  * DEG2RAD);
+    float hy  = dHead * DEG2RAD;
     parts[P_HEAD].xRot   = hx; parts[P_HEAD].yRot   = hy; parts[P_HEAD].zRot   = 0;
     parts[P_BEAK].xRot   = hx; parts[P_BEAK].yRot   = hy; parts[P_BEAK].zRot   = 0;
     parts[P_WATTLE].xRot = hx; parts[P_WATTLE].yRot = hy; parts[P_WATTLE].zRot = 0;

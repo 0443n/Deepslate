@@ -55,9 +55,9 @@ Arrow::Arrow(Level* level, float px, float py, float pz,
 
     float cy = cosf(yaw * DEG),   sy = sinf(yaw * DEG);
     float cp = cosf(pitch * DEG), sp = sinf(pitch * DEG);
-    float dx = cp * sy, dy = sp, dz = cp * cy;
+    float dx = -cp * sy, dy = sp, dz = cp * cy;
 
-    setPos(px - cy * 0.16f, py - 0.1f, pz + sy * 0.16f);
+    setPos(px - cy * 0.16f, py - 0.1f, pz - sy * 0.16f);
     xOld = x; yOld = y; zOld = z;
 
     speed *= 1.5f;

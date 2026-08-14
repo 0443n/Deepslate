@@ -51,7 +51,7 @@ void SpiderRenderer::render(Entity* e, float x, float y, float z, float rot, flo
     float ibody = m.bodyRot, dHead = m.headYaw, ipitch = m.pitch;
     float r = m.speed, time = m.pos;
 
-    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = -dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
+    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
     parts[P_BODY0].xRot = parts[P_BODY0].yRot = parts[P_BODY0].zRot = 0;
     parts[P_BODY1].xRot = parts[P_BODY1].yRot = parts[P_BODY1].zRot = 0;
 

@@ -123,7 +123,7 @@ BlockHit worldPick(const World* w, float px, float py, float pz, float yaw, floa
     const float DEG2RAD = 3.14159265f / 180.0f;
     float cy = cosf(yaw * DEG2RAD), sy = sinf(yaw * DEG2RAD);
     float cp = cosf(pitch * DEG2RAD), sp = sinf(pitch * DEG2RAD);
-    float dx = cp * sy, dy = sp, dz = cp * cy;
+    float dx = -cp * sy, dy = sp, dz = cp * cy;
     return worldClipDir(w, px, py, pz, dx, dy, dz, range, clipLiquids, false);
 }
 

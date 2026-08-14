@@ -94,7 +94,7 @@ void playerDropSelected(bool all) {
     const float pow = 0.3f;
 
     ItemEntity* e = new ItemEntity(&g_level, p->x, p->y - 0.3f, p->z, piece);
-    e->xd = cp * sy * pow;
+    e->xd = -cp * sy * pow;
     e->yd = sp * pow + 0.1f;
     e->zd = cp * cy * pow;
 
@@ -146,7 +146,7 @@ static Entity* pickEntityOnViewRay(float range, float maxT, bool mobsOnly) {
     const float DEG2RAD = 3.14159265f / 180.0f;
     float cy = cosf(g_level.player->yRot * DEG2RAD), sy = sinf(g_level.player->yRot * DEG2RAD);
     float cp = cosf(g_level.player->xRot * DEG2RAD), sp = sinf(g_level.player->xRot * DEG2RAD);
-    float dx = cp * sy, dy = sp, dz = cp * cy;
+    float dx = -cp * sy, dy = sp, dz = cp * cy;
 
     float px = g_level.player->x, py = g_level.player->y, pz = g_level.player->z;
 

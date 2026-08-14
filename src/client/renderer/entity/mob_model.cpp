@@ -95,7 +95,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
     sceGumPushMatrix();
     sceGumLoadIdentity();
     ScePspFVector3 tpos = { x - g_relBaseX, feet - g_relBaseY, z - g_relBaseZ }; sceGumTranslate(&tpos);
-    sceGumRotateY((ibody + 180.0f) * DEG2RAD);
+    sceGumRotateY((180.0f - ibody) * DEG2RAD);
     if (mob->deathTime > 0) {
         float fall = sqrtf(((mob->deathTime + a - 1.0f) / 20.0f) * 1.6f);
         if (fall > 1.0f) fall = 1.0f;

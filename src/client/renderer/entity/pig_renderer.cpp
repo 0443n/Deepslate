@@ -46,7 +46,7 @@ void PigRenderer::render(Entity* e, float x, float y, float z, float rot, float 
     float ws = m.speed, wp = m.pos;
     float pend = cosf(wp * 0.6662f) * 1.4f * ws;
 
-    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = -dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
+    parts[P_HEAD].xRot = -ipitch * DEG2RAD; parts[P_HEAD].yRot = dHead * DEG2RAD; parts[P_HEAD].zRot = 0;
     parts[P_SNOUT].xRot = parts[P_HEAD].xRot; parts[P_SNOUT].yRot = parts[P_HEAD].yRot; parts[P_SNOUT].zRot = 0;
     parts[P_BODY].xRot = 90.0f * DEG2RAD; parts[P_BODY].yRot = parts[P_BODY].zRot = 0;
     parts[P_LEG0].xRot =  pend; parts[P_LEG1].xRot = -pend; parts[P_LEG2].xRot = -pend; parts[P_LEG3].xRot = pend;

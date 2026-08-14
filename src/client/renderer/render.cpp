@@ -162,7 +162,7 @@ static float skySunIntensity(float alpha, float yawDeg, float pitchDeg, float mi
 
     const float D2R = 3.14159265f / 180.0f;
     float cp = cosf(pitchDeg * D2R), sp = sinf(pitchDeg * D2R);
-    float lx = cp * sinf(yawDeg * D2R), ly = sp, lz = cp * cosf(yawDeg * D2R);
+    float lx = -cp * sinf(yawDeg * D2R), ly = sp, lz = cp * cosf(yawDeg * D2R);
     float d = (lx * sx + ly * sy + lz * sz + 1.0f) * 0.5f;
     if (d > 1.0f) d = 1.0f; else if (d <= minDot) d = minDot;
     return (d - minDot) / (1.0f - minDot);
@@ -1231,7 +1231,7 @@ void gameRender(MenuState& s) {
         if (g_level.player->isSleeping()) {
             int sdir = worldData(&g_world, g_level.player->bedX,
                                  g_level.player->bedY, g_level.player->bedZ) & 3;
-            iyaw = 180.0f - sdir * 90.0f;
+            iyaw = sdir * 90.0f - 180.0f;
             ipitch = 0.0f;
         }
     }
@@ -1245,8 +1245,8 @@ void gameRender(MenuState& s) {
 
     float cp = cosf(ipitch * DEG2RAD), sp = sinf(ipitch * DEG2RAD);
     float cy = cosf(iyaw * DEG2RAD),   sy = sinf(iyaw * DEG2RAD);
-    float fx = cp * sy, fy = sp, fz = cp * cy;
-    float rx = cy,       rz = -sy;
+    float fx = -cp * sy, fy = sp, fz = cp * cy;
+    float rx = cy,       rz = sy;
     float ux = fy * rz,  uy = fz * rx - fx * rz, uz = -fy * rx;
 
     extern bool g_thirdPerson;
@@ -1384,7 +1384,7 @@ void gameRender(MenuState& s) {
         bs = sinf(b * PIF) * bobv * 0.5f;
         bc = fabsf(cosf(b * PIF)) * bobv;
 
-        float rgx = cosf(iyaw * DEG2RAD), rgz = -sinf(iyaw * DEG2RAD);
+        float rgx = cosf(iyaw * DEG2RAD), rgz = sinf(iyaw * DEG2RAD);
         ix -= rgx * bs; iz -= rgz * bs;
         iy -= bc;
         ipitch -= tiltv;
@@ -1403,7 +1403,7 @@ void gameRender(MenuState& s) {
 
     float icp = cosf(ipitch * DEG2RAD), isp = sinf(ipitch * DEG2RAD);
     float icy = cosf(iyaw * DEG2RAD),   isy = sinf(iyaw * DEG2RAD);
-    float ifx = icp * isy, ify = isp, ifz = icp * icy;
+    float ifx = -icp * isy, ify = isp, ifz = icp * icy;
 
     float ex = ix - ifx * camBack + dpCamX, ey = iy - ify * camBack + dpCamY, ez = iz - ifz * camBack + dpCamZ;
     float ctrX = ix + ifx, ctrY = iy + ify, ctrZ = iz + ifz;

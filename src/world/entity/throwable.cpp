@@ -41,7 +41,7 @@ Throwable::Throwable(Level* level, float px, float py, float pz,
     setPos(px, py, pz);
     xOld = x; yOld = y; zOld = z;
 
-    shoot(cp * sy, sp, cp * cy, 1.5f);
+    shoot(-cp * sy, sp, cp * cy, 1.5f);
 }
 
 void Throwable::shoot(float dx, float dy, float dz, float power) {

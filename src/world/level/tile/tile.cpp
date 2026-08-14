@@ -35,12 +35,11 @@ static int facingQuadrant(Player* p) {
     float yaw = p->yRot;
     while (yaw < 0.0f)    yaw += 360.0f;
     while (yaw >= 360.0f) yaw -= 360.0f;
-    int q = ((int)floorf(yaw * 4.0f / 360.0f + 0.5f)) & 3;
-    return (4 - q) & 3;
+    return ((int)floorf(yaw * 4.0f / 360.0f + 0.5f)) & 3;
 }
 
 static int facingFromYaw(float yawDeg) {
-    static const int kQuadrantFace[4] = { 2 , 4 , 3 , 5  };
+    static const int kQuadrantFace[4] = { 2 , 5 , 3 , 4  };
     int q = ((int)floorf(yawDeg / 90.0f + 0.5f)) & 3;
     return kQuadrantFace[q];
 }
@@ -513,7 +512,7 @@ struct StairTile : Tile { StairTile(unsigned char i) : Tile(i) {}
     }
     void setPlacedBy(World* w, int x, int y, int z, Player* p) {
         if (!p) return;
-        static const int kQuadrantDir[4] = { 2, 0, 3, 1 };
+        static const int kQuadrantDir[4] = { 2, 1, 3, 0 };
         int q = ((int)floorf(p->yRot / 90.0f + 0.5f)) & 3;
         unsigned char d = worldData(w, x, y, z);
         worldSetData(w, x, y, z, (unsigned char)((d & ~STAIR_DIR_MASK) | kQuadrantDir[q]));
@@ -565,12 +564,13 @@ struct FenceTile : Tile { FenceTile(unsigned char i) : Tile(i) {}
 struct DoorTile : Tile { DoorTile(unsigned char i) : Tile(i) {}
     bool canSurvive(World* w, int x, int y, int z) { return supportCanSurvive(w, id, x, y, z, -1); }
 
-    bool mayPlace(World* w, int x, int y, int z, int ) {
+    bool mayPlace(World* w, int x, int y, int z) {
         if (y >= WORLD_H - 1) return false;
         return isSolidPhys(worldBlock(w, x, y - 1, z))
             && Tile::mayPlace(w, x, y, z)
             && Tile::mayPlace(w, x, y + 1, z);
     }
+    bool mayPlace(World* w, int x, int y, int z, int ) { return mayPlace(w, x, y, z); }
 
     bool use(World* w, int x, int y, int z, Player*) {
         unsigned char data = worldData(w, x, y, z);
@@ -961,7 +961,8 @@ static int rawLightOpacity(unsigned char id) {
     if (id == BLOCK_AIR || id == BLOCK_INVISIBLE_BEDROCK) return 0;
     if (isWaterId(id) || id == BLOCK_ICE) return 3;
     if (isLavaId(id)) return 15;
-    if (id == BLOCK_LEAVES) return 1;
+
+    if (id == BLOCK_LEAVES || id == BLOCK_COBWEB) return 1;
     if (isCrossShaped(id) ||
         id == BLOCK_CACTUS || id == BLOCK_TOPSNOW ||
         id == BLOCK_GLASS || id == BLOCK_GLASS_PANE ||

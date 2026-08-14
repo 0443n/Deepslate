@@ -32,7 +32,7 @@ void Skeleton::checkHurtTarget(Entity* target, float d) {
     float horiz = sqrtf(dx * dx + dz * dz);
 
     float dy = (ey - (myEyeY - 0.1f)) + horiz * 0.2f;
-    float yaw   = atan2f(dx, dz) * SK_RADDEG;
+    float yaw   = atan2f(dz, dx) * SK_RADDEG - 90.0f;
     float pitch = atan2f(dy, horiz) * SK_RADDEG;
 
     xRot = pitch;

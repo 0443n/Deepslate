@@ -73,6 +73,10 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
                 sx = gx + kFaceNeighbor[f][0];
                 sy = y  + kFaceNeighbor[f][1];
                 sz = gz + kFaceNeighbor[f][2];
+
+                if (!g_smoothLighting && f != F_DOWN && !(boundaryMask & (1 << f))) {
+                    sx = gx; sy = y; sz = gz;
+                }
                 shade = kFaceShade[f];
                 faceBr = lightRawAt(w, sx, sy, sz);
             }
@@ -606,8 +610,6 @@ int emitBed(const World* w, int gx, int y, int gz, unsigned char id, unsigned ch
         unsigned char nb = worldBlock(w, nx, ny, nz);
 
         if (isOpaque(nb) && f != F_TOP && f != F_DOWN) continue;
-
-        if (f == F_TOP && isOpaque(nb)) continue;
 
         if (id == BLOCK_BED) {
             int dir = data & 3;

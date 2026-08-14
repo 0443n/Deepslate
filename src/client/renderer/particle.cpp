@@ -243,7 +243,7 @@ void particlesEat(float px, float py, float pz, float yawDeg, float pitchDeg,
     if (tooFar(px, py, pz)) return;
     const float D2R = 3.14159265f / 180.0f;
 
-    float xx = pitchDeg * D2R, yy = yawDeg * D2R;
+    float xx = pitchDeg * D2R, yy = -yawDeg * D2R;
     for (int i = 0; i < count; i++) {
 
         float dx = (frand() - 0.5f) * 0.1f, dy = frand() * 0.1f + 0.1f, dz = 0.0f;
@@ -583,8 +583,8 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
     const float D2R = 3.14159265f / 180.0f;
     float cy = cosf(yawDeg * D2R), sy = sinf(yawDeg * D2R);
     float cp = cosf(pitchDeg * D2R), sp = sinf(pitchDeg * D2R);
-    float fx = cp * sy, fy = sp, fz = cp * cy;
-    float rx = cy, ry = 0.0f, rz = -sy;
+    float fx = -cp * sy, fy = sp, fz = cp * cy;
+    float rx = cy, ry = 0.0f, rz = sy;
     float ux = fy * rz, uy = fz * rx - fx * rz, uz = -fy * rx;
 
     sceGumMatrixMode(GU_MODEL);

@@ -21,7 +21,7 @@ void heavyTileTick(World* w, int x, int y, int z, unsigned char id) {
     }
 }
 
-bool tileMayPlace(World* w, unsigned char id, int x, int y, int z, int face) {
+bool tileUnobstructedAt(World* w, unsigned char id, int x, int y, int z) {
     Tile* t = Tile::tiles[id];
     BlockAABB boxes[3];
     int n = t->getAABB(w, x, y, z, boxes);
@@ -30,7 +30,12 @@ bool tileMayPlace(World* w, unsigned char id, int x, int y, int z, int face) {
                  boxes[i].x1, boxes[i].y1, boxes[i].z1);
         if (!g_level.isUnobstructed(box)) return false;
     }
-    return t->mayPlace(w, x, y, z, face);
+    return true;
+}
+
+bool tileMayPlace(World* w, unsigned char id, int x, int y, int z, int face) {
+    if (!tileUnobstructedAt(w, id, x, y, z)) return false;
+    return Tile::tiles[id]->mayPlace(w, x, y, z, face);
 }
 
 void tileNeighborChanged(World* w, int x, int y, int z) {

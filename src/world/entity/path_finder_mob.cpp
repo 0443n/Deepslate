@@ -46,7 +46,7 @@ void PathfinderMob::updateAi() {
         xxa = 0; yya = 0; jumping = false;
         if (attackTarget) {
             float dx = attackTarget->x - x, dz = attackTarget->z - z;
-            yRot = atan2f(dx, dz) * 180.0f / PF_PI;
+            yRot = atan2f(dz, dx) * 180.0f / PF_PI - 90.0f;
         }
         applySwimUrge();
         return;
@@ -55,7 +55,7 @@ void PathfinderMob::updateAi() {
     if (attackTarget) {
         float dx = attackTarget->x - x, dz = attackTarget->z - z;
         if (dx * dx + dz * dz < 25.0f && canSee(attackTarget)) {
-            float want = atan2f(dx, dz) * 180.0f / PF_PI;
+            float want = atan2f(dz, dx) * 180.0f / PF_PI - 90.0f;
             float diff = want - yRot;
             while (diff < -180.0f) diff += 360.0f;
             while (diff >= 180.0f) diff -= 360.0f;
@@ -102,8 +102,7 @@ void PathfinderMob::updateAi() {
     jumping = false;
     if (looping) {
         float dx = target.x - x, dz = target.z - z, dy = target.y - yFloor;
-
-        float yRotD = atan2f(dx, dz) * 180.0f / PF_PI;
+        float yRotD = atan2f(dz, dx) * 180.0f / PF_PI - 90.0f;
         float rotDiff = yRotD - yRot;
         yya = runSpeed;
         while (rotDiff < -180.0f) rotDiff += 360.0f;

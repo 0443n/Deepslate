@@ -73,7 +73,7 @@ void TripodCameraRenderer::render(Entity* entity, float x, float y, float z,
         ScePspFVector3 piv = { 0.0f, 18.0f / 16.0f, 0.0f };
         sceGumTranslate(&piv);
     }
-    sceGumRotateY((180.0f + cam->yRot) * DEG2RAD);
+    sceGumRotateY((180.0f - cam->yRot) * DEG2RAD);
     sceGumRotateX(cam->xRot * 0.5f * DEG2RAD);
     {
         const float s = 1.0f / 16.0f;

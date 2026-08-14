@@ -161,7 +161,7 @@ void renderEntityFlame(float x, float y, float z, float bbY0, float w, float h) 
     sceGumLoadIdentity();
     { ScePspFVector3 b = { x - g_relBaseX, y - g_relBaseY, z - g_relBaseZ }; sceGumTranslate(&b); }
 
-    sceGumRotateY(g_camYawNow * (3.14159265f / 180.0f));
+    sceGumRotateY(-g_camYawNow * (3.14159265f / 180.0f));
     { ScePspFVector3 sc = { s, s, s }; sceGumScale(&sc); }
 
     { ScePspFVector3 t = { 0.0f, 0.0f, -0.3f + (float)((int)(h / s)) * 0.02f }; sceGumTranslate(&t); }

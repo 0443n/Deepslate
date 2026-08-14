@@ -59,12 +59,6 @@ float g_timerAlpha  = 0.0f;
 
 static const float DEG2RAD = 3.14159265f / 180.0f;
 
-static inline int facingFromYaw(float yawDeg) {
-    static const int kQuadrantFace[4] = { F_BACK, F_LEFT, F_FORWARD, F_RIGHT };
-    int q = ((int)floorf(yawDeg / 90.0f + 0.5f)) & 3;
-    return kQuadrantFace[q];
-}
-
 bool g_saveRequested = false;
 
 bool g_quitAfterSave = false;

@@ -63,7 +63,7 @@ void SheepRenderer::render(Entity* e, float x, float y, float z, float rot, floa
     float ibody = m.bodyRot, dHead = m.headYaw, ipitch = m.pitch;
     float ws = m.speed, wp = m.pos;
     float pend = cosf(wp * 0.6662f) * 1.4f * ws;
-    float hx = -ipitch * DEG2RAD, hy = -dHead * DEG2RAD;
+    float hx = -ipitch * DEG2RAD, hy = dHead * DEG2RAD;
 
     setAnim(base, hx, hy, pend);
     setAnim(fur,  hx, hy, pend);

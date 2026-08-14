@@ -63,17 +63,6 @@ bool Mob::isFreeM(float dx, float dy, float dz) {
     return true;
 }
 
-void Mob::mobMoveRelative(float xs, float yf, float speed) {
-    float dist = sqrtf(xs * xs + yf * yf);
-    if (dist < 0.01f) return;
-    if (dist < 1.0f) dist = 1.0f;
-    dist = speed / dist;
-    xs *= dist; yf *= dist;
-    float sy = sinf(yRot * 3.14159265f / 180.0f), cy = cosf(yRot * 3.14159265f / 180.0f);
-    xd += xs * cy + yf * sy;
-    zd += yf * cy - xs * sy;
-}
-
 unsigned char Mob::bodyBlock() {
     return worldBlock(&g_world, ifloor(x), ifloor(y - heightOffset + 0.4f), ifloor(z));
 }
@@ -90,12 +79,12 @@ void Mob::travel(float xs, float yf) {
 
     bool inWater = isInWater(), inLava = inWater ? false : isInLava();
     if (flying) {
-        mobMoveRelative(xs, yf, 0.05f);
+        moveRelative(xs, yf, 0.05f);
         move(xd, yd, zd);
         xd *= 0.91f; yd *= 0.91f; zd *= 0.91f;
     } else if (inWater) {
         float yo = y;
-        mobMoveRelative(xs, yf, 0.02f);
+        moveRelative(xs, yf, 0.02f);
         move(xd, yd, zd);
         xd *= 0.80f; yd *= 0.80f; zd *= 0.80f;
         yd -= 0.02f;
@@ -103,7 +92,7 @@ void Mob::travel(float xs, float yf) {
             yd = 0.3f;
     } else if (inLava) {
         float yo = y;
-        mobMoveRelative(xs, yf, 0.02f);
+        moveRelative(xs, yf, 0.02f);
         move(xd, yd, zd);
         xd *= 0.50f; yd *= 0.50f; zd *= 0.50f;
         yd -= 0.02f;
@@ -122,7 +111,7 @@ void Mob::travel(float xs, float yf) {
         float friction = onGround ? groundFriction * 0.91f : 0.91f;
         float f3 = friction * friction * friction;
         float friction2 = (0.6f * 0.6f * 0.91f * 0.91f * 0.6f * 0.91f) / f3;
-        mobMoveRelative(xs, yf, onGround ? walkingSpeed * friction2 : flyingSpeed);
+        moveRelative(xs, yf, onGround ? walkingSpeed * friction2 : flyingSpeed);
 
         bool ladder = onLadder();
         if (ladder) {
@@ -266,7 +255,7 @@ void Mob::updateAi() {
     if (lookTime > 0 && level->player) {
         lookTime--;
         float dx = level->player->x - x, dz = level->player->z - z;
-        float want = atan2f(dx, dz) * MOB_RADDEG;
+        float want = atan2f(dz, dx) * MOB_RADDEG - 90.0f;
         float diff = want - yRot;
         while (diff < -180.0f) diff += 360.0f;
         while (diff >= 180.0f) diff -= 360.0f;
@@ -368,8 +357,7 @@ void Mob::tick() {
     if (sideDist > 0.05f) {
         tRun = 1.0f;
         walkSpeed = sideDist * 3.0f;
-
-        yBodyRotT = atan2f(mdx, mdz) * MOB_RADDEG;
+        yBodyRotT = atan2f(mdz, mdx) * MOB_RADDEG - 90.0f;
     }
     if (!onGround) tRun = 0.0f;
     run += (tRun - run) * 0.3f;
