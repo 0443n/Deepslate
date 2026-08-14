@@ -116,7 +116,6 @@ void chunkStorageShutdown() {
     s_next = 0;
     s_haveDir = false;
     free(s_payload); s_payload = 0;
-    chunkStorageClearChestPositions();
 }
 
 bool chunkStorageHasSave(const char* absDir) {
@@ -132,13 +131,6 @@ static unsigned char* payload() {
     if (!s_payload) s_payload = (unsigned char*)malloc(CH_PAYLOAD);
     return s_payload;
 }
-
-static std::vector<int> s_chestPositions;
-void chunkStorageTakeChestPositions(int** out, int* count) {
-    *out = s_chestPositions.empty() ? 0 : &s_chestPositions[0];
-    *count = (int)s_chestPositions.size();
-}
-void chunkStorageClearChestPositions() { std::vector<int>().swap(s_chestPositions); }
 
 bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopulated) {
     if (outGotLight) *outGotLight = true;
@@ -169,9 +161,6 @@ bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopu
 
                 if (buf[dstBase + y] == BLOCK_ORE_REDSTONE_LIT)
                     worldScheduleTick(w, gx, y, gz, BLOCK_ORE_REDSTONE_LIT, 30);
-
-                if (buf[dstBase + y] == BLOCK_CHEST)
-                    s_chestPositions.push_back(gx | (y << 8) | (gz << 16));
             }
         }
     }

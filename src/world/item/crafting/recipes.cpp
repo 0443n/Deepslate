@@ -25,7 +25,7 @@ static inline short clothData(int dyeAux) { return (short)(~dyeAux & 0xf); }
 
 enum { SLAB_STONE = 0, SLAB_SAND = 1, SLAB_WOOD = 2, SLAB_COBBLE = 3,
        SLAB_BRICK = 4, SLAB_SMOOTHBRICK = 5, SLAB_QUARTZ = 6 };
-enum { SANDSTONE_HEIROGLYPHS = 1, SANDSTONE_SMOOTHSIDE = 2 };
+enum { SANDSTONE_PLAIN = 0, SANDSTONE_HEIROGLYPHS = 1, SANDSTONE_SMOOTHSIDE = 2 };
 enum { COAL_CHARCOAL = 1 };
 
 void Recipes::addShapedRows(const ItemInstance& result, const char* const* rows, int height,
@@ -170,7 +170,8 @@ Recipes::Recipes() {
 
     addShapedRecipe(ItemInstance(BLOCK_SANDSTONE, 4, SANDSTONE_SMOOTHSIDE),
                     "##",
-                    "##", { TILE('#', BLOCK_SANDSTONE) });
+
+                    "##", { INST('#', BLOCK_SANDSTONE, SANDSTONE_PLAIN) });
 
     addShapedRecipe(ItemInstance(BLOCK_SANDSTONE, 1, SANDSTONE_HEIROGLYPHS),
                     "#",
@@ -304,7 +305,7 @@ Recipes::Recipes() {
     addShapedRecipe(ItemInstance(BLOCK_SLAB, 6, SLAB_STONE),
                     "###", { TILE('#', BLOCK_STONE) });
     addShapedRecipe(ItemInstance(BLOCK_SLAB, 6, SLAB_SAND),
-                    "###", { TILE('#', BLOCK_SANDSTONE) });
+                    "###", { INST('#', BLOCK_SANDSTONE, SANDSTONE_PLAIN) });
 
     addShapedRecipe(ItemInstance(BLOCK_WOOD_SLAB, 6, 0),
                     "###", { TILE('#', BLOCK_PLANKS) });
@@ -407,7 +408,7 @@ Recipes::Recipes() {
     addShapedRecipe(ItemInstance(BLOCK_STAIRS_SANDSTONE, 4, 0),
                     "#  ",
                     "## ",
-                    "###", { TILE('#', BLOCK_SANDSTONE) });
+                    "###", { INST('#', BLOCK_SANDSTONE, SANDSTONE_PLAIN) });
 
     addShapedRecipe(ItemInstance(ITEM_PAINTING, 1, 0),
                     "###",

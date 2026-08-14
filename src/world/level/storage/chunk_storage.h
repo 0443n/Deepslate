@@ -13,7 +13,4 @@ bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopu
 
 bool chunkStorageSave(World* w, int cx, int cz);
 
-void chunkStorageTakeChestPositions(int** out, int* count);
-void chunkStorageClearChestPositions();
-
 #endif

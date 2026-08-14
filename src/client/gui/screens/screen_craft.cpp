@@ -74,9 +74,54 @@ static bool isStonecutterItem(const ItemInstance& ins) {
     }
 }
 
+static const char* stonecutterGroup(const ItemInstance& r) {
+    int mat = (r.id == BLOCK_SLAB || r.id == BLOCK_DOUBLE_SLAB)
+            ? (r.data & DSLAB_MAT_MASK) : -1;
+    switch (r.id) {
+        case BLOCK_STONE: case BLOCK_STONE_BRICKS: case BLOCK_STAIRS_STONE_BRICK:
+            return "1 ";
+        case BLOCK_COBBLESTONE: case BLOCK_MOSSY_COBBLE: case BLOCK_STAIRS_COBBLESTONE:
+            return "2 ";
+        case BLOCK_SANDSTONE: case BLOCK_STAIRS_SANDSTONE:
+            return "3 ";
+        case BLOCK_QUARTZ_BLOCK: case BLOCK_STAIRS_QUARTZ:
+            return "4 ";
+        case BLOCK_BRICKS: case BLOCK_STAIRS_BRICK:
+            return "5 ";
+        case BLOCK_NETHER_BRICK: case BLOCK_STAIRS_NETHER_BRICK:
+            return "6 ";
+        default: break;
+    }
+    switch (mat) {
+        case DSLAB_STONE: case DSLAB_SMOOTHBRICK: return "1 ";
+        case DSLAB_COBBLE:                        return "2 ";
+        case DSLAB_SAND:                          return "3 ";
+        case DSLAB_QUARTZ:                        return "4 ";
+        case DSLAB_BRICK:                         return "5 ";
+        default:                                  return "9 ";
+    }
+}
+
 static CraftItem* currentItem() {
     if (s_cursor < 0 || s_cursor >= (int)s_cat[s_curCat].size()) return nullptr;
     return &s_items[s_cat[s_curCat][s_cursor]];
+}
+
+static void resortRecipes() {
+    int selected = (s_cursor >= 0 && s_cursor < (int)s_cat[s_curCat].size())
+                 ? s_cat[s_curCat][s_cursor] : -1;
+    for (int c = 0; c < 4; ++c) {
+        std::vector<int>& v = s_cat[c];
+        std::stable_sort(v.begin(), v.end(), [](int a, int b) {
+            const CraftItem& x = s_items[a];
+            const CraftItem& y = s_items[b];
+            if (x.canCraft != y.canCraft) return x.canCraft;
+            return x.sortText < y.sortText;
+        });
+    }
+    if (selected >= 0)
+        for (unsigned int i = 0; i < s_cat[s_curCat].size(); ++i)
+            if (s_cat[s_curCat][i] == selected) { s_cursor = (int)i; break; }
 }
 
 static void recheckRecipes() {
@@ -114,6 +159,7 @@ static void recheckRecipes() {
             if (!req.enough()) ci.canCraft = false;
         }
     }
+    resortRecipes();
 }
 
 static void craftSelectedItem() {
@@ -172,9 +218,10 @@ void craftOpen(int craftingSize, int filterMode) {
         ci.canCraft = false;
 
         const char* name = getBlockName(res.id, (unsigned char)res.data);
-        if (res.id == BLOCK_WOOL)          ci.sortText = std::string("Wool ") + name;
-        else if (res.id == ITEM_BONEMEAL)  ci.sortText = std::string("ZDye ") + name;
-        else                               ci.sortText = name;
+        if (s_filterMode == CRAFT_STONECUTTER) ci.sortText = std::string(stonecutterGroup(res)) + name;
+        else if (res.id == BLOCK_WOOL)         ci.sortText = std::string("Wool ") + name;
+        else if (res.id == ITEM_BONEMEAL)      ci.sortText = std::string("ZDye ") + name;
+        else                                   ci.sortText = name;
 
         s_items.push_back(ci);
         int idx = (int)s_items.size() - 1;
@@ -182,14 +229,9 @@ void craftOpen(int craftingSize, int filterMode) {
             if (item->category & kCatBits[c]) s_cat[c].push_back(idx);
     }
 
-    for (int c = 0; c < 4; ++c) {
-        std::vector<int>& v = s_cat[c];
-        std::stable_sort(v.begin(), v.end(),
-            [](int a, int b) { return s_items[a].sortText < s_items[b].sortText; });
-    }
-
+    s_curCat = 0; s_cursor = -1;
     recheckRecipes();
-    s_curCat = 0; s_cursor = 0; s_focus = 1; s_scrollY = 0.0f;
+    s_cursor = 0; s_focus = 1; s_scrollY = 0.0f;
     g_craftOpen = true;
     soundPlay("random.click", 1.0f, 1.0f);
 }

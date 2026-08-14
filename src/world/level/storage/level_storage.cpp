@@ -404,45 +404,6 @@ static TileEntity* createTileEntityByName(const std::string& id) {
     return NULL;
 }
 
-static void repairMissingChestTileEntities() {
-    int made = 0;
-    int* pos = 0; int n = 0;
-    chunkStorageTakeChestPositions(&pos, &n);
-    for (int i = 0; i < n; i++) {
-        int p = pos[i];
-        int x = p & 0xFF, y = (p >> 8) & 0x7F, z = (p >> 16) & 0xFF;
-        if (g_level.getTileEntity(x, y, z)) continue;
-        g_level.setTileEntity(x, y, z, new ChestTileEntity());
-        made++;
-    }
-    if (made) printf("[save] rebuilt %d missing chest tile entities\n", made);
-    chunkStorageClearChestPositions();
-}
-
-static void migrateChestFurnaceFacing(World* w) {
-    std::vector<TileEntity*>& tes = g_level.tileEntities;
-    bool old = false;
-    for (size_t i = 0; i < tes.size() && !old; i++) {
-        TileEntity* te = tes[i];
-        if (!te || (te->type != TE_CHEST && te->type != TE_FURNACE)) continue;
-        int d = worldData(w, te->x, te->y, te->z);
-        if (d == F_LEFT || d == F_RIGHT) old = true;
-    }
-    if (!old) return;
-
-    int fixed = 0;
-    for (size_t i = 0; i < tes.size(); i++) {
-        TileEntity* te = tes[i];
-        if (!te || (te->type != TE_CHEST && te->type != TE_FURNACE)) continue;
-        unsigned char id = worldBlock(w, te->x, te->y, te->z);
-        if (id != BLOCK_CHEST && id != BLOCK_FURNACE && id != BLOCK_FURNACE_LIT) continue;
-        int f = worldData(w, te->x, te->y, te->z) & 7;
-        worldSetDataNoUpdate(w, te->x, te->y, te->z, (unsigned char)mcpeFromFace(f));
-        fixed++;
-    }
-    printf("[save] converted %d chest/furnace facings to MCPE face numbering\n", fixed);
-}
-
 static void loadEntities(World* w, const char* absDir) {
     FILE* f = fopen(join(absDir, "entities.dat").c_str(), "rb");
     if (!f) return;
@@ -568,9 +529,6 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
 
     worldUpdateSkyDarken(w);
     loadEntities(w, absDir);
-
-    repairMissingChestTileEntities();
-    migrateChestFurnaceFacing(w);
     return true;
 }
 

@@ -47,6 +47,17 @@ static Mob* nearbyTripodCamera() {
     return 0;
 }
 
+static const int MAX_TRIPOD_CAMERAS = 4;
+
+static int countTripodCameras() {
+    int n = 0;
+    for (size_t i = 0; i < g_level.entities.size(); i++) {
+        Entity* e = g_level.entities[i];
+        if (e && !e->removed && e->entityRendererId == ER_TRIPODCAMERA_RENDERER) n++;
+    }
+    return n;
+}
+
 static bool s_drawing = false;
 
 static bool canDrawBow() {
@@ -461,9 +472,15 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
                     if (near) handled = near->playerInteract();
                 }
                 if (!handled) {
-                    g_level.addEntity(new TripodCamera(&g_level,
-                        g_level.player->x, g_level.player->y, g_level.player->z,
-                        g_level.player->yRot, g_level.player->xRot));
+                    if (countTripodCameras() >= MAX_TRIPOD_CAMERAS) {
+
+                        hudChatMessage("Can't place the camera. The maximum number of "
+                                       "cameras in a world has been reached.");
+                    } else {
+                        g_level.addEntity(new TripodCamera(&g_level,
+                            g_level.player->x, g_level.player->y, g_level.player->z,
+                            g_level.player->yRot, g_level.player->xRot));
+                    }
                 }
                 playerSwing();
             }
