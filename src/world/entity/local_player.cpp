@@ -213,11 +213,12 @@ void LocalPlayer::move(float xa, float ya, float za) {
     if (dist < 0.0001f) return;
     const int ax = (int)floorf(x + xa / dist);
     const int az = (int)floorf(z + za / dist);
-    const int stepY = (int)floorf(bb.y0 + 0.05f);
+
+    const int stepY = (int)floorf(y - 1.0f);
     const unsigned char step = worldBlock(&g_world, ax, stepY, az);
     if (isSolidPhys(step) && autoJumpable(step, worldData(&g_world, ax, stepY, az))
-        && !isSolidPhys(worldBlock(&g_world, ax, stepY + 1, az))
-        && !isSolidPhys(worldBlock(&g_world, ax, stepY + 2, az)))
+        && !isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y), az))
+        && !isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y + 1.0f), az)))
         autoJumpTime = 1;
 }
 
