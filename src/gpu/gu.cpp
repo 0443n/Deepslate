@@ -143,7 +143,8 @@ void guInit(void) {
         {  3, -1,  2, -2 },
     };
     sceGuSetDither(&dither);
-    sceGuEnable(GU_DITHER);
+
+    sceGuDisable(GU_DITHER);
 
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
@@ -382,6 +383,7 @@ bool guSavePhotoPng(const char* path, int shrink) {
 }
 
 void guOrtho(void) {
+    sceGuDisable(GU_DITHER);
     sceGumMatrixMode(GU_PROJECTION);
     sceGumLoadIdentity();
     sceGumOrtho(0, GU_SCR_WIDTH, GU_SCR_HEIGHT, 0, -1.0f, 1.0f);
@@ -394,6 +396,7 @@ void guOrtho(void) {
 void guPerspective(float fovDeg, float nearZ, float farZ) {
     const float aspect = (float)GU_SCR_WIDTH / (float)GU_SCR_HEIGHT;
 
+    sceGuEnable(GU_DITHER);
     sceGumMatrixMode(GU_PROJECTION);
     sceGumLoadIdentity();
     sceGumPerspective(fovDeg, aspect, nearZ, farZ);
