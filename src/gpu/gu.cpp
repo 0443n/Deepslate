@@ -136,6 +136,15 @@ void guInit(void) {
     sceGuEnable(GU_CULL_FACE);
     sceGuEnable(GU_CLIP_PLANES);
 
+    ScePspIMatrix4 dither = {
+        { -4,  0, -3,  1 },
+        {  2, -2,  3, -1 },
+        { -3,  1, -4,  0 },
+        {  3, -1,  2, -2 },
+    };
+    sceGuSetDither(&dither);
+    sceGuEnable(GU_DITHER);
+
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
 

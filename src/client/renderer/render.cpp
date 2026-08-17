@@ -127,7 +127,7 @@ struct ColorVertex {
 #define SKY_DOME_COLOR 0xFFBF5424u
 #define SKY_DOME_OFFSET 48.0f
 
-#define SKY_FOG_FAR 150.0f
+#define SKY_FOG_FAR 180.0f
 
 unsigned int g_skyColorNow = SKY_COLOR;
 static unsigned int g_skyDomeColorNow = SKY_DOME_COLOR;
