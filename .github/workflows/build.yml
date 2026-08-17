@@ -28,19 +28,40 @@ jobs:
           export PATH="$PSPDEV/bin:$PATH"
           make clean && make
 
+      # The version this build will be released as -- the tag for a tag build,
+      # 'latest' otherwise, which is exactly what the Release step below tags it.
+      # Computed once, in one place, so the zip name, the file inside it and the
+      # release can never disagree about which build this is.
+      - name: Work out the version
+        run: |
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=latest" >> "$GITHUB_ENV"
+          fi
+
       - name: Package (EBOOT.PBP + data/)
         run: |
           export PSPDEV=/usr/local/pspdev
           export PATH="$PSPDEV/bin:$PATH"
           make dist
+          # version.txt travels WITH the game, not just on the download page. A
+          # zip gets unpacked onto a memory stick and its name is gone; six
+          # months later "which build is this?" is answerable from the stick
+          # itself, and a bug report can carry the commit that produced it.
+          {
+            echo "MCPSP $VERSION"
+            echo "commit:  $GITHUB_SHA"
+            echo "built:   $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } > build/version.txt
           mv build MCPSP
-          zip -r MCPSP.zip MCPSP
+          zip -r "MCPSP-$VERSION.zip" MCPSP
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MCPSP
-          path: MCPSP.zip
+          name: MCPSP-${{ env.VERSION }}
+          path: MCPSP-${{ env.VERSION }}.zip
       - name: Move "latest" tag
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         run: |
@@ -52,8 +73,8 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          files: MCPSP.zip
+          files: MCPSP-${{ env.VERSION }}.zip
           target_commitish: ${{ github.sha }}
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          tag_name: ${{ env.VERSION }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest build' }}
