@@ -11,6 +11,8 @@ extern "C" {
 
 void* guFrameAlloc(int bytes);
 
+void* guFrameAllocPriority(int bytes);
+
 unsigned int guFrameId(void);
 
 static inline void* guFrameCopy(const void* src, int bytes) {

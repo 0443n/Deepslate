@@ -48,7 +48,9 @@ void ItemRenderer::render(Entity* entity, float x, float y, float z, float , flo
 
         if (!g_haveTerrain) return;
         static ItemModelRenderer model;
-        if (!model.build(id, data)) return;
+
+        unsigned int lc = dropLight(x, y, z);
+        if (!model.buildShared(id, data, lc)) return;
 
         float spin = (ie->age + a) / 20.0f + ie->bobOffs;
 
@@ -63,7 +65,6 @@ void ItemRenderer::render(Entity* entity, float x, float y, float z, float , flo
         sceGumScale(&sc);
 
         if (!isCrossShaped(id)) { sceGuEnable(GU_CULL_FACE); sceGuFrontFace(GU_CCW); }
-        unsigned int lc = dropLight(x, y, z);
         for (int i = 0; i < count; ++i) {
             sceGumPushMatrix();
             if (i > 0) {
@@ -76,7 +77,7 @@ void ItemRenderer::render(Entity* entity, float x, float y, float z, float , flo
             ScePspFVector3 center = { -0.5f, -150.5f, -0.5f };
             sceGumTranslate(&center);
 
-            model.draw(lc, true);
+            model.drawShared(true);
             sceGumPopMatrix();
         }
         sceGuDisable(GU_CULL_FACE);

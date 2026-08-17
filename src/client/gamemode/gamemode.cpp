@@ -433,7 +433,9 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
                 g_level.player->bowPull = 0.0f;
                 g_level.player->bowTimeHeld = 0.0f;
             }
-            pressed &= ~PSP_CTRL_LTRIGGER;
+
+            if (s_drawing || hasArrow)
+                pressed &= ~PSP_CTRL_LTRIGGER;
         } else {
 
             s_drawing = false;

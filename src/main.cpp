@@ -339,12 +339,12 @@ int main(int argc, char* argv[]) {
 #if DIAG_OVERLAY
 
                     {
-                        extern unsigned int g_drawLiveHits, g_drawLiveNext;
+                        extern unsigned int g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs;
                         if (g_drawLiveHits) {
-                            char dlBuf[48];
+                            char dlBuf[64];
 
-                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u/%u (corrected)",
-                                          g_drawLiveHits, g_drawLiveNext);
+                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u/%u/%u (corrected)",
+                                          g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs);
                             fontDrawTextShadow(&s.font, 10, ty, dlBuf, 0xFF50FFFFu, 1.0f);
                             ty += 12.0f;
                         }

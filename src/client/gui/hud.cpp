@@ -1059,7 +1059,9 @@ void guiFillGradient(float x, float y, float w, float h,
     v[3].color = botColor; v[3].x = x + w; v[3].y = y + h; v[3].z = 0.0f;
     sceGuDisable(GU_TEXTURE_2D);
 
+    sceGuEnable(GU_DITHER);
     sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 4, 0, v);
+    sceGuDisable(GU_DITHER);
     sceGuEnable(GU_TEXTURE_2D);
 }
 

@@ -15,6 +15,8 @@
 extern World g_world;
 
 int   g_autoJump = 1;
+
+int   g_autoSwim = 0;
 float g_sensitivity = 1.0f;
 
 float g_analogDeadzone = 0.20f;
@@ -88,18 +90,26 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
 
     bool jumping = (btn & PSP_CTRL_START) != 0 || autoJumpTime > 0;
 
+    const bool inLiquid = isInWater() || isInLava();
+    const bool headUnder = inLiquid &&
+        isLiquidId(worldBlock(&g_world, (int)floorf(x), (int)floorf(y), (int)floorf(z)));
     if (flying) {
         if (jumping)              yd += 0.05f;
         if (btn & PSP_CTRL_DOWN)  yd -= 0.05f;
-    } else if (jumping) {
-        if (isInWater() || isInLava()) yd += 0.04f;
-        else if (onGround)             yd = 0.42f;
+    } else if (inLiquid) {
+        if (!g_autoSwim)               { if (jumping) yd += 0.04f; }
+        else if (btn & PSP_CTRL_DOWN)  yd -= 0.04f;
+        else if (!headUnder)           yd += 0.04f;
+        else if (jumping)              yd += 0.04f;
+    } else if (jumping && onGround) {
+        yd = 0.42f;
     }
 
     xs *= 0.98f; yf *= 0.98f;
 
     bool downNow = (btn & PSP_CTRL_DOWN) != 0;
-    if (flying) sneaking = false;
+
+    if (flying || (inLiquid && g_autoSwim)) sneaking = false;
     else if (downNow && !prevSneakBtn) sneaking = !sneaking;
     prevSneakBtn = downNow;
     if (sneaking) { xs *= 0.3f; yf *= 0.3f; }

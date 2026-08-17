@@ -36,16 +36,16 @@ public:
 
     char getId() const { return TAG_Compound; }
 
-    void put(const std::string& n, Tag* tag)          { tags[n] = tag->setName(n); }
-    void putByte(const std::string& n, char v)        { tags[n] = new ByteTag(n, v); }
-    void putShort(const std::string& n, short v)      { tags[n] = new ShortTag(n, v); }
-    void putInt(const std::string& n, int v)          { tags[n] = new IntTag(n, v); }
-    void putLong(const std::string& n, long long v)   { tags[n] = new LongTag(n, v); }
-    void putFloat(const std::string& n, float v)      { tags[n] = new FloatTag(n, v); }
-    void putDouble(const std::string& n, double v)    { tags[n] = new DoubleTag(n, v); }
-    void putString(const std::string& n, const std::string& v) { tags[n] = new StringTag(n, v); }
+    void put(const std::string& n, Tag* tag)          { replace(n, tag->setName(n)); }
+    void putByte(const std::string& n, char v)        { replace(n, new ByteTag(n, v)); }
+    void putShort(const std::string& n, short v)      { replace(n, new ShortTag(n, v)); }
+    void putInt(const std::string& n, int v)          { replace(n, new IntTag(n, v)); }
+    void putLong(const std::string& n, long long v)   { replace(n, new LongTag(n, v)); }
+    void putFloat(const std::string& n, float v)      { replace(n, new FloatTag(n, v)); }
+    void putDouble(const std::string& n, double v)    { replace(n, new DoubleTag(n, v)); }
+    void putString(const std::string& n, const std::string& v) { replace(n, new StringTag(n, v)); }
     void putBoolean(const std::string& n, bool v)     { putByte(n, v ? 1 : 0); }
-    void putCompound(const std::string& n, CompoundTag* v) { tags[n] = v->setName(n); }
+    void putCompound(const std::string& n, CompoundTag* v) { replace(n, v->setName(n)); }
 
     bool contains(const std::string& n) const { return tags.find(n) != tags.end(); }
     bool contains(const std::string& n, int type) const {
@@ -70,7 +70,8 @@ public:
     }
 
     ListTag* getList(const std::string& n) {
-        if (!contains(n, TAG_List)) { ListTag* l = new ListTag(n); tags[n] = l; return l; }
+
+        if (!contains(n, TAG_List)) { ListTag* l = new ListTag(n); replace(n, l); return l; }
         return (ListTag*)get(n);
     }
 
@@ -88,6 +89,15 @@ public:
     }
 
 private:
+
+    void replace(const std::string& n, Tag* newTag) {
+        TagMap::iterator it = tags.find(n);
+        if (it == tags.end()) { tags[n] = newTag; return; }
+        if (it->second == newTag) return;
+        if (it->second) { it->second->deleteChildren(); delete it->second; }
+        it->second = newTag;
+    }
+
     TagMap tags;
 };
 

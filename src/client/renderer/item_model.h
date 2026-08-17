@@ -11,7 +11,7 @@ public:
     bool isFlat() const { return m_flat; }
     int  count()  const { return m_count; }
 
-    void draw(unsigned int brCol, bool noMip);
+    void draw(unsigned int brCol, bool noMip, bool priority = false);
 
     bool buildShared(short id, unsigned char data, unsigned int brCol);
     void drawShared(bool noMip);
@@ -32,4 +32,5 @@ private:
     int            m_bowStage = -2;
     const Texture* m_tex = 0;
     int            m_sharedSlot = -1;
+    unsigned int   m_fallbackCol = 0xFFFFFFFFu;
 };

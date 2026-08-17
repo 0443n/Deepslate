@@ -14,6 +14,8 @@ static unsigned int __attribute__((aligned(16))) g_list[524288 / 4];
 static void* g_listUncached = 0;
 
 #define GU_SCRATCH_BUDGET (384 * 1024)
+
+#define GU_SCRATCH_GENERAL (336 * 1024)
 static unsigned int g_frameScratch = 0;
 static unsigned int g_frameId = 0;
 
@@ -42,14 +44,17 @@ static unsigned s_emptyCount = 0;
 
 unsigned int guFrameId(void) { return g_frameId; }
 
-void* guFrameAlloc(int bytes) {
+static void* frameAllocUpTo(int bytes, unsigned int limit) {
     if (bytes <= 0) return 0;
-    if (g_frameScratch + (unsigned int)bytes > GU_SCRATCH_BUDGET) { g_frameAllocFails++; return 0; }
+    if (g_frameScratch + (unsigned int)bytes > limit) { g_frameAllocFails++; return 0; }
     void* p = sceGuGetMemory(bytes);
     if (!p) return 0;
     g_frameScratch += (unsigned int)bytes;
     return p;
 }
+
+void* guFrameAlloc(int bytes)         { return frameAllocUpTo(bytes, GU_SCRATCH_GENERAL); }
+void* guFrameAllocPriority(int bytes) { return frameAllocUpTo(bytes, GU_SCRATCH_BUDGET); }
 
 static unsigned int g_vramOffset = 0;
 
@@ -60,6 +65,10 @@ static int   g_drawIdx = 0;
 unsigned int g_drawLiveHits = 0;
 
 unsigned int g_drawLiveNext = 0;
+
+unsigned int g_drawLiveOurs = 0;
+
+static void* g_handedOver[2] = { 0, 0 };
 
 static unsigned int guMemSize(unsigned int width, unsigned int height,
                               unsigned int psm) {
@@ -143,7 +152,6 @@ void guInit(void) {
         {  3, -1,  2, -2 },
     };
     sceGuSetDither(&dither);
-
     sceGuDisable(GU_DITHER);
 
     sceGuEnable(GU_BLEND);
@@ -174,15 +182,19 @@ void guStartFrame(unsigned int clearColor) {
         sceDisplayGetFrameBuf(&shownNow,  &bw, &pf, 0);
         sceDisplayGetFrameBuf(&shownNext, &bw, &pf, 1);
         void* about = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]);
-        if (shownNow == about || shownNext == about) {
-            if (shownNow != about) g_drawLiveNext++;
+        const bool byDriver = (shownNow == about || shownNext == about);
+        const bool byOurs   = (about == g_handedOver[0] || about == g_handedOver[1]);
+        if (byDriver || byOurs) {
+            if (!byDriver) g_drawLiveOurs++;
+            else if (shownNow != about) g_drawLiveNext++;
             g_drawLiveHits++;
             profAdd(PROFC_DRAWLIVE, 1);
 
             for (int i = 1; i < GU_FB_COUNT; i++) {
                 int cand = (g_drawIdx + i) % GU_FB_COUNT;
                 void* p = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[cand]);
-                if (p != shownNow && p != shownNext) { g_drawIdx = cand; break; }
+                if (p != shownNow && p != shownNext &&
+                    p != g_handedOver[0] && p != g_handedOver[1]) { g_drawIdx = cand; break; }
             }
         }
     }
@@ -202,15 +214,18 @@ void guFinishFrame(void) {
     profListBytes(listBytes);
 
     {
+
         extern bool g_worldBuilt;
         static unsigned s_listPeak = 0;
         static unsigned s_frameNo = 0;
+        static bool     s_lastScene = false;
 
         static unsigned s_hist[2] = { 0, 0 };
         static unsigned s_histShown[2] = { 0, 0 };
         static unsigned s_histDrawn[2] = { 0, 0 };
 
-        if (!g_worldBuilt) {
+        if (g_worldBuilt != s_lastScene) {
+            s_lastScene = g_worldBuilt;
             s_listPeak = 0;
             s_hist[0] = s_hist[1] = 0;
         } else {
@@ -304,6 +319,9 @@ void guPresent(void) {
     sceDisplaySetFrameBuf(addr, GU_BUF_WIDTH, PSP_DISPLAY_PIXEL_FORMAT_565,
                           PSP_DISPLAY_SETBUF_NEXTFRAME);
 
+    g_handedOver[1] = g_handedOver[0];
+    g_handedOver[0] = addr;
+
     g_drawIdx = (g_drawIdx + 1) % GU_FB_COUNT;
 
     profBegin(PROF_VBLANK);
@@ -383,7 +401,6 @@ bool guSavePhotoPng(const char* path, int shrink) {
 }
 
 void guOrtho(void) {
-    sceGuDisable(GU_DITHER);
     sceGumMatrixMode(GU_PROJECTION);
     sceGumLoadIdentity();
     sceGumOrtho(0, GU_SCR_WIDTH, GU_SCR_HEIGHT, 0, -1.0f, 1.0f);
@@ -396,7 +413,6 @@ void guOrtho(void) {
 void guPerspective(float fovDeg, float nearZ, float farZ) {
     const float aspect = (float)GU_SCR_WIDTH / (float)GU_SCR_HEIGHT;
 
-    sceGuEnable(GU_DITHER);
     sceGumMatrixMode(GU_PROJECTION);
     sceGumLoadIdentity();
     sceGumPerspective(fovDeg, aspect, nearZ, farZ);

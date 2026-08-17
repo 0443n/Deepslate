@@ -113,21 +113,61 @@ void renderEntityShadow(float x, float y, float z, float off, float radius, floa
     sceGuDepthMask(GU_FALSE);
 }
 
-void renderEntityFlame(float x, float y, float z, float bbY0, float w, float h) {
+static void drawFlameMesh(void* verts, int n, float x, float y, float z, float s, float h) {
     extern Texture g_terrain;
-    extern bool    g_haveTerrain;
+
+    sceGuDisable(GU_CULL_FACE);
+    sceGuEnable(GU_ALPHA_TEST);
+    sceGuAlphaFunc(GU_GREATER, 0, 0xff);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+
+    sceGumMatrixMode(GU_MODEL);
+    sceGumPushMatrix();
+    sceGumLoadIdentity();
+    { ScePspFVector3 b = { x - g_relBaseX, y - g_relBaseY, z - g_relBaseZ }; sceGumTranslate(&b); }
+
+    sceGumRotateY(-g_camYawNow * (3.14159265f / 180.0f));
+    { ScePspFVector3 sc = { s, s, s }; sceGumScale(&sc); }
+
+    { ScePspFVector3 t = { 0.0f, 0.0f, -0.3f + (float)((int)(h / s)) * 0.02f }; sceGumTranslate(&t); }
+
+    textureBindNoMip(&g_terrain);
+    sceGumDrawArray(GU_TRIANGLES,
+                    GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                    n, 0, verts);
+    sceGumPopMatrix();
+
+    sceGuEnable(GU_CULL_FACE);
+}
+
+void renderEntityFlame(float x, float y, float z, float bbY0, float w, float h) {
+    extern bool g_haveTerrain;
     if (!g_haveTerrain) return;
 
     const float s = w * 1.4f;
     if (s <= 0.0f) return;
     float hh = h / s;
     float yo = y - bbY0;
+    const float yo0 = yo;
     float r  = 0.5f;
     float zo = 0.0f;
     int   ss = 0;
 
     const float T = 1.0f / 16.0f, HT = T / 32.0f;
     const unsigned int col = 0xFFFFFFFFu;
+
+    struct FlameCache { float s, h, yo; void* verts; int count; unsigned int frame; };
+    static FlameCache cache[4];
+    static int cacheN = 0;
+    if (cache[0].frame != guFrameId()) { cacheN = 0; for (int i = 0; i < 4; i++) cache[i].frame = guFrameId(); }
+    for (int i = 0; i < cacheN; i++)
+        if (cache[i].s == s && cache[i].h == h && cache[i].yo == yo) {
+            if (!cache[i].verts) return;
+
+            drawFlameMesh(cache[i].verts, cache[i].count, x, y, z, s, h);
+            return;
+        }
 
     s_vcount = 0;
     while (hh > 0.0f && s_vcount + 6 <= (int)(sizeof(s_verts) / sizeof(s_verts[0]))) {
@@ -148,32 +188,15 @@ void renderEntityFlame(float x, float y, float z, float bbY0, float w, float h) 
 
         hh -= 0.45f; yo -= 0.45f; r *= 0.9f; zo += 0.03f; ss++;
     }
-    if (s_vcount == 0) return;
 
-    sceGuDisable(GU_CULL_FACE);
-    sceGuEnable(GU_ALPHA_TEST);
-    sceGuAlphaFunc(GU_GREATER, 0, 0xff);
-    sceGuEnable(GU_BLEND);
-    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
-
-    sceGumMatrixMode(GU_MODEL);
-    sceGumPushMatrix();
-    sceGumLoadIdentity();
-    { ScePspFVector3 b = { x - g_relBaseX, y - g_relBaseY, z - g_relBaseZ }; sceGumTranslate(&b); }
-
-    sceGumRotateY(-g_camYawNow * (3.14159265f / 180.0f));
-    { ScePspFVector3 sc = { s, s, s }; sceGumScale(&sc); }
-
-    { ScePspFVector3 t = { 0.0f, 0.0f, -0.3f + (float)((int)(h / s)) * 0.02f }; sceGumTranslate(&t); }
-
-    textureBindNoMip(&g_terrain);
-    void* v = guFrameCopy(s_verts, s_vcount * sizeof(ChunkVertex));
-    if (v) sceGumDrawArray(GU_TRIANGLES,
-                    GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                    s_vcount, 0, v);
-    sceGumPopMatrix();
-
-    sceGuEnable(GU_CULL_FACE);
+    void* v = s_vcount ? guFrameCopy(s_verts, s_vcount * sizeof(ChunkVertex)) : 0;
+    if (cacheN < 4) {
+        cache[cacheN].s = s; cache[cacheN].h = h; cache[cacheN].yo = yo0;
+        cache[cacheN].verts = v; cache[cacheN].count = s_vcount;
+        cacheN++;
+    }
+    if (!v || s_vcount == 0) return;
+    drawFlameMesh(v, s_vcount, x, y, z, s, h);
 }
 
 void EntityRenderer::postRender(Entity* entity, float x, float y, float z, float a) {

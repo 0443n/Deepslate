@@ -29,10 +29,11 @@ bool ItemModelRenderer::build(short id, unsigned char data, int bowStage) {
     return m_count > 0;
 }
 
-void ItemModelRenderer::draw(unsigned int brCol, bool noMip) {
+void ItemModelRenderer::draw(unsigned int brCol, bool noMip, bool priority) {
     if (m_count <= 0) return;
 
-    ChunkVertex* v = (ChunkVertex*)guFrameAlloc(m_count * sizeof(ChunkVertex));
+    ChunkVertex* v = (ChunkVertex*)(priority ? guFrameAllocPriority(m_count * sizeof(ChunkVertex))
+                                             : guFrameAlloc(m_count * sizeof(ChunkVertex)));
     if (!v) return;
     for (int i = 0; i < m_count; i++) {
         v[i] = m_base[i];
@@ -68,7 +69,12 @@ bool ItemModelRenderer::buildShared(short id, unsigned char data, unsigned int b
             m_sharedSlot = i;
             return s_shared[i].count > 0;
         }
-    if (s_sharedN >= SHARED_SLOTS) return false;
+
+    if (s_sharedN >= SHARED_SLOTS) {
+        m_sharedSlot = -2;
+        m_fallbackCol = brCol;
+        return build(id, data, -1);
+    }
 
     if (!build(id, data, -1)) {
 
@@ -95,6 +101,7 @@ bool ItemModelRenderer::buildShared(short id, unsigned char data, unsigned int b
 }
 
 void ItemModelRenderer::drawShared(bool noMip) {
+    if (m_sharedSlot == -2) { draw(m_fallbackCol, noMip); return; }
     if (m_sharedSlot < 0) return;
     const SharedItem& s = s_shared[m_sharedSlot];
     if (s.count <= 0 || !s.verts) return;

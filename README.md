@@ -111,6 +111,31 @@ Worlds use the real MCPE 0.6.1 on-disk format (`chunks.dat`, `level.dat`,
 `entities.dat`). A world made on the PSP opens in MCPE 0.6.1, and a world copied
 off a phone opens on the PSP.
 
+## Disclaimer
+
+This is unofficial homebrew, run at your own risk. It comes with **no warranty
+of any kind** — see the license below, which says the same in legal words.
+
+I am not responsible for anything that happens to your console, your memory
+stick, your save files or anything else while running it. That covers a console
+that stops working, data you lose, and a warranty you void by running homebrew at
+all. Running unsigned software on a PSP is something you choose to do, and the
+consequences are yours.
+
+Practical version, because most of the risk here is boring and avoidable:
+
+- **Back up your worlds.** They are plain files in `saves/` next to the EBOOT —
+  copy them off the stick before updating. This port is still being worked on and
+  a bug that corrupts a save is a real possibility.
+- **Copy, don't move.** Keep the archive you installed from, so a bad update is a
+  matter of putting the old folder back.
+- Nothing here writes outside its own folder and `ms0:/PSP/PHOTO` (the camera),
+  and nothing touches firmware — but that is what the code does today, not a
+  promise about every build.
+
+If something does go wrong, open an issue with what happened and on which PSP
+model; that is worth more than a warning nobody reads.
+
 ## Credits
 
 - Gameplay and world logic ported from the Minecraft Pocket Edition sources
@@ -119,7 +144,8 @@ off a phone opens on the PSP.
   0.8.1 decompilation, used as a source for the features 0.6.1 never had.
 - [**Oreo**](https://github.com/Oreo80) — helped with the porting.
 - [**CODINGBOTSTUDIO**](https://github.com/CODINGBOTSTUDIO) — contributed the
-  code the 3D clouds are based on.
+  code the 3D clouds are based on, and found the leak in `CompoundTag`'s put*,
+  which dropped the tag already under a key instead of freeing it.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
 

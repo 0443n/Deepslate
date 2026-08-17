@@ -125,9 +125,10 @@ struct ColorVertex {
 }
 
 #define SKY_DOME_COLOR 0xFFBF5424u
-#define SKY_DOME_OFFSET 48.0f
 
-#define SKY_FOG_FAR 180.0f
+#define SKY_DOME_OFFSET 32.0f
+
+#define SKY_FOG_FAR 150.0f
 
 unsigned int g_skyColorNow = SKY_COLOR;
 static unsigned int g_skyDomeColorNow = SKY_DOME_COLOR;
@@ -358,10 +359,30 @@ static void renderStars(float alpha, float px, float py, float pz) {
     sceGuEnable(GU_TEXTURE_2D);
 }
 
+static void skyBackdrop(unsigned int color) {
+    struct CV { unsigned int color; float x, y, z; };
+    CV* v = (CV*)guFrameAlloc(4 * sizeof(CV));
+    if (!v) return;
+    v[0].color = color; v[0].x = 0.0f;               v[0].y = 0.0f;                v[0].z = 0.0f;
+    v[1].color = color; v[1].x = (float)GU_SCR_WIDTH; v[1].y = 0.0f;               v[1].z = 0.0f;
+    v[2].color = color; v[2].x = 0.0f;               v[2].y = (float)GU_SCR_HEIGHT; v[2].z = 0.0f;
+    v[3].color = color; v[3].x = (float)GU_SCR_WIDTH; v[3].y = (float)GU_SCR_HEIGHT; v[3].z = 0.0f;
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_BLEND);
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 4, 0, v);
+    sceGuEnable(GU_FOG);
+    sceGuEnable(GU_TEXTURE_2D);
+
+}
+
 static unsigned int skyDomeFog(unsigned int dome, unsigned int fog, float x, float z) {
     float d = sqrtf(x * x + z * z + SKY_DOME_OFFSET * SKY_DOME_OFFSET);
-    float f = d / SKY_FOG_FAR;
-    if (f > 1.0f) f = 1.0f;
+    float t = d / SKY_FOG_FAR;
+    if (t > 1.0f) t = 1.0f;
+    float f = t * t * (3.0f - 2.0f * t);
     unsigned int out = 0xFF000000u;
     for (int ch = 0; ch < 3; ch++) {
         int a = (int)((dome >> (ch * 8)) & 0xFF);
@@ -379,12 +400,18 @@ static void renderSky(float px, float py, float pz) {
     sceGuDisable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_TRUE);
 
-    const int s = 32, d = 6;
+    int s = 16, d = 12;
     ScePspFVector3 t = { px, py + SKY_DOME_OFFSET, pz };
     sceGumTranslate(&t);
 
     int cells = (2 * d) * (2 * d);
     ColorVertex* v = (ColorVertex*)guFrameAlloc(cells * 6 * sizeof(ColorVertex));
+    if (!v) {
+
+        s = 32; d = 6;
+        cells = (2 * d) * (2 * d);
+        v = (ColorVertex*)guFrameAlloc(cells * 6 * sizeof(ColorVertex));
+    }
     if (!v) return;
     const unsigned int dc = g_skyDomeColorNow;
     const unsigned int fc = g_skyColorNow;
@@ -1481,7 +1508,11 @@ void gameRender(MenuState& s) {
         sceGuEnable(GU_FOG);
 
         sceGuFog(0.0f, SKY_FOG_FAR, g_skyColorNow);
+
+        sceGuEnable(GU_DITHER);
+        skyBackdrop(g_skyColorNow);
         renderSky(px0, py0, pz0);
+        sceGuDisable(GU_DITHER);
 
         renderSunOrMoon(a, true,  px0, py0, pz0);
         renderSunOrMoon(a, false, px0, py0, pz0);

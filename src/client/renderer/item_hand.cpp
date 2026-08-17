@@ -524,14 +524,14 @@ void itemHandDraw(float a, float bs, float bc) {
             ScePspFVector3 center = { -0.5f, -150.5f, -0.5f };
             sceGumTranslate(&center);
 
-            s_model.draw(brCol, true);
+            s_model.draw(brCol, true, true);
         } else {
 
             ItemModelRenderer::applyFlatPreTransform();
 
             sceGuEnable(GU_CULL_FACE);
             sceGuFrontFace(GU_CCW);
-            s_model.draw(brCol, true);
+            s_model.draw(brCol, true, true);
         }
     } else {
 
