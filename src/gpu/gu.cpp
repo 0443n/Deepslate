@@ -8,6 +8,7 @@
 #include <pspkernel.h>
 
 #include "util/prof.h"
+#include "gpu/vram_alloc.h"
 
 static unsigned int __attribute__((aligned(16))) g_list[524288 / 4];
 static void* g_listUncached = 0;
@@ -87,16 +88,18 @@ static void* guVramAlloc(unsigned int width, unsigned int height,
 #define VRAM_TOTAL (2u * 1024 * 1024)
 
 void* guVramAllocTexture(unsigned int bytes) {
-    bytes = (bytes + 63u) & ~63u;
-    if (bytes > VRAM_TOTAL || g_vramOffset > VRAM_TOTAL - bytes)
-        return 0;
-    void* off = (void*)(unsigned long)g_vramOffset;
-    g_vramOffset += bytes;
-    return (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)off);
+    unsigned int off = vramAlloc(bytes);
+    if (off == VRAM_ALLOC_NONE) return 0;
+    return (void*)((unsigned int)sceGeEdramGetAddr() + off);
+}
+
+void guVramFreeTexture(void* ptr) {
+    if (!ptr) return;
+    vramFreeAt((unsigned int)ptr - (unsigned int)sceGeEdramGetAddr());
 }
 
 unsigned int guVramFree(void) {
-    return g_vramOffset >= VRAM_TOTAL ? 0u : VRAM_TOTAL - g_vramOffset;
+    return vramBytesFree();
 }
 
 void guInit(void) {
@@ -107,6 +110,8 @@ void guInit(void) {
         g_fb[i] = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_5650);
     void* zbp = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_4444);
     g_drawIdx = 0;
+
+    vramAllocInit(g_vramOffset, VRAM_TOTAL);
 
     sceGuInit();
     sceGuStart(GU_DIRECT, g_listUncached);

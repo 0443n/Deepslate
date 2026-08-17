@@ -86,7 +86,7 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     if (xs > -dz && xs < dz) xs = 0.0f;
     if (yf > -dz && yf < dz) yf = 0.0f;
 
-    bool jumping = (btn & PSP_CTRL_START) != 0;
+    bool jumping = (btn & PSP_CTRL_START) != 0 || autoJumpTime > 0;
 
     if (flying) {
         if (jumping)              yd += 0.05f;
@@ -109,24 +109,6 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     walkDistO = walkDist;
     float wx0 = x, wz0 = z;
     travel(xs, yf);
-
-    extern int g_autoJump;
-    if (g_autoJump && onGround && horizontalCollision && !flying && !isInWater() && !isInLava()) {
-        float sy = sinf(yRot * 3.14159265f / 180.0f), cy = cosf(yRot * 3.14159265f / 180.0f);
-        float dirX = xs * cy - yf * sy, dirZ = yf * cy + xs * sy;
-        float d = sqrtf(dirX * dirX + dirZ * dirZ);
-        if (d > 0.01f) {
-            dirX /= d; dirZ /= d;
-            int ax = (int)floorf(x + dirX);
-            int az = (int)floorf(z + dirZ);
-            int stepY = (int)floorf(bb.y0 + 0.05f);
-            unsigned char step = worldBlock(&g_world, ax, stepY, az);
-            if (isSolidPhys(step) && !isFence(step) && !isFenceGate(step) && !isSlab(step)
-                && !isSolidPhys(worldBlock(&g_world, ax, stepY + 1, az))
-                && !isSolidPhys(worldBlock(&g_world, ax, stepY + 2, az)))
-                yd = 0.42f;
-        }
-    }
 
     float wdx = x - wx0, wdz = z - wz0;
     float distSq = wdx * wdx + wdz * wdz;
@@ -212,6 +194,31 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     }
     if (inWater && !s_wasInWater) doWaterSplashEffect();
     s_wasInWater = inWater;
+}
+
+void LocalPlayer::move(float xa, float ya, float za) {
+
+    if (autoJumpTime > 0) autoJumpTime--;
+
+    const float prevX = x, prevZ = z;
+    Entity::move(xa, ya, za);
+
+    extern int g_autoJump;
+
+    if (autoJumpTime > 0 || !g_autoJump || sneaking || flying) return;
+    if ((int)floorf(prevX * 2.0f) == (int)floorf(x * 2.0f) &&
+        (int)floorf(prevZ * 2.0f) == (int)floorf(z * 2.0f)) return;
+
+    const float dist = sqrtf(xa * xa + za * za);
+    if (dist < 0.0001f) return;
+    const int ax = (int)floorf(x + xa / dist);
+    const int az = (int)floorf(z + za / dist);
+    const int stepY = (int)floorf(bb.y0 + 0.05f);
+    const unsigned char step = worldBlock(&g_world, ax, stepY, az);
+    if (isSolidPhys(step) && autoJumpable(step, worldData(&g_world, ax, stepY, az))
+        && !isSolidPhys(worldBlock(&g_world, ax, stepY + 1, az))
+        && !isSolidPhys(worldBlock(&g_world, ax, stepY + 2, az)))
+        autoJumpTime = 1;
 }
 
 void LocalPlayer::doWaterSplashEffect() {

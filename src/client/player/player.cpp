@@ -170,7 +170,14 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
     profEnd(PROF_TICK);
 }
 
-void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
+void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
+
+    static unsigned int s_swallow = 0;
+    static bool s_uiOwned = false;
+    s_swallow &= padIn.Buttons;
+    const bool uiOwnedLastFrame = s_uiOwned;
+    s_uiOwned = true;
+    SceCtrlData pad = padIn;
 
     g_gameFrozen = true;
 
@@ -316,6 +323,11 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& pad) {
         soundStopAll();
         return;
     }
+
+    s_uiOwned = false;
+    if (uiOwnedLastFrame) s_swallow |= padIn.Buttons;
+    pressed     &= ~s_swallow;
+    pad.Buttons &= ~s_swallow;
 
     if ((pressed & PSP_CTRL_START) && g_level.player && g_level.player->inventory->isCreative()) {
         static float lastJumpPress = -1.0f;

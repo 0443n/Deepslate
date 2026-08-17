@@ -44,6 +44,8 @@ void guInit(void);
 
 void* guVramAllocTexture(unsigned int bytes);
 
+void guVramFreeTexture(void* ptr);
+
 unsigned int guVramFree(void);
 
 void guTerm(void);

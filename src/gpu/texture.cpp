@@ -61,6 +61,11 @@ static void* texAlloc(bool wantVram, size_t bytes, bool* gotVram) {
     return memalign(64, bytes);
 }
 
+static void texFree(bool vram, void* p) {
+    if (!p) return;
+    if (vram) guVramFreeTexture(p); else free(p);
+}
+
 static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVram = false) {
 #if TEXTURE_FORCE_8888
     psm = GU_PSM_8888;
@@ -93,7 +98,7 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVra
 
     unsigned char* row = (unsigned char*)malloc((size_t)w * 4);
     if (!row) {
-        if (!out->vram) free(data);
+        texFree(out->vram, data);
         pngClose(png);
         markFailed(path);
         return false;
@@ -101,7 +106,7 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVra
     for (int y = 0; y < h; y++) {
         if (!pngReadRow(png, row)) {
             free(row);
-            if (!out->vram) free(data);
+            texFree(out->vram, data);
             pngClose(png);
             markFailed(path);
             return false;
@@ -149,11 +154,9 @@ void textureFree(Texture* tex) {
 
     if (tex == s_lastBound) s_lastBound = 0;
 
-    if (!tex->vram) {
-        if (tex->data) free(tex->data);
-        for (int i = 0; i < tex->mipCount; i++)
-            if (tex->mip[i]) free(tex->mip[i]);
-    }
+    texFree(tex->vram, tex->data);
+    for (int i = 0; i < tex->mipCount; i++)
+        texFree(tex->vram, tex->mip[i]);
     memset(tex, 0, sizeof(*tex));
 }
 
@@ -167,15 +170,17 @@ bool textureLoadMipLevel(Texture* tex, int level, const char* path) {
     void* data = texAlloc(tex->vram, (size_t)w * h * 4, &gotVram);
     if (!data) { pngClose(png); return false; }
 
+    if (tex->vram && !gotVram) { free(data); pngClose(png); return false; }
+
     for (int y = 0; y < h; y++)
         if (!pngReadRow(png, (unsigned char*)data + (size_t)y * w * 4)) {
-            if (!gotVram) free(data);
+            texFree(gotVram, data);
             pngClose(png); return false;
         }
     pngClose(png);
     sceKernelDcacheWritebackRange(data, (size_t)w * h * 4);
 
-    if (tex->mip[level] && !tex->vram) free(tex->mip[level]);
+    texFree(tex->vram, tex->mip[level]);
     tex->mip[level] = data;
     if (level + 1 > tex->mipCount) tex->mipCount = level + 1;
     return true;
@@ -221,6 +226,8 @@ void textureGenMips(Texture* tex, int minSize) {
             bool gotVram = false;
             tex->mip[i] = texAlloc(tex->vram, (size_t)dstW * dstH * 4, &gotVram);
             if (!tex->mip[i]) break;
+
+            if (tex->vram && !gotVram) { free(tex->mip[i]); tex->mip[i] = 0; break; }
         }
         downsample2x(src, w, h, (unsigned char*)tex->mip[i]);
         sceKernelDcacheWritebackRange(tex->mip[i], (size_t)dstW * dstH * 4);

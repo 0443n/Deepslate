@@ -12,6 +12,10 @@ public:
 
     bool prevSneakBtn = false;
 
+    virtual void move(float xa, float ya, float za);
+
+    int autoJumpTime = 0;
+
     virtual void die(Entity* source);
 
     virtual void doWaterSplashEffect();

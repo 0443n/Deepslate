@@ -148,11 +148,19 @@ void WorldsScreen::renderContent(MenuState& s) {
                 float imgX = xCenterV - imgW / 2.0f;
                 float imgY = rowY - 8.0f * listScale;
 
-                float srcY = img->realH * 0.125f;
-                float srcH = img->realH * 0.75f;
+                float srcX = 0.0f, srcY = 0.0f;
+                float srcW = (float)img->realW, srcH = (float)img->realH;
+                const float wantAspect = imgW / imgH;
+                if (srcW > srcH * wantAspect) {
+                    float w = srcH * wantAspect;
+                    srcX = (srcW - w) * 0.5f; srcW = w;
+                } else {
+                    float h = srcW / wantAspect;
+                    srcY = (srcH - h) * 0.5f; srcH = h;
+                }
 
                 spriteDraw(img, imgX * UI_SCALE, imgY * UI_SCALE, imgW * UI_SCALE, imgH * UI_SCALE,
-                           0.0f, srcY, (float)img->realW, srcH, colWhite);
+                           srcX, srcY, srcW, srcH, colWhite);
 
                 float xText = xCenterV - 55.0f * listScale;
 
