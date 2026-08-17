@@ -28,7 +28,7 @@ struct OptionRowDef {
 };
 
 #define OPT_CATEGORIES 4
-#define OPT_MAX_ROWS   10
+#define OPT_MAX_ROWS   12
 
 static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     {
@@ -67,6 +67,8 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { 0,          "Particles",       {"Off", "On", 0, 0}, 2, 1 },
         { 0,          "Smooth Lighting", {"Off", "On", 0, 0}, 2, 1 },
         { "Experimental", "Mipmapping",  {"Off", "On", 0, 0}, 2, 1 },
+
+        { 0,              "Dithering",   {"Off", "On", 0, 0}, 2, 0 },
         { 0,              "Hide GUI",    {"Off", "On", 0, 0}, 2, 0 },
 
     },
@@ -76,7 +78,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
 };
 
-static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 7, 10, 1 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 7, 11, 1 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
@@ -93,6 +95,7 @@ extern int   g_autosave;
 extern int   g_blockOutline;
 extern int   g_autoJump;
 extern int   g_autoSwim;
+extern int   g_dither;
 extern int   g_barOnTop;
 extern float g_sensitivity;
 extern bool  g_thirdPerson;
@@ -117,7 +120,8 @@ extern World g_world;
 #define ROW_PARTICLES   6
 #define ROW_SMOOTHLIGHT 7
 #define ROW_MIPMAP      8
-#define ROW_HIDEGUI     9
+#define ROW_DITHER      9
+#define ROW_HIDEGUI     10
 
 static const float kRenderDist[4] = { 16.0f, 32.0f, 48.0f, 64.0f };
 extern int g_lowMemPsp;
@@ -175,6 +179,7 @@ static void optionsApply() {
     g_blockOutline = g_optionValueIdx[CAT_CONTROLS][ROW_BLOCKOUTLINE];
     g_autoJump     = g_optionValueIdx[CAT_CONTROLS][ROW_AUTOJUMP];
     g_autoSwim     = g_optionValueIdx[CAT_CONTROLS][ROW_AUTOSWIM];
+    g_dither       = g_optionValueIdx[CAT_GRAPHICS][ROW_DITHER];
     g_difficulty  = g_optionValueIdx[CAT_GAME][ROW_DIFFICULTY];
     soundSetVolume(g_optionValueIdx[CAT_AUDIO][ROW_SOUNDVOL] / 10.0f);
 

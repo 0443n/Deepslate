@@ -13,6 +13,10 @@ void* guFrameAlloc(int bytes);
 
 void* guFrameAllocPriority(int bytes);
 
+extern int g_dither;
+
+void guSetDither(int wanted);
+
 unsigned int guFrameId(void);
 
 static inline void* guFrameCopy(const void* src, int bytes) {

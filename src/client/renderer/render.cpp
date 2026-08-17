@@ -1509,10 +1509,8 @@ void gameRender(MenuState& s) {
 
         sceGuFog(0.0f, SKY_FOG_FAR, g_skyColorNow);
 
-        sceGuEnable(GU_DITHER);
         skyBackdrop(g_skyColorNow);
         renderSky(px0, py0, pz0);
-        sceGuDisable(GU_DITHER);
 
         renderSunOrMoon(a, true,  px0, py0, pz0);
         renderSunOrMoon(a, false, px0, py0, pz0);

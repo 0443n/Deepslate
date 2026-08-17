@@ -6,6 +6,8 @@ void hotbarDraw(MenuState& s);
 void guiFill(float x, float y, float w, float h, unsigned int color);
 void guiFillGradient(float x, float y, float w, float h, unsigned int topColor, unsigned int botColor);
 
+#define GUI_SCROLL_MIN_OVERFLOW 3.0f
+
 void guiScrollbar(float x, float y, float w, float h, float contentH, float scroll,
                   unsigned int alpha = 255);
 void drawBlockIcon(short id, unsigned char data, float x, float y, float sizePx, unsigned int colorTint = 0xFFFFFFFFu);

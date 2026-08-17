@@ -1038,7 +1038,8 @@ void guiFill(float x, float y, float w, float h, unsigned int color) {
 
 void guiScrollbar(float x, float y, float w, float h, float contentH, float scroll,
                   unsigned int alpha ) {
-    if (contentH <= h || alpha == 0) return;
+
+    if (contentH - h < GUI_SCROLL_MIN_OVERFLOW || alpha == 0) return;
     float thumbH = h * (h / contentH);
     if (thumbH < 8.0f) thumbH = 8.0f;
     float overflow = contentH - h;
@@ -1059,9 +1060,9 @@ void guiFillGradient(float x, float y, float w, float h,
     v[3].color = botColor; v[3].x = x + w; v[3].y = y + h; v[3].z = 0.0f;
     sceGuDisable(GU_TEXTURE_2D);
 
-    sceGuEnable(GU_DITHER);
+    guSetDither(1);
     sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 4, 0, v);
-    sceGuDisable(GU_DITHER);
+    guSetDither(0);
     sceGuEnable(GU_TEXTURE_2D);
 }
 

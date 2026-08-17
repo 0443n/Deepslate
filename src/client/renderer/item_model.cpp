@@ -40,9 +40,12 @@ void ItemModelRenderer::draw(unsigned int brCol, bool noMip, bool priority) {
         v[i].color = mulColor(m_base[i].color, brCol);
     }
     if (m_tex) { noMip ? textureBindNoMip(m_tex) : textureBind(m_tex); }
+
+    if (m_flat) guSetDither(0);
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     m_count, 0, v);
+    if (m_flat) guSetDither(1);
 }
 
 namespace {
@@ -53,6 +56,7 @@ struct SharedItem {
     int            count;
     void*          verts;
     const Texture* tex;
+    bool           flat;
 };
 const int SHARED_SLOTS = 8;
 SharedItem   s_shared[SHARED_SLOTS];
@@ -81,7 +85,7 @@ bool ItemModelRenderer::buildShared(short id, unsigned char data, unsigned int b
         s_shared[s_sharedN].id = id; s_shared[s_sharedN].data = data;
         s_shared[s_sharedN].col = brCol;
         s_shared[s_sharedN].count = 0; s_shared[s_sharedN].verts = 0;
-        s_shared[s_sharedN].tex = 0;
+        s_shared[s_sharedN].tex = 0;  s_shared[s_sharedN].flat = false;
         s_sharedN++;
         return false;
     }
@@ -95,7 +99,7 @@ bool ItemModelRenderer::buildShared(short id, unsigned char data, unsigned int b
     s_shared[s_sharedN].id = id; s_shared[s_sharedN].data = data;
     s_shared[s_sharedN].col = brCol;
     s_shared[s_sharedN].count = m_count; s_shared[s_sharedN].verts = v;
-    s_shared[s_sharedN].tex = m_tex;
+    s_shared[s_sharedN].tex = m_tex;     s_shared[s_sharedN].flat = m_flat;
     m_sharedSlot = s_sharedN++;
     return true;
 }
@@ -106,9 +110,11 @@ void ItemModelRenderer::drawShared(bool noMip) {
     const SharedItem& s = s_shared[m_sharedSlot];
     if (s.count <= 0 || !s.verts) return;
     if (s.tex) { noMip ? textureBindNoMip(s.tex) : textureBind(s.tex); }
+    if (s.flat) guSetDither(0);
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     s.count, 0, s.verts);
+    if (s.flat) guSetDither(1);
 }
 
 void ItemModelRenderer::drawMesh(ChunkVertex* m, int n, unsigned int brCol,
@@ -120,9 +126,12 @@ void ItemModelRenderer::drawMesh(ChunkVertex* m, int n, unsigned int brCol,
 
     void* v = guFrameCopy(m, n * sizeof(ChunkVertex));
     if (!v) return;
+
+    guSetDither(0);
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     n, 0, v);
+    guSetDither(1);
 }
 
 void ItemModelRenderer::applyFlatPreTransform() {

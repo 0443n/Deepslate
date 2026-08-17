@@ -382,6 +382,30 @@ int main(int argc, char* argv[]) {
                         }
                     }
 #endif
+
+                    {
+                        extern unsigned int g_vblankLate;
+                        if (g_vblankLate) {
+                            char vbBuf[48];
+                            std::snprintf(vbBuf, sizeof(vbBuf), "VBLANK-LATE %u", g_vblankLate);
+                            fontDrawTextShadow(&s.font, 10, ty, vbBuf, 0xFF5050FFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
+
+                    {
+                        extern unsigned int g_listPeakBytes, g_listOverruns;
+                        if (g_listPeakBytes > (512 * 1024 * 3) / 4 || g_listOverruns) {
+                            char lbBuf[64];
+                            std::snprintf(lbBuf, sizeof(lbBuf), "GE-LIST %uK/512K%s",
+                                          g_listPeakBytes / 1024,
+                                          g_listOverruns ? " OVERRUN" : "");
+
+                            fontDrawTextShadow(&s.font, 10, ty, lbBuf,
+                                               g_listOverruns ? 0xFF5050FFu : 0xFF50FFFFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
                     if (g_textureBindFailures) {
                         char txBuf[96];
                         std::snprintf(txBuf, sizeof(txBuf), "TEX FAIL %u: %s",
