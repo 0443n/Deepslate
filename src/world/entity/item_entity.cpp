@@ -1,5 +1,6 @@
 
 #include "world/entity/item_entity.h"
+#include "world/level/tile/tile.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"
 #include "world/entity/entity_types.h"
@@ -59,7 +60,12 @@ void ItemEntity::tick() {
     checkInTile(x, y, z);
     move(xd, yd, zd);
 
-    float friction = onGround ? 0.6f * 0.98f : 0.98f;
+    float friction = 0.98f;
+    if (onGround) {
+        int under = level->getTile((int)floorf(x), (int)floorf(bb.y0) - 1, (int)floorf(z));
+        friction = (under <= 0) ? 0.588f
+                                : Tile::tiles[under]->slipperiness * 0.98f;
+    }
     xd *= friction;
     yd *= 0.98f;
     zd *= friction;

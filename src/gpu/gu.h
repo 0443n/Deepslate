@@ -56,12 +56,22 @@ unsigned int guVramFree(void);
 
 void guTerm(void);
 
-void guStartFrame(unsigned int clearColor);
+bool guStartFrame(unsigned int clearColor);
 
 void guEndFrame(void);
 
 void guFinishFrame(void);
 void guPresent(void);
+
+void guSuppressNextPresent(void);
+
+void guSuspendForDialog(void);
+void guResumeFromDialog(void);
+void guDialogBegin(unsigned int clearColor);
+void guDialogEnd(void);
+void guDialogPresent(void);
+
+void guWaitGeIdle(void);
 
 bool guSavePhotoPng(const char* path, int shrink);
 

@@ -289,6 +289,8 @@ void startOsk(int target, const char* desc, const char* intext, int maxLen) {
 
     sceUtilityOskInitStart(&oskParams);
     oskActive = true;
+
+    guSuspendForDialog();
 }
 
 void signStartEdit(SignTileEntity* ste) {
@@ -318,6 +320,7 @@ bool menuOskUpdate(MenuState& s) {
     } else if (status == PSP_UTILITY_DIALOG_NONE) {
 
         oskActive = false;
+        guResumeFromDialog();
 
         if (oskTarget == OSK_TARGET_SIGN) {
             char line[SignTileEntity::MAX_LINE_LENGTH + 1];
@@ -349,12 +352,18 @@ bool menuOskUpdate(MenuState& s) {
         return true;
     }
 
-    guStartFrame(0xFF000000u);
-    guFinishFrame();
+    guDialogBegin(0xFF000000u);
+
+    if (s.haveBg) {
+        guOrtho();
+        sceGuDisable(GU_DEPTH_TEST);
+        drawDirtBackground(s);
+    }
+    guDialogEnd();
     if (status == PSP_UTILITY_DIALOG_VISIBLE)
         sceUtilityOskUpdate(1);
 
-    guPresent();
+    guDialogPresent();
     return true;
 }
 

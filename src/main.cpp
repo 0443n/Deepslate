@@ -149,7 +149,8 @@ int main(int argc, char* argv[]) {
     if (loadTex(&mojangSplash, "data/images/logo.png")) {
         float startTime = nowSeconds();
         while (!g_exitRequested && (nowSeconds() - startTime) < 2.0f) {
-            guStartFrame(0xFFFFFFFF);
+
+            if (!guStartFrame(0xFFFFFFFF)) continue;
             guOrtho();
             sceGuDisable(GU_DEPTH_TEST);
 
@@ -305,7 +306,8 @@ int main(int argc, char* argv[]) {
         panoramaSetLoaded(s.screen != SCREEN_GAME && !g_worldBuilt);
 
         worldIconsSetLoaded(s.screen == SCREEN_WORLDS || s.screen == SCREEN_DELETE);
-        guStartFrame(s.screen == SCREEN_GAME ? g_skyColorNow : 0xFF000000u);
+
+        if (!guStartFrame(s.screen == SCREEN_GAME ? g_skyColorNow : 0xFF000000u)) continue;
 
         if (s.screen == SCREEN_GAME) {
             gameRender(s);
@@ -339,17 +341,6 @@ int main(int argc, char* argv[]) {
 #if DIAG_OVERLAY
 
                     {
-                        extern unsigned int g_frameAllocFails;
-                        if (g_frameAllocFails) {
-                            char faBuf[48];
-                            std::snprintf(faBuf, sizeof(faBuf), "GU-SCRATCH FULL %u",
-                                          g_frameAllocFails);
-                            fontDrawTextShadow(&s.font, 10, ty, faBuf, 0xFF50FFFFu, 1.0f);
-                            ty += 12.0f;
-                        }
-                    }
-
-                    {
                         extern unsigned int g_emptyFrames, g_emptyFrameNo;
                         if (g_emptyFrames) {
                             char efBuf[48];
@@ -359,18 +350,49 @@ int main(int argc, char* argv[]) {
                             ty += 12.0f;
                         }
                     }
+#endif
+
+                    {
+                        extern unsigned int g_frameAllocFails;
+                        if (g_frameAllocFails) {
+                            char faBuf[48];
+                            std::snprintf(faBuf, sizeof(faBuf), "GU-SCRATCH FULL %u",
+                                          g_frameAllocFails);
+                            fontDrawTextShadow(&s.font, 10, ty, faBuf, 0xFF50FFFFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
                     {
                         extern unsigned int g_shortListHits, g_shortListBytes, g_shortListPeak;
                         if (g_shortListHits) {
                             char slBuf[64];
                             std::snprintf(slBuf, sizeof(slBuf), "SHORT-LIST %u (%u/%u)",
                                           g_shortListHits, g_shortListBytes, g_shortListPeak);
-                            fontDrawTextShadow(&s.font, 10, ty, slBuf, 0xFF50FFFFu, 1.0f);
+                            fontDrawTextShadow(&s.font, 10, ty, slBuf, 0xFF5050FFu, 1.0f);
                             ty += 12.0f;
                         }
                     }
-#endif
 
+                    {
+                        extern unsigned int g_geCallbackLate, g_frameSkips, g_geCbCount;
+
+                        extern int g_vblankRegisterFail;
+                        if (g_vblankRegisterFail) {
+                            char vrBuf[56];
+                            std::snprintf(vrBuf, sizeof(vrBuf), "VBLANK-REG FAILED %d",
+                                          g_vblankRegisterFail);
+                            fontDrawTextShadow(&s.font, 10, ty, vrBuf, 0xFF5050FFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                        if (g_geCallbackLate || g_frameSkips) {
+                            char gsBuf[72];
+                            std::snprintf(gsBuf, sizeof(gsBuf), "GE-LATE %u  SKIP %u  (cb %u/fr %u)",
+                                          g_geCallbackLate, g_frameSkips,
+                                          g_geCbCount, guFrameId());
+                            fontDrawTextShadow(&s.font, 10, ty, gsBuf, 0xFF5050FFu, 1.0f);
+                            ty += 12.0f;
+                        }
+                    }
                     {
                         extern unsigned int g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs;
                         if (g_drawLiveHits) {
@@ -494,6 +516,7 @@ int main(int argc, char* argv[]) {
                 extern char g_photoIconPath[320];
                 if (g_photoPending && g_photoIsIcon) {
 
+                    guSuppressNextPresent();
                     guFinishFrame();
                     guSavePhotoPng(g_photoIconPath, 4);
                     g_photoPending = false;
@@ -501,6 +524,7 @@ int main(int argc, char* argv[]) {
                     continue;
                 }
                 if (g_photoPending) {
+                    guSuppressNextPresent();
                     guFinishFrame();
 
                     sceIoMkdir("ms0:/PSP", 0777);

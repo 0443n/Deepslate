@@ -1,4 +1,5 @@
 #include "gpu/sprite.h"
+#include "gpu/gu.h"
 
 #include "gpu/texture.h"
 
@@ -21,7 +22,8 @@ void spriteDraw(const Texture* tex,
                 unsigned int color) {
     (void)tex;
 
-    TexVertex* v = (TexVertex*)sceGuGetMemory(2 * sizeof(TexVertex));
+    TexVertex* v = (TexVertex*)guFrameAlloc(2 * sizeof(TexVertex));
+    if (!v) return;
 
     v[0].u = uvLo(sx, sw); v[0].v = uvLo(sy, sh);
     v[0].color = color; v[0].x = dx;      v[0].y = dy;      v[0].z = 0.0f;
@@ -47,7 +49,8 @@ void spriteDrawRot(const Texture* tex,
     const float cu[4] = { u0, u1, u1, u0 };
     const float cv[4] = { v0, v0, v1, v1 };
 
-    TexVertex* v = (TexVertex*)sceGuGetMemory(4 * sizeof(TexVertex));
+    TexVertex* v = (TexVertex*)guFrameAlloc(4 * sizeof(TexVertex));
+    if (!v) return;
     for (int i = 0; i < 4; i++) {
         v[i].u = cu[i]; v[i].v = cv[i];
         v[i].color = color;

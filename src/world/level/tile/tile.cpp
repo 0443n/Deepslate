@@ -1029,6 +1029,13 @@ static int rawSoundType(unsigned char id) {
     }
 }
 
+static float rawSlipperiness(int id) {
+    switch (id) {
+        case BLOCK_ICE: return 0.98f;
+        default:        return 0.6f;
+    }
+}
+
 static float rawDestroySpeed(int id) {
     switch (id) {
         case BLOCK_STONE: case BLOCK_STONE_BRICKS: case BLOCK_BOOKSHELF:
@@ -1183,6 +1190,7 @@ void Tile::initTiles() {
         t->lightEmission = (unsigned char)rawLightEmit((unsigned char)id);
         t->soundType     = (unsigned char)rawSoundType((unsigned char)id);
         t->destroySpeed  = rawDestroySpeed((unsigned char)id);
+        t->slipperiness  = rawSlipperiness((unsigned char)id);
         t->material      = &materialOf((unsigned char)id);
         t->blocksLight   = t->material->blocksLight();
         tiles[id] = t;

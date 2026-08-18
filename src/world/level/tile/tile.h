@@ -53,13 +53,15 @@ public:
 
     float destroySpeed;
 
+    float slipperiness;
+
     const class Material* material;
 
     explicit Tile(unsigned char id_)
         : id(id_), shape(SHAPE_CUBE), solidPhys(true), cube(true),
           opaque(true), replaceable(false), blocksLight(true), randomTicks(false),
           lightBlock(15), lightEmission(0), soundType(SOUND_STONE),
-          destroySpeed(0.0f), material(0) {}
+          destroySpeed(0.0f), slipperiness(0.6f), material(0) {}
     virtual ~Tile() {}
 
     virtual int getAABB(const World* w, int x, int y, int z, BlockAABB out[3]);

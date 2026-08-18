@@ -99,16 +99,14 @@ void Mob::travel(float xs, float yf) {
         if (horizontalCollision && isFreeM(xd, yd + 0.6f - y + yo, zd))
             yd = 0.3f;
     } else {
-        float groundFriction = 0.6f;
-        if (onGround) {
-            int blockX = (int)floorf(x);
-            int blockY = (int)floorf(y - heightOffset - 0.5f);
-            int blockZ = (int)floorf(z);
-            unsigned char idUnder = worldBlock(&g_world, blockX, blockY, blockZ);
-            if (idUnder == BLOCK_ICE) groundFriction = 0.98f;
-        }
 
-        float friction = onGround ? groundFriction * 0.91f : 0.91f;
+        float friction = 0.91f;
+        if (onGround) {
+            unsigned char under = worldBlock(&g_world, (int)floorf(x),
+                                             (int)floorf(bb.y0 - 0.5f), (int)floorf(z));
+            friction = (under == BLOCK_AIR) ? 0.546f
+                                            : Tile::tiles[under]->slipperiness * 0.91f;
+        }
         float f3 = friction * friction * friction;
         float friction2 = (0.6f * 0.6f * 0.91f * 0.91f * 0.6f * 0.91f) / f3;
         moveRelative(xs, yf, onGround ? walkingSpeed * friction2 : flyingSpeed);
