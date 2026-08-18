@@ -1312,6 +1312,25 @@ void gameRender(MenuState& s) {
 
     float px0 = ix, py0 = iy, pz0 = iz;
 
+    float bs = 0.0f, bc = 0.0f;
+    if (g_viewBobbing) {
+        float wda = g_level.player->walkDist - g_level.player->walkDistO;
+        float b = -(g_level.player->walkDistO + wda * a);
+        float bobv  = g_level.player->oBob  + (g_level.player->bob  - g_level.player->oBob)  * a;
+        float tiltv = g_level.player->oTilt + (g_level.player->tilt - g_level.player->oTilt) * a;
+        const float PIF = 3.14159265f;
+        bs = sinf(b * PIF) * bobv * 0.5f;
+        bc = fabsf(cosf(b * PIF)) * bobv;
+
+        float rgx = cosf(iyaw * DEG2RAD), rgz = sinf(iyaw * DEG2RAD);
+        ix -= rgx * bs; iz -= rgz * bs;
+        iy -= bc;
+        ipitch -= tiltv;
+
+        if (ipitch >  89.0f) ipitch =  89.0f;
+        if (ipitch < -89.0f) ipitch = -89.0f;
+    }
+
     float cp = cosf(ipitch * DEG2RAD), sp = sinf(ipitch * DEG2RAD);
     float cy = cosf(iyaw * DEG2RAD),   sy = sinf(iyaw * DEG2RAD);
     float fx = -cp * sy, fy = sp, fz = cp * cy;
@@ -1346,7 +1365,8 @@ void gameRender(MenuState& s) {
     float dpCamX = 0.0f, dpCamY = 0.0f, dpCamZ = 0.0f;
     if (thirdNow) {
         const float baseCamX = nearOx, baseCamY = nearOy, baseCamZ = nearOz;
-        const float CLEAR = 0.05f;
+
+        const float CLEAR = 0.16f;
         for (int iter = 0; iter < 3; iter++) {
             bool moved = false;
             int cbx = (int)floorf(nearOx), cby = (int)floorf(nearOy), cbz = (int)floorf(nearOz);
@@ -1394,9 +1414,9 @@ void gameRender(MenuState& s) {
             dx /= len; dy /= len; dz /= len;
 
             for (float t = 0.1f; t <= 0.65f && t < nearSolid; t += 0.05f) {
-                if (isSolidPhys(worldBlock(&g_world, (int)floorf(nearOx + dx * t),
-                                                     (int)floorf(nearOy + dy * t),
-                                                     (int)floorf(nearOz + dz * t)))) {
+                if (nearBlocksView(worldBlock(&g_world, (int)floorf(nearOx + dx * t),
+                                                        (int)floorf(nearOy + dy * t),
+                                                        (int)floorf(nearOz + dz * t)))) {
                     nearSolid = t;
                     break;
                 }
@@ -1443,24 +1463,6 @@ void gameRender(MenuState& s) {
     guPerspective(fov, NEAR_Z, g_viewDist);
 
     float roll = 0.0f, rgxUp = 0.0f, rgzUp = 0.0f;
-    float bs = 0.0f, bc = 0.0f;
-    if (g_viewBobbing) {
-        float wda = g_level.player->walkDist - g_level.player->walkDistO;
-        float b = -(g_level.player->walkDistO + wda * a);
-        float bobv  = g_level.player->oBob  + (g_level.player->bob  - g_level.player->oBob)  * a;
-        float tiltv = g_level.player->oTilt + (g_level.player->tilt - g_level.player->oTilt) * a;
-        const float PIF = 3.14159265f;
-        bs = sinf(b * PIF) * bobv * 0.5f;
-        bc = fabsf(cosf(b * PIF)) * bobv;
-
-        float rgx = cosf(iyaw * DEG2RAD), rgz = sinf(iyaw * DEG2RAD);
-        ix -= rgx * bs; iz -= rgz * bs;
-        iy -= bc;
-        ipitch -= tiltv;
-
-        if (ipitch >  89.0f) ipitch =  89.0f;
-        if (ipitch < -89.0f) ipitch = -89.0f;
-    }
 
     if (g_level.player->hurtTime > 0 && g_level.player->hurtDuration > 0) {
         float f = (g_level.player->hurtTime - a) / (float)g_level.player->hurtDuration;

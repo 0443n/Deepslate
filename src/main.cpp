@@ -339,18 +339,6 @@ int main(int argc, char* argv[]) {
 #if DIAG_OVERLAY
 
                     {
-                        extern unsigned int g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs;
-                        if (g_drawLiveHits) {
-                            char dlBuf[64];
-
-                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u/%u/%u (corrected)",
-                                          g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs);
-                            fontDrawTextShadow(&s.font, 10, ty, dlBuf, 0xFF50FFFFu, 1.0f);
-                            ty += 12.0f;
-                        }
-                    }
-
-                    {
                         extern unsigned int g_frameAllocFails;
                         if (g_frameAllocFails) {
                             char faBuf[48];
@@ -384,11 +372,13 @@ int main(int argc, char* argv[]) {
 #endif
 
                     {
-                        extern unsigned int g_vblankLate;
-                        if (g_vblankLate) {
-                            char vbBuf[48];
-                            std::snprintf(vbBuf, sizeof(vbBuf), "VBLANK-LATE %u", g_vblankLate);
-                            fontDrawTextShadow(&s.font, 10, ty, vbBuf, 0xFF5050FFu, 1.0f);
+                        extern unsigned int g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs;
+                        if (g_drawLiveHits) {
+                            char dlBuf[64];
+
+                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u/%u/%u (corrected)",
+                                          g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs);
+                            fontDrawTextShadow(&s.font, 10, ty, dlBuf, 0xFF50FFFFu, 1.0f);
                             ty += 12.0f;
                         }
                     }

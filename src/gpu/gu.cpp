@@ -6,7 +6,6 @@
 #include <pspgu.h>
 #include <pspgum.h>
 #include <pspkernel.h>
-#include <pspintrman.h>
 
 #include "util/prof.h"
 #include "gpu/vram_alloc.h"
@@ -79,33 +78,7 @@ unsigned int g_drawLiveNext = 0;
 
 unsigned int g_drawLiveOurs = 0;
 
-static volatile int g_frontIdx   = 0;
-static volatile int g_pendingIdx = -1;
-
-static inline void* guFbAddr(int idx) {
-    return (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[idx]);
-}
-
-static void guVblankHandler(int , void* ) {
-    if (g_pendingIdx >= 0) {
-        sceDisplaySetFrameBuf(guFbAddr(g_pendingIdx), GU_BUF_WIDTH,
-                              PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_IMMEDIATE);
-        g_frontIdx   = g_pendingIdx;
-        g_pendingIdx = -1;
-    }
-}
-
-static int guAcquireDrawBuffer(int from) {
-    for (int i = 0; i < GU_FB_COUNT; i++) {
-        int cand = (from + i) % GU_FB_COUNT;
-        if (cand != g_frontIdx && cand != g_pendingIdx) return cand;
-    }
-    return from;
-}
-
-static bool g_vblankRegistered = false;
-
-unsigned int g_vblankLate = 0;
+static void* g_handedOver[2] = { 0, 0 };
 
 static unsigned int guMemSize(unsigned int width, unsigned int height,
                               unsigned int psm) {
@@ -199,22 +172,9 @@ void guInit(void) {
 
     sceDisplayWaitVblankStart();
     sceGuDisplay(GU_TRUE);
-
-    g_frontIdx   = g_drawIdx;
-    g_pendingIdx = -1;
-    if (sceKernelRegisterSubIntrHandler(PSP_VBLANK_INT, 0, (void*)guVblankHandler, 0) >= 0 &&
-        sceKernelEnableSubIntr(PSP_VBLANK_INT, 0) >= 0) {
-        g_vblankRegistered = true;
-    }
 }
 
 void guTerm(void) {
-
-    if (g_vblankRegistered) {
-        sceKernelDisableSubIntr(PSP_VBLANK_INT, 0);
-        sceKernelReleaseSubIntrHandler(PSP_VBLANK_INT, 0);
-        g_vblankRegistered = false;
-    }
     sceGuTerm();
 }
 
@@ -228,11 +188,24 @@ void guStartFrame(unsigned int clearColor) {
 #endif
 
     {
-        if (g_drawIdx == g_frontIdx || g_drawIdx == g_pendingIdx) {
+        void* shownNow = 0; void* shownNext = 0; int bw = 0, pf = 0;
+        sceDisplayGetFrameBuf(&shownNow,  &bw, &pf, 0);
+        sceDisplayGetFrameBuf(&shownNext, &bw, &pf, 1);
+        void* about = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]);
+        const bool byDriver = (shownNow == about || shownNext == about);
+        const bool byOurs   = (about == g_handedOver[0] || about == g_handedOver[1]);
+        if (byDriver || byOurs) {
+            if (!byDriver) g_drawLiveOurs++;
+            else if (shownNow != about) g_drawLiveNext++;
             g_drawLiveHits++;
-            g_drawLiveOurs++;
             profAdd(PROFC_DRAWLIVE, 1);
-            g_drawIdx = guAcquireDrawBuffer(g_drawIdx);
+
+            for (int i = 1; i < GU_FB_COUNT; i++) {
+                int cand = (g_drawIdx + i) % GU_FB_COUNT;
+                void* p = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[cand]);
+                if (p != shownNow && p != shownNext &&
+                    p != g_handedOver[0] && p != g_handedOver[1]) { g_drawIdx = cand; break; }
+            }
         }
     }
     sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
@@ -293,7 +266,8 @@ void guFinishFrame(void) {
                 s_eventCount++;
             }
 
-            void* shown = guFbAddr(g_frontIdx);
+            void* shown = 0; int bw = 0, pf = 0;
+            sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
             s_hist[0] = s_hist[1];
             s_hist[1] = listBytes;
             s_histShown[0] = s_histShown[1];
@@ -338,7 +312,8 @@ void guFinishFrame(void) {
                 s_emptyCount++;
             }
             {
-                void* shown = guFbAddr(g_frontIdx);
+                void* shown = 0; int bw = 0, pf = 0;
+                sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
                 s_prevShown = (unsigned)shown;
                 s_prevDrawn = (unsigned)sceGeEdramGetAddr() + (unsigned)g_fb[g_drawIdx];
                 s_prevList  = listBytes;
@@ -353,21 +328,18 @@ void guFinishFrame(void) {
 
 void guPresent(void) {
 
-    const int spins = (g_vblankLate > 2) ? 0 : 4;
+    void* addr = (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[g_drawIdx]);
+    sceDisplaySetFrameBuf(addr, GU_BUF_WIDTH, PSP_DISPLAY_PIXEL_FORMAT_565,
+                          PSP_DISPLAY_SETBUF_NEXTFRAME);
+
+    g_handedOver[1] = g_handedOver[0];
+    g_handedOver[0] = addr;
+
+    g_drawIdx = (g_drawIdx + 1) % GU_FB_COUNT;
+
     profBegin(PROF_VBLANK);
-    for (int spin = 0; g_pendingIdx >= 0 && spin < spins; spin++) sceDisplayWaitVblankStart();
+    sceDisplayWaitVblankStart();
     profEnd(PROF_VBLANK);
-    if (g_pendingIdx >= 0) {
-        g_vblankLate++;
-        guVblankHandler(0, 0);
-        if (spins == 0) sceDisplayWaitVblankStart();
-    }
-
-    int intr = sceKernelCpuSuspendIntr();
-    g_pendingIdx = g_drawIdx;
-    sceKernelCpuResumeIntr(intr);
-
-    g_drawIdx = guAcquireDrawBuffer((g_drawIdx + 1) % GU_FB_COUNT);
 }
 
 void guEndFrame(void) {

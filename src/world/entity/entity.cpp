@@ -533,6 +533,8 @@ bool Entity::load(CompoundTag* tag) {
 
     setPos(x, y, z);
     readAdditionalSaveData(tag);
+
+    tag->errorState |= pos->errorState | motion->errorState | rotation->errorState;
     return (tag->errorState == 0);
 }
 

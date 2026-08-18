@@ -115,6 +115,10 @@ static inline bool isWaterId(unsigned char id) { return id == BLOCK_WATER || id 
 static inline bool isLavaId(unsigned char id)  { return id == BLOCK_LAVA  || id == BLOCK_CALM_LAVA;  }
 static inline bool isLiquidId(unsigned char id){ return isWaterId(id) || isLavaId(id); }
 
+static inline bool nearBlocksView(unsigned char id) {
+    return id != BLOCK_AIR && !isLiquidId(id);
+}
+
 static inline int liquidTickDelay(unsigned char id) { return isWaterId(id) ? 5 : 30; }
 
 static inline float liquidTileHeight(int d) {

@@ -46,7 +46,9 @@ Entity* loadEntity(CompoundTag* tag, Level* level) {
     if (!tag || !tag->contains("id")) return 0;
     int id = tag->getInt("id");
     Entity* e = createEntity(id, level);
-    if (e) e->load(tag);
+    if (!e) return 0;
+
+    if (!e->load(tag)) { delete e; return 0; }
     return e;
 }
 
