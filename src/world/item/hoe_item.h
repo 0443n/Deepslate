@@ -14,6 +14,7 @@ public:
     virtual int  getIcon(short data) const { return icon; }
 private:
     int icon;
+    virtual bool isHoe() const { return true; }
 };
 
 #endif

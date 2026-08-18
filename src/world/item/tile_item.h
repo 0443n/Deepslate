@@ -22,6 +22,7 @@ public:
     virtual int getIcon(short) const { return icon; }
     virtual bool useOn(ItemInstance* item, Player* player, World* world, int x, int y, int z, int face,
                        float clickX, float clickY, float clickZ);
+    virtual bool placesTile() const { return true; }
 };
 
 class SlabItem : public TileItem {
@@ -41,6 +42,7 @@ public:
     virtual int getIcon(short) const { return icon; }
     virtual bool useOn(ItemInstance* item, Player* player, World* world, int x, int y, int z, int face,
                        float clickX, float clickY, float clickZ);
+    virtual bool placesTile() const { return true; }
 };
 
 class BedItem : public Item {
@@ -52,6 +54,7 @@ public:
     virtual int getIcon(short) const { return icon; }
     virtual bool useOn(ItemInstance* item, Player* player, World* world, int x, int y, int z, int face,
                        float clickX, float clickY, float clickZ);
+    virtual bool placesTile() const { return true; }
 };
 
 class FlintAndSteelItem : public Item {

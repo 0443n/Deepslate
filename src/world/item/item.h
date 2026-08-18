@@ -142,6 +142,10 @@ public:
     virtual int getMaxStackSize(const ItemInstance* item) const { return maxStackSize; }
 
     virtual bool isLiquidClipItem(short data) const { return false; }
+
+    virtual bool placesTile() const { return false; }
+
+    virtual bool isHoe() const { return false; }
     virtual bool mineBlock(ItemInstance* item, World* world, int blockId, int x, int y, int z, Player* player) {
         return false;
     }

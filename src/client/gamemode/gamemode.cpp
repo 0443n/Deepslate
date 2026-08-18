@@ -687,6 +687,19 @@ CrosshairTarget gameModeCrosshairTarget() {
         if (t.useLabel) return t;
     }
 
+    if (sel && sel->id == ITEM_BUCKET && sel->data == BUCKET_EMPTY) {
+        BlockHit lh = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z,
+                                g_level.player->yRot, g_level.player->xRot, 5.0f, true);
+        if (lh.hit) {
+            unsigned char lid = worldBlock(&g_world, lh.x, lh.y, lh.z);
+
+            bool room = g_level.player->inventory->getFreeSlot() >= 0 ||
+                        sel->count == 1 || g_level.player->inventory->isCreative();
+            if (isLiquidId(lid) && worldData(&g_world, lh.x, lh.y, lh.z) == 0 && room)
+                t.useLabel = "Collect";
+        }
+    }
+
     BlockHit hit = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z,
                              g_level.player->yRot, g_level.player->xRot, 5.0f);
     if (!hit.hit) return t;
@@ -715,8 +728,29 @@ CrosshairTarget gameModeCrosshairTarget() {
         else if (id == BLOCK_NETHER_REACTOR)                           t.useLabel = "Activate";
         else if (isUsableBlockId(id))                                  t.useLabel = "Use";
 
+        else if (sel && sel->id == ITEM_BUCKET && sel->data != BUCKET_MILK) {
+            const int px = hit.x + kFaceNeighbor[hit.face][0];
+            const int py = hit.y + kFaceNeighbor[hit.face][1];
+            const int pz = hit.z + kFaceNeighbor[hit.face][2];
+            const unsigned char at = worldBlock(&g_world, px, py, pz);
+            if ((at == BLOCK_AIR || !materialOf(at).isSolid()) && !liquidStopsWater(at))
+                t.useLabel = "Empty";
+        }
+
         else if (sel && sel->id == ITEM_PAINTING)                      t.useLabel = "Hang";
-        else if (sel && (sel->id < 256 || sel->id == ITEM_SIGN ||
+
+        else if (sel && sel->getItem() && sel->getItem()->isHoe() && hit.face != F_DOWN &&
+                 (id == BLOCK_GRASS || id == BLOCK_DIRT) &&
+                 worldBlock(&g_world, hit.x, hit.y + 1, hit.z) == BLOCK_AIR)
+                                                                       t.useLabel = "Till";
+        else if (sel && (sel->id == BLOCK_SAPLING || sel->id == BLOCK_FLOWER ||
+                         sel->id == BLOCK_ROSE || sel->id == BLOCK_MUSHROOM_BROWN ||
+                         sel->id == BLOCK_MUSHROOM_RED || sel->id == BLOCK_TALLGRASS ||
+                         sel->id == BLOCK_CACTUS || sel->id == ITEM_REEDS ||
+                         sel->id == ITEM_SEEDS_WHEAT || sel->id == ITEM_SEEDS_MELON))
+                                                                       t.useLabel = "Plant";
+
+        else if (sel && ((sel->getItem() && sel->getItem()->placesTile()) ||
                          sel->id == ITEM_SPAWN_EGG))                   t.useLabel = "Place";
     }
     return t;

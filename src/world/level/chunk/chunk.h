@@ -102,6 +102,9 @@ static inline bool isStairs(unsigned char id) {
 }
 static inline bool isSlab(unsigned char id)   { return id == BLOCK_SLAB || id == BLOCK_WOOD_SLAB; }
 static inline bool isPane(unsigned char id)   { return id == BLOCK_GLASS_PANE; }
+
+#define PANE_EDGE_COL 4
+#define PANE_EDGE_ROW 9
 static inline bool isFence(unsigned char id)  { return id == BLOCK_FENCE; }
 static inline bool isFenceGate(unsigned char id){ return id == BLOCK_FENCE_GATE; }
 static inline bool isDoor(unsigned char id)   { return id == BLOCK_DOOR_WOOD || id == BLOCK_DOOR_IRON; }
@@ -239,7 +242,7 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
 int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data,
                    float x0, float y0, float z0, float x1, float y1, float z1,
                    int boundaryMask, int hiddenFaces, ChunkVertex* out, int n, bool fixUV = false,
-                   bool fullTileUV = false);
+                   bool fullTileUV = false, int edgeFaceMask = 0);
 int emitSlab(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 int emitStairs(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data, ChunkVertex* out, int n);
 

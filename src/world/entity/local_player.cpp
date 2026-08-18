@@ -229,8 +229,18 @@ void LocalPlayer::move(float xa, float ya, float za) {
     const bool jumpable = isStairs(step)
         ? stairTopEntering(&g_world, ax, stepY, az, stepData, xa, za, x, z) > 0.5f
         : autoJumpable(step, stepData);
-    if (isSolidPhys(step) && jumpable
-        && !isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y), az))
+    if (!isSolidPhys(step) || !jumpable) return;
+
+    const float halfW = bbWidth * 0.5f;
+    BlockAABB cb[3];
+    const int nBox = Tile::tiles[step]->getAABB(&g_world, ax, stepY, az, cb);
+    bool inTheWay = false;
+    for (int i = 0; i < nBox && !inTheWay; i++)
+        inTheWay = px >= cb[i].x0 - halfW && px <= cb[i].x1 + halfW &&
+                   pz >= cb[i].z0 - halfW && pz <= cb[i].z1 + halfW;
+    if (!inTheWay) return;
+
+    if (!isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y), az))
         && !isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y + 1.0f), az)))
         autoJumpTime = 1;
 }

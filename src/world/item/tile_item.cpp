@@ -13,6 +13,9 @@
 #include <math.h>
 
 bool placeTileResolved(World* w, int nx, int ny, int nz, int tileId, int data, Player* placer) {
+
+    if (worldBlock(w, nx, ny, nz) == (unsigned char)tileId &&
+        worldData(w, nx, ny, nz) == (unsigned char)data) return false;
     if (!worldSetBlockAndData(w, nx, ny, nz, (unsigned char)tileId, (unsigned char)data)) return false;
     Tile* tile = Tile::tiles[tileId & 0xFF];
     tile->setPlacedBy(w, nx, ny, nz, placer);

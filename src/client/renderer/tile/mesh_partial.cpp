@@ -26,7 +26,7 @@ int boxBoundaryMask(float x0, float y0, float z0, float x1, float y1, float z1) 
 int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsigned char data,
                    float x0, float y0, float z0, float x1, float y1, float z1,
                    int boundaryMask, int hiddenFaces, ChunkVertex* out, int n, bool fixUV,
-                   bool fullTileUV) {
+                   bool fullTileUV, int edgeFaceMask) {
     for (int f = 0; f < 6; f++) {
         bool hide = false;
 
@@ -58,6 +58,9 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
         if (out) {
             int col, row; unsigned int tint;
             tileForBlock(id, data, f, &col, &row, &tint);
+
+            const bool edgeFace = (edgeFaceMask & (1 << f)) != 0;
+            if (edgeFace) { col = PANE_EDGE_COL; row = PANE_EDGE_ROW; }
             float u0 = col * TILE_UV, v0 = row * TILE_UV;
 
             int faceBr;
@@ -112,8 +115,15 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
                 if (uz0 < 0.0f || uz1 > 1.0f) { uz0 = 0.0f; uz1 = 1.0f; }
                 float uv_u, uv_v;
                 if (f == F_TOP || f == F_DOWN) {
-                    uv_u = (cx == 0.0f) ? ux0 : ux1;
-                    uv_v = (cz == 0.0f) ? uz0 : uz1;
+
+                    const bool thinZ = (z1 - z0) < (x1 - x0);
+                    if (edgeFace && thinZ) {
+                        uv_u = (cz == 0.0f) ? uz0 : uz1;
+                        uv_v = (cx == 0.0f) ? ux0 : ux1;
+                    } else {
+                        uv_u = (cx == 0.0f) ? ux0 : ux1;
+                        uv_v = (cz == 0.0f) ? uz0 : uz1;
+                    }
                 } else {
                     uv_v = 1.0f - ((cy == 0.0f) ? uy0 : uy1);
 
@@ -205,6 +215,9 @@ int emitPane(const World* w, int gx, int y, int gz, unsigned char id, unsigned c
     bool east  = paneAttachsTo(worldBlock(w, gx + 1, y, gz    ));
     bool isolated = !north && !south && !west && !east;
 
+    const int edgeX = (1 << F_TOP) | (1 << F_DOWN) | (1 << F_LEFT) | (1 << F_RIGHT);
+    const int edgeZ = (1 << F_TOP) | (1 << F_DOWN) | (1 << F_BACK) | (1 << F_FORWARD);
+
     bool hasX = isolated || west || east || (!north && !south);
     if (hasX) {
         float ax0, ax1;
@@ -215,7 +228,7 @@ int emitPane(const World* w, int gx, int y, int gz, unsigned char id, unsigned c
         else                    { ax0 = 0.0f; ax1 = 1.0f; bMask |= (1 << F_LEFT) | (1 << F_RIGHT); }
         n = emitPartialBox(w, gx, y, gz, id, data,
                            ax0, 0.0f, 7.0f/16.0f, ax1, 1.0f, 9.0f/16.0f,
-                           bMask, 0, out, n);
+                           bMask, 0, out, n, false, false, edgeX);
     }
 
     bool hasZ = isolated || north || south || (!west && !east);
@@ -228,7 +241,7 @@ int emitPane(const World* w, int gx, int y, int gz, unsigned char id, unsigned c
         else                       { az0 = 0.0f; az1 = 1.0f; bMask |= (1 << F_BACK) | (1 << F_FORWARD); }
         n = emitPartialBox(w, gx, y, gz, id, data,
                            7.0f/16.0f, 0.0f, az0, 9.0f/16.0f, 1.0f, az1,
-                           bMask, 0, out, n);
+                           bMask, 0, out, n, false, false, edgeZ);
     }
 
     return n;

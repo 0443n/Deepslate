@@ -32,6 +32,16 @@ static void buildShadowTexture() {
 static ChunkVertex s_verts[64 * 6];
 static int         s_vcount = 0;
 
+static bool shadowBuried(int xt, int yt, int zt) {
+    unsigned char here = worldBlock(&g_world, xt, yt, zt);
+    if (here == BLOCK_AIR || !isSolidPhys(here)) return false;
+    BlockAABB b[3];
+    const int nb = Tile::tiles[here]->getAABB(&g_world, xt, yt, zt, b);
+    for (int i = 0; i < nb; i++)
+        if (b[i].y1 > (float)yt + 1.0f / 64.0f) return true;
+    return false;
+}
+
 static void renderTileShadow(float x, float y, float z, int xt, int yt, int zt,
                              float pow, float r, float xo, float yo, float zo) {
 
@@ -85,7 +95,8 @@ void renderEntityShadow(float x, float y, float z, float off, float radius, floa
         for (int yt = y0; yt <= y1; yt++)
             for (int zt = z0; zt <= z1; zt++) {
                 int t = worldBlock(&g_world, xt, yt - 1, zt);
-                if (t > 0 && isCubeShaped((unsigned char)t) && lightRawAt(&g_world, xt, yt, zt) > 3)
+                if (t > 0 && isCubeShaped((unsigned char)t) && lightRawAt(&g_world, xt, yt, zt) > 3
+                    && !shadowBuried(xt, yt, zt))
                     renderTileShadow(x, y + off, z, xt, yt, zt, pow, r, xo, yo + off, zo);
             }
     if (s_vcount == 0) return;
