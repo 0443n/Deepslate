@@ -403,31 +403,41 @@ static void renderSky(float px, float py, float pz) {
     sceGuDisable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_TRUE);
 
-    int s = 16, d = 12;
+    const int s = 16, d = 12;
     ScePspFVector3 t = { px, py + SKY_DOME_OFFSET, pz };
     sceGumTranslate(&t);
 
-    int cells = (2 * d) * (2 * d);
-
-    ColorVertex* v = (ColorVertex*)guFrameAllocPriority(cells * 6 * sizeof(ColorVertex));
-    if (!v) return;
+    const int cells = (2 * d) * (2 * d);
+    const int n = cells * 6;
     const unsigned int dc = g_skyDomeColorNow;
     const unsigned int fc = g_skyColorNow;
-    int n = 0;
-    for (int xx = -s * d; xx < s * d; xx += s) {
-        for (int zz = -s * d; zz < s * d; zz += s) {
-            float wx0 = (float)xx, wx1 = (float)(xx + s);
-            float wz0 = (float)zz, wz1 = (float)(zz + s);
 
-            unsigned int c00 = skyDomeFog(dc, fc, wx0, wz0), c10 = skyDomeFog(dc, fc, wx1, wz0);
-            unsigned int c01 = skyDomeFog(dc, fc, wx0, wz1), c11 = skyDomeFog(dc, fc, wx1, wz1);
-            v[n].color=c01; v[n].x=wx0; v[n].y=0; v[n].z=wz1; n++;
-            v[n].color=c11; v[n].x=wx1; v[n].y=0; v[n].z=wz1; n++;
-            v[n].color=c10; v[n].x=wx1; v[n].y=0; v[n].z=wz0; n++;
-            v[n].color=c01; v[n].x=wx0; v[n].y=0; v[n].z=wz1; n++;
-            v[n].color=c10; v[n].x=wx1; v[n].y=0; v[n].z=wz0; n++;
-            v[n].color=c00; v[n].x=wx0; v[n].y=0; v[n].z=wz0; n++;
+    static ColorVertex* v = 0;
+    static unsigned int builtDc = 0, builtFc = 0;
+    if (!v) {
+        v = (ColorVertex*)memalign(16, (size_t)n * sizeof(ColorVertex));
+        if (!v) return;
+    }
+    if (dc != builtDc || fc != builtFc) {
+        builtDc = dc; builtFc = fc;
+        int i = 0;
+        for (int xx = -s * d; xx < s * d; xx += s) {
+            for (int zz = -s * d; zz < s * d; zz += s) {
+                float wx0 = (float)xx, wx1 = (float)(xx + s);
+                float wz0 = (float)zz, wz1 = (float)(zz + s);
+
+                unsigned int c00 = skyDomeFog(dc, fc, wx0, wz0), c10 = skyDomeFog(dc, fc, wx1, wz0);
+                unsigned int c01 = skyDomeFog(dc, fc, wx0, wz1), c11 = skyDomeFog(dc, fc, wx1, wz1);
+                v[i].color=c01; v[i].x=wx0; v[i].y=0; v[i].z=wz1; i++;
+                v[i].color=c11; v[i].x=wx1; v[i].y=0; v[i].z=wz1; i++;
+                v[i].color=c10; v[i].x=wx1; v[i].y=0; v[i].z=wz0; i++;
+                v[i].color=c01; v[i].x=wx0; v[i].y=0; v[i].z=wz1; i++;
+                v[i].color=c10; v[i].x=wx1; v[i].y=0; v[i].z=wz0; i++;
+                v[i].color=c00; v[i].x=wx0; v[i].y=0; v[i].z=wz0; i++;
+            }
         }
+
+        dcacheFlush(v, (size_t)n * sizeof(ColorVertex));
     }
 
     sceGuDisable(GU_FOG);
