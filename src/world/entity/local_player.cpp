@@ -3,6 +3,7 @@
 #include "world/level/level.h"
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
+#include "world/level/tile/tile_shapes.h"
 #include "world/difficulty.h"
 #include "client/player/player_state.h"
 #include "client/renderer/item_hand.h"
@@ -15,8 +16,6 @@
 extern World g_world;
 
 int   g_autoJump = 1;
-
-int   g_autoSwim = 0;
 float g_sensitivity = 1.0f;
 
 float g_analogDeadzone = 0.20f;
@@ -90,17 +89,15 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
 
     bool jumping = (btn & PSP_CTRL_START) != 0 || autoJumpTime > 0;
 
-    const bool inLiquid = isInWater() || isInLava();
-    const bool headUnder = inLiquid &&
-        isLiquidId(worldBlock(&g_world, (int)floorf(x), (int)floorf(y), (int)floorf(z)));
+    const bool inWater = isInWater();
+    if (inWater && yf > 0.0f) jumping = true;
+
+    const bool inLiquid = inWater || isInLava();
     if (flying) {
         if (jumping)              yd += 0.05f;
         if (btn & PSP_CTRL_DOWN)  yd -= 0.05f;
     } else if (inLiquid) {
-        if (!g_autoSwim)               { if (jumping) yd += 0.04f; }
-        else if (btn & PSP_CTRL_DOWN)  yd -= 0.04f;
-        else if (!headUnder)           yd += 0.04f;
-        else if (jumping)              yd += 0.04f;
+        if (jumping) yd += 0.04f;
     } else if (jumping && onGround) {
         yd = 0.42f;
     }
@@ -109,7 +106,7 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
 
     bool downNow = (btn & PSP_CTRL_DOWN) != 0;
 
-    if (flying || (inLiquid && g_autoSwim)) sneaking = false;
+    if (flying) sneaking = false;
     else if (downNow && !prevSneakBtn) sneaking = !sneaking;
     prevSneakBtn = downNow;
     if (sneaking) { xs *= 0.3f; yf *= 0.3f; }
@@ -192,18 +189,18 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
     }
 
     static bool s_wasInWater = false;
-    bool inWater = false;
+    bool splashWet = false;
     {
         int bx0 = (int)floorf(bb.x0), bx1 = (int)floorf(bb.x1);
         int bz0 = (int)floorf(bb.z0), bz1 = (int)floorf(bb.z1);
         int by0 = (int)floorf(bb.y0 + 0.4f), by1 = (int)floorf(bb.y1 - 0.4f);
-        for (int bx = bx0; bx <= bx1 && !inWater; ++bx)
-            for (int by = by0; by <= by1 && !inWater; ++by)
-                for (int bz = bz0; bz <= bz1 && !inWater; ++bz)
-                    if (isWaterId(worldBlock(&g_world, bx, by, bz))) inWater = true;
+        for (int bx = bx0; bx <= bx1 && !splashWet; ++bx)
+            for (int by = by0; by <= by1 && !splashWet; ++by)
+                for (int bz = bz0; bz <= bz1 && !splashWet; ++bz)
+                    if (isWaterId(worldBlock(&g_world, bx, by, bz))) splashWet = true;
     }
-    if (inWater && !s_wasInWater) doWaterSplashEffect();
-    s_wasInWater = inWater;
+    if (splashWet && !s_wasInWater) doWaterSplashEffect();
+    s_wasInWater = splashWet;
 }
 
 void LocalPlayer::move(float xa, float ya, float za) {
@@ -221,12 +218,18 @@ void LocalPlayer::move(float xa, float ya, float za) {
 
     const float dist = sqrtf(xa * xa + za * za);
     if (dist < 0.0001f) return;
-    const int ax = (int)floorf(x + xa / dist);
-    const int az = (int)floorf(z + za / dist);
+    const float px = x + xa / dist, pz = z + za / dist;
+    const int ax = (int)floorf(px);
+    const int az = (int)floorf(pz);
 
     const int stepY = (int)floorf(y - 1.0f);
     const unsigned char step = worldBlock(&g_world, ax, stepY, az);
-    if (isSolidPhys(step) && autoJumpable(step, worldData(&g_world, ax, stepY, az))
+    const unsigned char stepData = worldData(&g_world, ax, stepY, az);
+
+    const bool jumpable = isStairs(step)
+        ? stairTopEntering(&g_world, ax, stepY, az, stepData, xa, za, x, z) > 0.5f
+        : autoJumpable(step, stepData);
+    if (isSolidPhys(step) && jumpable
         && !isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y), az))
         && !isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y + 1.0f), az)))
         autoJumpTime = 1;

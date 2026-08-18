@@ -142,7 +142,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         sceGumPopMatrix();
     }
 
-    if (bowPartIndex >= 0) {
+    if (bowPartIndex >= 0 && bowPartIndex < count) {
         MobPart& ap = parts[bowPartIndex];
         short drawId = heldItemId ? heldItemId : ITEM_BOW;
 

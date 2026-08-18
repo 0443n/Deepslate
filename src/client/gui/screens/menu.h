@@ -78,6 +78,8 @@ static const float MENU_BAR_H    = 26.0f * MENU_PX;
 static const float MENU_BAR_BTNH = 18.0f * MENU_PX;
 static const float MENU_BAR_BTNY = (MENU_BAR_H - MENU_BAR_BTNH) / 2.0f;
 
+static const float MENU_BAR_Y    = -1.0f / UI_SCALE;
+
 static const float MENU_BAR_TEXT = 2.0f;
 
 static const float MENU_BEVEL    = 2.0f;

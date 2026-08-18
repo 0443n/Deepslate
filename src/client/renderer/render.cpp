@@ -248,6 +248,9 @@ static void renderSunOrMoon(float alpha, bool isSun, float px, float py, float p
         size = 20.0f;
     }
 
+    SkyVertex* q = (SkyVertex*)guFrameAlloc(6 * sizeof(SkyVertex));
+    if (!q) return;
+
     textureBind(tex);
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0xFFFFFFFF, 0xFFFFFFFF);
@@ -263,7 +266,6 @@ static void renderSunOrMoon(float alpha, bool isSun, float px, float py, float p
     sceGumTranslate(&c);
     sceGumRotateX(deg * (3.14159265f / 180.0f));
 
-    SkyVertex* q = (SkyVertex*)sceGuGetMemory(6 * sizeof(SkyVertex));
     const float y = 120.0f;
     q[0].u=u0; q[0].v=v0; q[0].x=-size; q[0].y=y; q[0].z=-size;
     q[1].u=u1; q[1].v=v0; q[1].x= size; q[1].y=y; q[1].z=-size;
@@ -361,7 +363,8 @@ static void renderStars(float alpha, float px, float py, float pz) {
 
 static void skyBackdrop(unsigned int color) {
     struct CV { unsigned int color; float x, y, z; };
-    CV* v = (CV*)guFrameAlloc(4 * sizeof(CV));
+
+    CV* v = (CV*)guFrameAllocPriority(4 * sizeof(CV));
     if (!v) return;
     v[0].color = color; v[0].x = 0.0f;               v[0].y = 0.0f;                v[0].z = 0.0f;
     v[1].color = color; v[1].x = (float)GU_SCR_WIDTH; v[1].y = 0.0f;               v[1].z = 0.0f;
@@ -405,13 +408,8 @@ static void renderSky(float px, float py, float pz) {
     sceGumTranslate(&t);
 
     int cells = (2 * d) * (2 * d);
-    ColorVertex* v = (ColorVertex*)guFrameAlloc(cells * 6 * sizeof(ColorVertex));
-    if (!v) {
 
-        s = 32; d = 6;
-        cells = (2 * d) * (2 * d);
-        v = (ColorVertex*)guFrameAlloc(cells * 6 * sizeof(ColorVertex));
-    }
+    ColorVertex* v = (ColorVertex*)guFrameAllocPriority(cells * 6 * sizeof(ColorVertex));
     if (!v) return;
     const unsigned int dc = g_skyDomeColorNow;
     const unsigned int fc = g_skyColorNow;
@@ -765,7 +763,8 @@ static void fireScreenEffect() {
         ScePspFVector3 tr = { -(i * 2 - 1) * 0.24f, -0.3f, 0.0f };
         sceGumTranslate(&tr);
         sceGumRotateY((i * 2 - 1) * 10.0f * DEG2RAD);
-        V* q = (V*)sceGuGetMemory(4 * sizeof(V));
+        V* q = (V*)guFrameAlloc(4 * sizeof(V));
+        if (!q) break;
         q[0] = { u1, v1, col, x0, y0, z0 };
         q[1] = { u0, v1, col, x1, y0, z0 };
         q[2] = { u0, v0, col, x1, y1, z0 };
@@ -774,6 +773,11 @@ static void fireScreenEffect() {
                         GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                         4, 0, q);
     }
+
+    sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+    sceGuEnable(GU_FOG);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuEnable(GU_DEPTH_TEST);
 }
 
 static void loadWorldView(float ex, float ey, float ez,
@@ -1280,8 +1284,6 @@ void gameRender(MenuState& s) {
                              g_level.player->z, g_viewDist);
         return;
     }
-
-    else                 sceGuScissor(0, 0, 480, 272);
 
     float a = g_timerAlpha;
     float ix = g_level.player->xo + (g_level.player->x - g_level.player->xo) * a;

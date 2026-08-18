@@ -76,8 +76,10 @@ void PrimedTntRenderer::render(Entity* entity, float x, float y, float z, float 
         unsigned int col = ((unsigned int)(br * 255.0f) << 24) | 0x00FFFFFFu;
         sceGuDisable(GU_TEXTURE_2D);
         sceGuColor(col);
-        void* ov = guFrameCopy(s_overlay, s_meshCount * sizeof(PosVertex));
-        if (ov) sceGumDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF | GU_TRANSFORM_3D, s_meshCount, 0, ov);
+
+    int ovCount = s_meshCount < 36 ? s_meshCount : 36;
+    void* ov = guFrameCopy(s_overlay, ovCount * sizeof(PosVertex));
+        if (ov) sceGumDrawArray(GU_TRIANGLES, GU_VERTEX_32BITF | GU_TRANSFORM_3D, ovCount, 0, ov);
         sceGuColor(0xFFFFFFFFu);
         sceGuEnable(GU_TEXTURE_2D);
     }

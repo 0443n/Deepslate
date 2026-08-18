@@ -138,12 +138,14 @@ int emitLiquid(const World* w, int gx, int y, int gz, unsigned char id, ChunkVer
             float angle = getSlopeAngle(w, gx, y, gz, id);
             float uc, vc;
             if (angle < -999.0f) {
+
                 angle = 0.0f;
                 uc = col * TILE_UV + 0.5f * TILE_UV;
                 vc = row * TILE_UV + 0.5f * TILE_UV;
             } else {
-                uc = (col + 1) * TILE_UV + TILE_UV;
-                vc = row * TILE_UV + TILE_UV;
+
+                uc = (col + 2) * TILE_UV;
+                vc = (row + 1) * TILE_UV;
             }
 
             float s = sinf(angle) * 7.5f / 256.5f;

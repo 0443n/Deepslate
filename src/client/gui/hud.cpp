@@ -1028,7 +1028,7 @@ void hotbarDraw(MenuState& s) {
 
 void guiFill(float x, float y, float w, float h, unsigned int color) {
     struct CV { unsigned int color; float x, y, z; };
-    CV* v = (CV*)guFrameAlloc(2 * sizeof(CV));
+    CV* v = (CV*)guFrameAllocPriority(2 * sizeof(CV));
     if (!v) return;
     v[0].color = color; v[0].x = x;     v[0].y = y;     v[0].z = 0.0f;
     v[1].color = color; v[1].x = x + w; v[1].y = y + h; v[1].z = 0.0f;
@@ -1054,7 +1054,7 @@ void guiScrollbar(float x, float y, float w, float h, float contentH, float scro
 void guiFillGradient(float x, float y, float w, float h,
                             unsigned int topColor, unsigned int botColor) {
     struct CV { unsigned int color; float x, y, z; };
-    CV* v = (CV*)guFrameAlloc(4 * sizeof(CV));
+    CV* v = (CV*)guFrameAllocPriority(4 * sizeof(CV));
     if (!v) return;
     v[0].color = topColor; v[0].x = x;     v[0].y = y;     v[0].z = 0.0f;
     v[1].color = topColor; v[1].x = x + w; v[1].y = y;     v[1].z = 0.0f;

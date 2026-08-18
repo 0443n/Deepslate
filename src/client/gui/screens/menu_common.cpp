@@ -54,13 +54,13 @@ void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,
 
 void drawMenuHeader(MenuState& s, const char* title, float x, float w, float h, float textScale,
                     float titleX, float titleW) {
-    uiDraw(s, x * UI_SCALE, 0.0f, 2.0f * UI_SCALE, (h - 1.0f) * UI_SCALE,
+    uiDraw(s, x * UI_SCALE, MENU_BAR_Y * UI_SCALE, 2.0f * UI_SCALE, (h - 1.0f) * UI_SCALE,
            150.0f, 26.0f, GA_HDR_LEFT_X, GA_HDR_LEFT_Y, 2.0f, 25.0f, WHITE);
-    uiDraw(s, (x + 2.0f) * UI_SCALE, 0.0f, (w - 4.0f) * UI_SCALE, (h - 1.0f) * UI_SCALE,
+    uiDraw(s, (x + 2.0f) * UI_SCALE, MENU_BAR_Y * UI_SCALE, (w - 4.0f) * UI_SCALE, (h - 1.0f) * UI_SCALE,
            153.0f, 26.0f, GA_HDR_BODY_X, GA_HDR_BODY_Y, 8.0f, 25.0f, WHITE);
-    uiDraw(s, (x + w - 2.0f) * UI_SCALE, 0.0f, 2.0f * UI_SCALE, (h - 1.0f) * UI_SCALE,
+    uiDraw(s, (x + w - 2.0f) * UI_SCALE, MENU_BAR_Y * UI_SCALE, 2.0f * UI_SCALE, (h - 1.0f) * UI_SCALE,
            162.0f, 26.0f, GA_HDR_RIGHT_X, GA_HDR_RIGHT_Y, 2.0f, 25.0f, WHITE);
-    uiDraw(s, x * UI_SCALE, (h - 1.0f) * UI_SCALE, w * UI_SCALE, 3.0f * UI_SCALE,
+    uiDraw(s, x * UI_SCALE, (MENU_BAR_Y + h - 1.0f) * UI_SCALE, w * UI_SCALE, 3.0f * UI_SCALE,
            153.0f, 52.0f, GA_HDR_SHADOW_X, GA_HDR_SHADOW_Y, 8.0f, 3.0f, WHITE);
     if (!title || !s.haveFont) return;
 
@@ -72,7 +72,7 @@ void drawMenuHeader(MenuState& s, const char* title, float x, float w, float h, 
         tw = fontTextWidth(&s.font, title) * textScale;
     }
     fontDrawTextShadow(&s.font, (titleX + titleW / 2.0f) * UI_SCALE - tw / 2.0f,
-                       h / 2.0f * UI_SCALE - 4.0f * textScale, title, 0xFFE0E0E0u, textScale);
+                       (MENU_BAR_Y + h / 2.0f) * UI_SCALE - 4.0f * textScale, title, 0xFFE0E0E0u, textScale);
 }
 
 float menuBarButtonW(MenuState& s, const char* label) {
@@ -82,8 +82,8 @@ float menuBarButtonW(MenuState& s, const char* label) {
 }
 
 void menuBarButton(MenuState& s, float x, float w, const char* label, bool hovered) {
-    guiTButton(s, x, MENU_BAR_BTNY, w, MENU_BAR_BTNH, hovered, MENU_BEVEL);
-    guiTButtonLabel(s, x, MENU_BAR_BTNY, w, MENU_BAR_BTNH, label, hovered, true, MENU_BAR_TEXT);
+    guiTButton(s, x, MENU_BAR_Y + MENU_BAR_BTNY, w, MENU_BAR_BTNH, hovered, MENU_BEVEL);
+    guiTButtonLabel(s, x, MENU_BAR_Y + MENU_BAR_BTNY, w, MENU_BAR_BTNH, label, hovered, true, MENU_BAR_TEXT);
 }
 
 void drawTextField(MenuState& s, float x, float y, float w, float h,

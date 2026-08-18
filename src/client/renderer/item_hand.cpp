@@ -407,8 +407,13 @@ void itemHandDraw(float a, float bs, float bc) {
     if (hasItem) {
         int bowStage = (id == ITEM_BOW && g_level.player->bowPull > 0.0f)
                        ? bowStageIcon(g_level.player->bowTimeHeld) : -1;
-        if (!s_model.build((short)id, (unsigned char)data, bowStage)) return;
-    } else {
+
+        if (!s_model.build((short)id, (unsigned char)data, bowStage)) {
+            hasItem = false;
+            isFlat  = false;
+        }
+    }
+    if (!hasItem) {
         loadCharIfNeeded();
         buildArm();
     }

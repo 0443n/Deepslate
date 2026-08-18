@@ -604,7 +604,8 @@ void particlesRender(World* w, float yawDeg, float pitchDeg, float alpha,
         if (tx) textureBindNoMip(tx); else continue;
 
         PVertex* v = (PVertex*)guFrameAlloc(count * 6 * sizeof(PVertex));
-        if (!v) return;
+        if (!v) break;
+
         int n = 0;
         for (int i = 0; i < MAX_PARTICLES; i++) {
             P* p = &g_pool[i];

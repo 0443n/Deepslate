@@ -41,11 +41,12 @@ void ItemModelRenderer::draw(unsigned int brCol, bool noMip, bool priority) {
     }
     if (m_tex) { noMip ? textureBindNoMip(m_tex) : textureBind(m_tex); }
 
+    const int ditherPrev = guDitherWanted();
     if (m_flat) guSetDither(0);
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     m_count, 0, v);
-    if (m_flat) guSetDither(1);
+    if (m_flat) guSetDither(ditherPrev);
 }
 
 namespace {
@@ -110,11 +111,12 @@ void ItemModelRenderer::drawShared(bool noMip) {
     const SharedItem& s = s_shared[m_sharedSlot];
     if (s.count <= 0 || !s.verts) return;
     if (s.tex) { noMip ? textureBindNoMip(s.tex) : textureBind(s.tex); }
+    const int ditherPrev = guDitherWanted();
     if (s.flat) guSetDither(0);
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     s.count, 0, s.verts);
-    if (s.flat) guSetDither(1);
+    if (s.flat) guSetDither(ditherPrev);
 }
 
 void ItemModelRenderer::drawMesh(ChunkVertex* m, int n, unsigned int brCol,
@@ -127,11 +129,12 @@ void ItemModelRenderer::drawMesh(ChunkVertex* m, int n, unsigned int brCol,
     void* v = guFrameCopy(m, n * sizeof(ChunkVertex));
     if (!v) return;
 
+    const int ditherPrev = guDitherWanted();
     guSetDither(0);
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                     n, 0, v);
-    guSetDither(1);
+    guSetDither(ditherPrev);
 }
 
 void ItemModelRenderer::applyFlatPreTransform() {

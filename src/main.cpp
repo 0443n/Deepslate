@@ -64,6 +64,43 @@ static void detectLowMemPsp(void) {
 
 static volatile int g_exitRequested = 0;
 
+static float drawFaultCounters(MenuState& s, float ty) {
+    extern int g_showFps;
+    if (!g_showFps) return ty;
+
+    extern unsigned int g_listPeakBytes, g_listOverruns;
+    char buf[80];
+    std::snprintf(buf, sizeof(buf), "GE-LIST %uK/512K%s",
+                  g_listPeakBytes / 1024, g_listOverruns ? " OVERRUN" : "");
+    fontDrawTextShadow(&s.font, 10, ty, buf,
+                       g_listOverruns ? 0xFF5050FFu : 0xFF50FFFFu, 1.0f);
+    ty += 12.0f;
+
+    extern unsigned int g_frameAllocFails;
+    if (g_frameAllocFails) {
+        std::snprintf(buf, sizeof(buf), "GU-SCRATCH FULL %u", g_frameAllocFails);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
+        ty += 12.0f;
+    }
+    extern unsigned int g_drawLiveHits;
+    if (g_drawLiveHits) {
+        std::snprintf(buf, sizeof(buf), "DRAW-LIVE %u", g_drawLiveHits);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
+        ty += 12.0f;
+    }
+    extern unsigned int g_textureBindFailures;
+    if (g_textureBindFailures) {
+        std::snprintf(buf, sizeof(buf), "TEX FAIL %u", g_textureBindFailures);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF5050FFu, 1.0f);
+        ty += 12.0f;
+    }
+    extern unsigned int guVramFree(void);
+    std::snprintf(buf, sizeof(buf), "VRAM FREE %uK", guVramFree() / 1024);
+    fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
+    ty += 12.0f;
+    return ty;
+}
+
 static int exitCallback(int , int , void* ) {
     g_exitRequested = 1;
     return 0;
@@ -218,7 +255,7 @@ int main(int argc, char* argv[]) {
 
     while (!g_exitRequested) {
         float now = nowSeconds();
-        fpsFrames++;
+
         if (now - fpsLastTime >= 1.0f) {
             fps = fpsFrames / (now - fpsLastTime);
             fpsFrames = 0;
@@ -308,6 +345,7 @@ int main(int argc, char* argv[]) {
         worldIconsSetLoaded(s.screen == SCREEN_WORLDS || s.screen == SCREEN_DELETE);
 
         if (!guStartFrame(s.screen == SCREEN_GAME ? g_skyColorNow : 0xFF000000u)) continue;
+        fpsFrames++;
 
         if (s.screen == SCREEN_GAME) {
             gameRender(s);
@@ -374,8 +412,6 @@ int main(int argc, char* argv[]) {
                     }
 
                     {
-                        extern unsigned int g_geCallbackLate, g_frameSkips, g_geCbCount;
-
                         extern int g_vblankRegisterFail;
                         if (g_vblankRegisterFail) {
                             char vrBuf[56];
@@ -384,12 +420,12 @@ int main(int argc, char* argv[]) {
                             fontDrawTextShadow(&s.font, 10, ty, vrBuf, 0xFF5050FFu, 1.0f);
                             ty += 12.0f;
                         }
-                        if (g_geCallbackLate || g_frameSkips) {
-                            char gsBuf[72];
-                            std::snprintf(gsBuf, sizeof(gsBuf), "GE-LATE %u  SKIP %u  (cb %u/fr %u)",
-                                          g_geCallbackLate, g_frameSkips,
-                                          g_geCbCount, guFrameId());
-                            fontDrawTextShadow(&s.font, 10, ty, gsBuf, 0xFF5050FFu, 1.0f);
+
+                        extern unsigned int g_vblankLate;
+                        if (g_vblankLate) {
+                            char vbBuf[48];
+                            std::snprintf(vbBuf, sizeof(vbBuf), "VBLANK-LATE %u", g_vblankLate);
+                            fontDrawTextShadow(&s.font, 10, ty, vbBuf, 0xFF5050FFu, 1.0f);
                             ty += 12.0f;
                         }
                     }
@@ -407,7 +443,8 @@ int main(int argc, char* argv[]) {
 
                     {
                         extern unsigned int g_listPeakBytes, g_listOverruns;
-                        if (g_listPeakBytes > (512 * 1024 * 3) / 4 || g_listOverruns) {
+
+                        {
                             char lbBuf[64];
                             std::snprintf(lbBuf, sizeof(lbBuf), "GE-LIST %uK/512K%s",
                                           g_listPeakBytes / 1024,
@@ -516,7 +553,6 @@ int main(int argc, char* argv[]) {
                 extern char g_photoIconPath[320];
                 if (g_photoPending && g_photoIsIcon) {
 
-                    guSuppressNextPresent();
                     guFinishFrame();
                     guSavePhotoPng(g_photoIconPath, 4);
                     g_photoPending = false;
@@ -524,7 +560,6 @@ int main(int argc, char* argv[]) {
                     continue;
                 }
                 if (g_photoPending) {
-                    guSuppressNextPresent();
                     guFinishFrame();
 
                     sceIoMkdir("ms0:/PSP", 0777);
@@ -564,6 +599,8 @@ int main(int argc, char* argv[]) {
 
         if (Screen* cur = menuScreen(s.screen)) cur->render(s);
         menuHintsDraw(s);
+
+        drawFaultCounters(s, 10.0f);
 
         guEndFrame();
     }

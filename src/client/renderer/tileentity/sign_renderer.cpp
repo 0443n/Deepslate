@@ -203,6 +203,7 @@ void renderAllTileEntities(Level* level, float a) {
             default: continue;
         }
         if (!worldColumnDrawn(&g_world, (float)te->x + 0.5f, (float)te->z + 0.5f)) continue;
+        if (!g_level.player) continue;
         float dx = (te->x + 0.5f) - g_level.player->x, dy = (te->y + 0.5f) - g_level.player->y, dz = (te->z + 0.5f) - g_level.player->z;
         if (dx*dx + dy*dy + dz*dz > CULL2) continue;
         if (te->rendererId == TR_SIGN_RENDERER) renderSign((SignTileEntity*)te, a);

@@ -541,6 +541,12 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
     return n;
 }
 
+#if MESH_RESERVE_CHECK
+
+int g_sinkReserved[4] = { 0, 0, 0, 0 };
+unsigned int g_sinkOverruns = 0;
+#endif
+
 int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
                     MeshSink* skp, int* nLava, bool leavesOpaque, bool leavesCull) {
     MeshSink& sk = *skp;
@@ -765,6 +771,7 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
             }
             nd += 6;
         }
+        sinkCommit(&sk, layer, nd);
         sk.n[layer] = nd;
         if (grassSide) sk.n[3] = nOvl;
     }

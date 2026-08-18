@@ -54,7 +54,12 @@ static void setAnim(MobPart* p, float hx, float hy, float pend) {
 
 void SheepRenderer::render(Entity* e, float x, float y, float z, float rot, float a) {
     if (!g_haveBase) { g_haveBase = textureLoad16("data/images/mob/sheep.png", &g_base, GU_PSM_5551); if (!g_haveBase) return; }
-    if (!g_haveFur)  { g_haveFur  = textureLoad16("data/images/mob/sheep_fur.png", &g_fur, GU_PSM_5551); }
+
+    static bool s_furTried = false;
+    if (!g_haveFur && !s_furTried) {
+        g_haveFur = textureLoad16("data/images/mob/sheep_fur.png", &g_fur, GU_PSM_5551);
+        s_furTried = true;
+    }
     build();
     Sheep* sheep = (Sheep*)e;
     Mob* mob = (Mob*)e;

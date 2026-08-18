@@ -109,7 +109,8 @@ void renderEntityShadow(float x, float y, float z, float off, float radius, floa
     sceGuDepthOffset(0);
 
     sceGuEnable(GU_CULL_FACE);
-    sceGuTexWrap(GU_REPEAT, GU_REPEAT);
+    sceGuTexWrap(GU_CLAMP, GU_CLAMP);
+
     sceGuDepthMask(GU_FALSE);
 }
 
@@ -206,7 +207,8 @@ void EntityRenderer::postRender(Entity* entity, float x, float y, float z, float
         particlesEntityFlame(entity->entityId, x, y - entity->heightOffset, z,
                              entity->bbWidth, entity->bbHeight, entity->xd, entity->zd);
     }
-    if (shadowRadius <= 0.0f) return;
+
+    if (shadowRadius <= 0.0f || !g_level.player) return;
     float dx = entity->x - g_level.player->x, dy = entity->y - g_level.player->y, dz = entity->z - g_level.player->z;
     float dist = dx * dx + dy * dy + dz * dz;
     float pow = (1.0f - dist / (16.0f * 16.0f)) * shadowStrength;

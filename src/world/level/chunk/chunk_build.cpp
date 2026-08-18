@@ -11,6 +11,7 @@ extern int g_fancyGraphics;
 extern volatile int g_meshOOM;
 
 #define MESH_PROFILE 0
+
 #if MESH_PROFILE
 unsigned int g_tCount = 0, g_tAlloc = 0, g_tEmit = 0, g_tPack = 0;
 #endif
@@ -122,11 +123,13 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
     if (count == 0) { *outMesh = 0; *outCount = 0; return; }
     ChunkVertex* m = (ChunkVertex*)memalign(16, count * sizeof(ChunkVertex));
     if (!m) { *outMesh = 0; *outCount = 0; *oom = true; return; }
-    meshPass(w, ox, oz, y0, y1, m, layer, 0x7fffffff, leavesOpaque, leavesCull, lavaStart);
-    DrawVertex* d = chunkPack(m, count, ox, y0, oz, ylo, yhi);
+
+    int emitted = meshPass(w, ox, oz, y0, y1, m, layer, 0x7fffffff, leavesOpaque, leavesCull, lavaStart);
+    if (emitted <= 0) { free(m); *outMesh = 0; *outCount = 0; return; }
+    DrawVertex* d = chunkPack(m, emitted, ox, y0, oz, ylo, yhi);
     free(m);
     if (!d) { *outMesh = 0; *outCount = 0; *oom = true; return; }
-    *outMesh = d; *outCount = count;
+    *outMesh = d; *outCount = emitted;
 }
 
 void chunkBuildSection(ChunkMesh* c, const World* w, int si) {

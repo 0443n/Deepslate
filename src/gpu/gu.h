@@ -17,6 +17,8 @@ extern int g_dither;
 
 void guSetDither(int wanted);
 
+int guDitherWanted(void);
+
 unsigned int guFrameId(void);
 
 static inline void* guFrameCopy(const void* src, int bytes) {
@@ -62,8 +64,6 @@ void guEndFrame(void);
 
 void guFinishFrame(void);
 void guPresent(void);
-
-void guSuppressNextPresent(void);
 
 void guSuspendForDialog(void);
 void guResumeFromDialog(void);

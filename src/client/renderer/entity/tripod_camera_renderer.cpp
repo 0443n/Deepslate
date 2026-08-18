@@ -45,6 +45,12 @@ void TripodCameraRenderer::render(Entity* entity, float x, float y, float z,
     unsigned int c = g_brightColor[br];
     float fy = y - cam->heightOffset;
 
+    const bool wantFlash = cam->activated && cam->life < 8 && cam->life > 0;
+    ChunkVertex* vLegs  = (ChunkVertex*)guFrameAlloc(12 * sizeof(ChunkVertex));
+    ChunkVertex* vBox   = (ChunkVertex*)guFrameAlloc(36 * sizeof(ChunkVertex));
+    ChunkVertex* vFlash = wantFlash ? (ChunkVertex*)guFrameAlloc(6 * sizeof(ChunkVertex)) : 0;
+    if (!vLegs || !vBox) return;
+
     if (s_have) textureBindNoMip(&s_tex);
     else        sceGuDisable(GU_TEXTURE_2D);
     sceGuEnable(GU_BLEND);
@@ -58,7 +64,7 @@ void TripodCameraRenderer::render(Entity* entity, float x, float y, float z,
     sceGumTranslate(&tr);
 
     {
-        ChunkVertex* v = (ChunkVertex*)sceGuGetMemory(12 * sizeof(ChunkVertex));
+        ChunkVertex* v = vLegs;
         int n = 0;
         const float r = 0.45f;
         n = quad(v, n, c, -r,0,-r,  r,0,r,  r,1,r,  -r,1,-r,  48,16, 64,32);
@@ -80,7 +86,7 @@ void TripodCameraRenderer::render(Entity* entity, float x, float y, float z,
         float x0 = -4*s, x1 = 4*s;
         float y0 = -4*s, y1 = 4*s;
         float z0 = -6*s, z1 = 4*s;
-        ChunkVertex* v = (ChunkVertex*)sceGuGetMemory(36 * sizeof(ChunkVertex));
+        ChunkVertex* v = vBox;
         int n = 0;
 
         n = quad(v, n, c, x0,y0,z0, x1,y0,z0, x1,y1,z0, x0,y1,z0, 10,10, 18,18);
@@ -93,11 +99,11 @@ void TripodCameraRenderer::render(Entity* entity, float x, float y, float z,
                         GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                         n, 0, v);
 
-        if (cam->activated && cam->life < 8 && cam->life > 0) {
+        if (wantFlash && vFlash) {
             unsigned int fa = (unsigned int)(cam->life * 255 / 8);
             unsigned int fc = (fa << 24) | 0x00FFFFFFu;
             float fz = z0 - 0.04f;
-            ChunkVertex* fv = (ChunkVertex*)sceGuGetMemory(6 * sizeof(ChunkVertex));
+            ChunkVertex* fv = vFlash;
             const float fr = 0.55f;
             int fn = quad(fv, 0, fc, -fr,-fr,fz, fr,-fr,fz, fr,fr,fz, -fr,fr,fz, 48,0, 64,16);
             sceGumDrawArray(GU_TRIANGLES,

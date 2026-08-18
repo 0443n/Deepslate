@@ -46,11 +46,11 @@ void ItemRenderer::render(Entity* entity, float x, float y, float z, float , flo
 
     if (!itemIsFlat2D(id)) {
 
-        if (!g_haveTerrain) return;
+        if (!g_haveTerrain) { sceGuEnable(GU_CULL_FACE); return; }
         static ItemModelRenderer model;
 
         unsigned int lc = dropLight(x, y, z);
-        if (!model.buildShared(id, data, lc)) return;
+        if (!model.buildShared(id, data, lc)) { sceGuEnable(GU_CULL_FACE); return; }
 
         float spin = (ie->age + a) / 20.0f + ie->bobOffs;
 
@@ -86,7 +86,7 @@ void ItemRenderer::render(Entity* entity, float x, float y, float z, float , flo
 
         float u0, v0, u1, v1;
         const Texture* tex = itemFlatIconUV(id, data, &u0, &v0, &u1, &v1);
-        if (!tex) return;
+        if (!tex) { sceGuEnable(GU_CULL_FACE); return; }
 
         const unsigned int c = dropLight(x, y, z);
         const float xo = 0.5f, yo = 0.25f, r = 1.0f;

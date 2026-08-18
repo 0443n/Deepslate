@@ -67,8 +67,11 @@ void PaintingRenderer::render(Entity* entity, float x, float y, float z, float r
     float sv0 = 0.0f,                    sv1 = 16 / 256.0f;
 
     int n = 0;
+
+    const int MESH_MAX = (int)(sizeof(s_mesh) / sizeof(s_mesh[0]));
     for (int xs = 0; xs < w / 16; xs++) {
         for (int ys = 0; ys < h / 16; ys++) {
+            if (n + 36 > MESH_MAX) break;
             float x0 = xx0 + (xs + 1) * 16;
             float x1 = xx0 + (xs) * 16;
             float y0 = yy0 + (ys + 1) * 16;

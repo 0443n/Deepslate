@@ -47,18 +47,36 @@ static unsigned s_emptyCount = 0;
 
 int g_dither = 0;
 
+static int g_ditherWant = 0;
+
 void guSetDither(int wanted) {
+    g_ditherWant = wanted;
     if (wanted && g_dither) sceGuEnable(GU_DITHER);
     else                    sceGuDisable(GU_DITHER);
 }
 
+int guDitherWanted(void) { return g_ditherWant; }
+
 unsigned int guFrameId(void) { return g_frameId; }
+
+static unsigned int g_listUsed = 0;
+
+#define GU_LIST_MARGIN (64 * 1024)
 
 static void* frameAllocUpTo(int bytes, unsigned int limit) {
     if (bytes <= 0) return 0;
     if (g_frameScratch + (unsigned int)bytes > limit) { g_frameAllocFails++; return 0; }
+
+    const unsigned int cost = (((unsigned int)bytes + 3u) & ~3u) + 8u;
+    if (g_listUsed + cost + GU_LIST_MARGIN > sizeof(g_list)) { g_frameAllocFails++; return 0; }
+
     void* p = sceGuGetMemory(bytes);
     if (!p) return 0;
+
+    const unsigned int off = (unsigned int)p - ((unsigned int)g_list | 0x40000000u);
+    if (off < sizeof(g_list)) g_listUsed = off + cost;
+    else                      g_listUsed = sizeof(g_list);
+
     g_frameScratch += (unsigned int)bytes;
     return p;
 }
@@ -75,137 +93,38 @@ static int   g_drawIdx = 0;
 static volatile int g_frontIdx   = 1;
 static volatile int g_pendingIdx = -1;
 
-struct GuSubmitted { signed char idx; bool display; };
-static volatile GuSubmitted g_submitted[GU_FB_COUNT];
-static volatile unsigned    g_submitHead  = 0;
-static volatile unsigned    g_submitCount = 0;
-
-static volatile unsigned    g_geFinished  = 0;
-
 static inline void* guFbAddr(int idx) {
     return (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[idx]);
 }
 
 unsigned int g_drawLiveHits = 0;
-
 unsigned int g_drawLiveNext = 0;
-
 unsigned int g_drawLiveOurs = 0;
 
-unsigned int g_geCallbackLate = 0;
-
-unsigned int g_frameSkips = 0;
+unsigned int g_vblankLate = 0;
 
 int g_vblankRegisterFail = 0;
 
-static bool g_geCallbackSet   = false;
 static bool g_vblankRegistered = false;
 
-static void guMarkSubmitted(int idx, bool display) {
-    int intr = sceKernelCpuSuspendIntr();
-    if (g_submitCount < GU_FB_COUNT) {
-        unsigned tail = (g_submitHead + g_submitCount) % GU_FB_COUNT;
-        g_submitted[tail].idx     = (signed char)idx;
-        g_submitted[tail].display = display;
-        g_submitCount++;
-    }
-    sceKernelCpuResumeIntr(intr);
-}
-
-static bool g_suppressPresent = false;
-void guSuppressNextPresent(void) { g_suppressPresent = true; }
-
-static bool guIsSubmittedLocked(int idx) {
-    for (unsigned o = 0; o < g_submitCount; o++)
-        if (g_submitted[(g_submitHead + o) % GU_FB_COUNT].idx == (signed char)idx) return true;
-    return false;
-}
-
-static void guPublishLocked(void) {
-
-    if (g_geFinished > g_submitCount) g_geFinished = g_submitCount;
-    while (g_submitCount > 0 && g_geFinished > 0) {
-        const int  idx  = g_submitted[g_submitHead].idx;
-        const bool disp = g_submitted[g_submitHead].display;
-        if (disp && g_pendingIdx >= 0) break;
-        g_submitHead = (g_submitHead + 1) % GU_FB_COUNT;
-        g_submitCount--;
-        g_geFinished--;
-
-        if (disp) { g_pendingIdx = idx; break; }
-    }
-}
-
-static void guPublishFinishedGeBuffer(void) {
-    int intr = sceKernelCpuSuspendIntr();
-    guPublishLocked();
-    sceKernelCpuResumeIntr(intr);
-}
-
-static void guApplyPendingDisplay(void) {
-    int intr = sceKernelCpuSuspendIntr();
+static void guVblankHandler(int , void* ) {
     if (g_pendingIdx >= 0) {
         sceDisplaySetFrameBuf(guFbAddr(g_pendingIdx), GU_BUF_WIDTH,
                               PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_IMMEDIATE);
         g_frontIdx   = g_pendingIdx;
         g_pendingIdx = -1;
-
-        guPublishLocked();
-    }
-    sceKernelCpuResumeIntr(intr);
-}
-
-unsigned int g_geCbCount = 0;
-static void guGeFinishCallback(int ) {
-    int intr = sceKernelCpuSuspendIntr();
-    g_geCbCount++;
-    g_geFinished++;
-    guPublishLocked();
-    sceKernelCpuResumeIntr(intr);
-}
-static void guVblankHandler(int , void* ) { guApplyPendingDisplay(); }
-
-static bool guAcquireDrawBuffer(void) {
-    int intr = sceKernelCpuSuspendIntr();
-    bool got = false;
-    if (g_submitCount == 0) {
-        int start = (g_drawIdx + 1) % GU_FB_COUNT;
-        for (int o = 0; o < GU_FB_COUNT; o++) {
-            int idx = (start + o) % GU_FB_COUNT;
-            if (idx == g_frontIdx)   continue;
-            if (idx == g_pendingIdx) continue;
-            if (guIsSubmittedLocked(idx)) continue;
-            g_drawIdx = idx;
-            got = true;
-            break;
-        }
-    }
-    sceKernelCpuResumeIntr(intr);
-    return got;
-}
-
-static void guDrainSynchronously(void) {
-    sceGuSync(0, 0);
-
-    int credit = sceKernelCpuSuspendIntr();
-    g_geFinished = g_submitCount;
-    sceKernelCpuResumeIntr(credit);
-
-    guPublishFinishedGeBuffer();
-    if (g_pendingIdx >= 0) {
-        sceDisplayWaitVblankStart();
-        guApplyPendingDisplay();
-    }
-    if (g_submitCount > 0) {
-        guPublishFinishedGeBuffer();
-        if (g_pendingIdx >= 0) {
-            sceDisplayWaitVblankStart();
-            guApplyPendingDisplay();
-        }
     }
 }
 
-void guWaitGeIdle(void) { guDrainSynchronously(); }
+static int guAcquireDrawBuffer(int from) {
+    for (int i = 0; i < GU_FB_COUNT; i++) {
+        int cand = (from + i) % GU_FB_COUNT;
+        if (cand != g_frontIdx && cand != g_pendingIdx) return cand;
+    }
+    return from;
+}
+
+void guWaitGeIdle(void) { sceGuSync(0, 0); }
 
 static unsigned int guMemSize(unsigned int width, unsigned int height,
                               unsigned int psm) {
@@ -268,7 +187,8 @@ void guInit(void) {
 
     sceGuOffset(2048 - (GU_SCR_WIDTH / 2), 2048 - (GU_SCR_HEIGHT / 2));
     sceGuViewport(2048, 2048, GU_SCR_WIDTH, GU_SCR_HEIGHT);
-    sceGuDepthRange(65535, 0);
+
+    sceGuDepthRange(0xc350, 0x2710);
 
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
     sceGuEnable(GU_SCISSOR_TEST);
@@ -291,6 +211,14 @@ void guInit(void) {
     sceGuSetDither(&dither);
     guSetDither(1);
 
+    sceGuEnable(GU_TEXTURE_2D);
+    sceGuTexMode(GU_PSM_8888, 0, 0, 0);
+    sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+
+    sceGuTexFilter(GU_NEAREST, GU_NEAREST);
+    sceGuAlphaFunc(GU_GREATER, 0, 0xff);
+    sceGuEnable(GU_ALPHA_TEST);
+
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
 
@@ -303,19 +231,7 @@ void guInit(void) {
     g_frontIdx   = 1;
     g_drawIdx    = 0;
     g_pendingIdx = -1;
-    g_submitHead = 0;
-    g_submitCount = 0;
-    g_geFinished = 0;
 
-    sceGuSetCallback(GU_CALLBACK_FINISH, guGeFinishCallback);
-    g_geCallbackSet = true;
-
-    int rc = sceKernelRegisterSubIntrHandler(PSP_VBLANK_INT, 0, (void*)guVblankHandler, 0);
-    if (rc >= 0 && sceKernelEnableSubIntr(PSP_VBLANK_INT, 0) >= 0) {
-        g_vblankRegistered = true;
-    } else {
-        g_vblankRegisterFail = (rc < 0) ? rc : -1;
-    }
 }
 
 void guTerm(void) {
@@ -325,31 +241,13 @@ void guTerm(void) {
         sceKernelReleaseSubIntrHandler(PSP_VBLANK_INT, 0);
         g_vblankRegistered = false;
     }
-    if (g_geCallbackSet) {
-        sceGuSetCallback(GU_CALLBACK_FINISH, 0);
-        g_geCallbackSet = false;
-    }
     sceGuTerm();
 }
 
 bool guStartFrame(unsigned int clearColor) {
-
-    int tries = 0;
-
-    const int maxTries = (g_geCallbackLate > 2) ? 0 : 8;
-    while (!guAcquireDrawBuffer()) {
-        if (tries >= maxTries) {
-            g_geCallbackLate++;
-            guDrainSynchronously();
-            if (!guAcquireDrawBuffer()) { g_frameSkips++; return false; }
-            break;
-        }
-        sceDisplayWaitVblankStartCB();
-        tries++;
-    }
-
     sceGuStart(GU_DIRECT, g_listUncached);
     g_frameScratch = 0;
+    g_listUsed     = 0;
     g_frameId++;
 
 #if DIAG_OVERLAY
@@ -360,8 +258,21 @@ bool guStartFrame(unsigned int clearColor) {
         g_drawLiveHits++;
         g_drawLiveOurs++;
         profAdd(PROFC_DRAWLIVE, 1);
+        g_drawIdx = guAcquireDrawBuffer(g_drawIdx);
     }
     sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
+
+    sceGuDepthFunc(GU_GEQUAL);
+    sceGuEnable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_FALSE);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuFrontFace(GU_CW);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuEnable(GU_ALPHA_TEST);
+    sceGuAlphaFunc(GU_GREATER, 0, 0xff);
+    sceGuDisable(GU_FOG);
+    sceGuEnable(GU_TEXTURE_2D);
 
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
 
@@ -375,9 +286,6 @@ void guFinishFrame(void) {
 
     profBegin(PROF_GESYNC);
 
-    const bool display = !g_suppressPresent;
-    g_suppressPresent = false;
-    guMarkSubmitted(g_drawIdx, display);
     unsigned listBytes = (unsigned)sceGuFinish();
     profListBytes(listBytes);
 
@@ -435,8 +343,9 @@ void guFinishFrame(void) {
         }
     }
 
+    sceGuSync(0, 0);
+
 #if DIAG_OVERLAY
-    guWaitGeIdle();
     {
 
         extern bool g_photoPending;
@@ -486,6 +395,15 @@ void guFinishFrame(void) {
 
 void guPresent(void) {
 
+    sceDisplaySetFrameBuf(guFbAddr(g_drawIdx), GU_BUF_WIDTH,
+                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
+    g_frontIdx = g_drawIdx;
+
+    profBegin(PROF_VBLANK);
+    sceDisplayWaitVblankStart();
+    profEnd(PROF_VBLANK);
+
+    g_drawIdx = guAcquireDrawBuffer((g_drawIdx + 1) % GU_FB_COUNT);
 }
 
 void guSuspendForDialog(void) {
@@ -495,38 +413,27 @@ void guSuspendForDialog(void) {
         sceKernelReleaseSubIntrHandler(PSP_VBLANK_INT, 0);
         g_vblankRegistered = false;
     }
-    if (g_geCallbackSet) {
-        sceGuSetCallback(GU_CALLBACK_FINISH, 0);
-        g_geCallbackSet = false;
-    }
     int intr = sceKernelCpuSuspendIntr();
-    g_submitHead = 0; g_submitCount = 0; g_geFinished = 0; g_pendingIdx = -1;
+    g_pendingIdx = -1;
     sceKernelCpuResumeIntr(intr);
-    g_suppressPresent = false;
 }
 
 void guResumeFromDialog(void) {
     sceGuSync(0, 0);
     int intr = sceKernelCpuSuspendIntr();
-    g_submitHead = 0; g_submitCount = 0; g_geFinished = 0; g_pendingIdx = -1;
+    g_pendingIdx = -1;
     sceKernelCpuResumeIntr(intr);
-    g_suppressPresent = false;
 
     sceDisplaySetFrameBuf(guFbAddr(g_frontIdx), GU_BUF_WIDTH,
                           PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
     sceDisplayWaitVblankStart();
 
-    sceGuSetCallback(GU_CALLBACK_FINISH, guGeFinishCallback);
-    g_geCallbackSet = true;
-    if (sceKernelRegisterSubIntrHandler(PSP_VBLANK_INT, 0, (void*)guVblankHandler, 0) >= 0 &&
-        sceKernelEnableSubIntr(PSP_VBLANK_INT, 0) >= 0) {
-        g_vblankRegistered = true;
-    }
 }
 
 void guDialogBegin(unsigned int clearColor) {
     sceGuStart(GU_DIRECT, g_listUncached);
     g_frameScratch = 0;
+    g_listUsed     = 0;
     g_frameId++;
     sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);

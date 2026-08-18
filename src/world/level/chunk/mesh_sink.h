@@ -14,12 +14,32 @@ struct MeshSink {
     void*        ctx;
 };
 
+#ifndef MESH_RESERVE_CHECK
+#define MESH_RESERVE_CHECK 0
+#endif
+
+#if MESH_RESERVE_CHECK
+extern int g_sinkReserved[4];
+extern unsigned int g_sinkOverruns;
+#endif
+
 static inline bool sinkReserve(MeshSink* sk, int layer, int need) {
+#if MESH_RESERVE_CHECK
+    g_sinkReserved[layer] = need;
+#endif
     if (sk->n[layer] + need <= sk->cap[layer]) return true;
     if (!sk->flush) return false;
     if (!sk->flush(sk, layer)) return false;
 
     return need <= sk->cap[layer];
+}
+
+static inline void sinkCommit(MeshSink* sk, int layer, int nd) {
+#if MESH_RESERVE_CHECK
+    if (nd - sk->n[layer] > g_sinkReserved[layer]) g_sinkOverruns++;
+#else
+    (void)sk; (void)layer; (void)nd;
+#endif
 }
 
 static inline int sinkCount(const MeshSink* sk, int layer) {

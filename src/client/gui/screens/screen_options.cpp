@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 
 #include "client/gui/screens/menu.h"
 #include "client/gui/screens/screen.h"
@@ -47,8 +48,6 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { 0,       "Dead Zone",     {0, 0, 0, 0}, 11, 4, true, 0, 5 },
         { 0,       "Invert Y-axis", {"Off", "On", 0, 0}, 2, 0 },
         { 0,       "Auto Jump",     {"Off", "On", 0, 0}, 2, 1 },
-
-        { 0,       "Auto Swim",     {"Off", "On", 0, 0}, 2, 0 },
         { 0,       "Block Outline", {"Off", "On", 0, 0}, 2, 1 },
         { 0,       "Show Coordinates", {"Off", "On", 0, 0}, 2, 0 },
     },
@@ -78,7 +77,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
 };
 
-static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 7, 11, 1 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 6, 11, 1 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
@@ -94,7 +93,6 @@ extern int   g_difficulty;
 extern int   g_autosave;
 extern int   g_blockOutline;
 extern int   g_autoJump;
-extern int   g_autoSwim;
 extern int   g_dither;
 extern int   g_barOnTop;
 extern float g_sensitivity;
@@ -133,9 +131,8 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 #define ROW_DEADZONE     1
 #define ROW_INVERTY      2
 #define ROW_AUTOJUMP     3
-#define ROW_AUTOSWIM     4
-#define ROW_BLOCKOUTLINE 5
-#define ROW_SHOWCOORDS   6
+#define ROW_BLOCKOUTLINE 4
+#define ROW_SHOWCOORDS   5
 
 #define CAT_GAME        0
 #define ROW_DIFFICULTY  0
@@ -178,7 +175,6 @@ static void optionsApply() {
     g_autosave    = kAutosaveTicks[ai];
     g_blockOutline = g_optionValueIdx[CAT_CONTROLS][ROW_BLOCKOUTLINE];
     g_autoJump     = g_optionValueIdx[CAT_CONTROLS][ROW_AUTOJUMP];
-    g_autoSwim     = g_optionValueIdx[CAT_CONTROLS][ROW_AUTOSWIM];
     g_dither       = g_optionValueIdx[CAT_GRAPHICS][ROW_DITHER];
     g_difficulty  = g_optionValueIdx[CAT_GAME][ROW_DIFFICULTY];
     soundSetVolume(g_optionValueIdx[CAT_AUDIO][ROW_SOUNDVOL] / 10.0f);
@@ -257,9 +253,9 @@ void optionsLoad() {
     optionsApply();
 }
 
-#define OPT_CAT_BTN    24.0f
+#define OPT_CAT_BTN    26.0f
 #define OPT_CAT_PITCH  27.0f
-#define OPT_CAT_X       5.0f
+#define OPT_CAT_X       4.0f
 
 #define OPT_CAT_ICON   24.0f
 static const float kCatIconUV[OPT_CATEGORIES][2] = {
@@ -384,7 +380,7 @@ void OptionsScreen::renderContent(MenuState& s) {
         float catSpan = catBtn * OPT_CATEGORIES + (catPitch - catBtn) * (OPT_CATEGORIES - 1);
 
         const float hintsTop = UI_HINTS_Y / UI_SCALE - 1.0f;
-        float catY0 = barBtnH + 3.0f + ((hintsTop - barBtnH - 3.0f) - catSpan) / 2.0f;
+        float catY0 = floorf(barBtnH + 3.0f + ((hintsTop - barBtnH - 3.0f) - catSpan) / 2.0f);
         for (int i = 0; i < OPT_CATEGORIES; i++) {
             bool tabActive = (optCategory == i);
             float cY = catY0 + i * catPitch;
@@ -395,10 +391,12 @@ void OptionsScreen::renderContent(MenuState& s) {
 
                 textureBind(&s.guiAtlas);
 
-                const float isz = catBtn * OPT_CAT_ICON / 28.0f;
-                const float ioff = catBtn * 2.0f / 28.0f;
-                spriteDraw(&s.guiAtlas, (OPT_CAT_X + ioff) * UI_SCALE, (cY + ioff) * UI_SCALE,
-                           isz * UI_SCALE, isz * UI_SCALE,
+                const float isz = OPT_CAT_ICON * UI_SCALE;
+                const float ix = floorf(OPT_CAT_X * UI_SCALE + (catBtn * UI_SCALE - isz) / 2.0f);
+                float iy = floorf(cY * UI_SCALE + (catBtn * UI_SCALE - isz) / 2.0f);
+
+                if (i == CAT_AUDIO) iy += 2.0f;
+                spriteDraw(&s.guiAtlas, ix, iy, isz, isz,
                            GA_SS_OPTCAT_X + kCatIconUV[i][0],
                            GA_SS_OPTCAT_Y + kCatIconUV[i][1], OPT_CAT_ICON, OPT_CAT_ICON, WHITE);
             } else {
@@ -416,7 +414,7 @@ void OptionsScreen::renderContent(MenuState& s) {
         float rowH = kOptRowH;
         float paneY0 = barBtnH + 3.0f;
 
-        float paneH  = (UI_HINTS_Y / UI_SCALE - 1.0f) - paneY0;
+        float paneH  = (UI_HINTS_Y / UI_SCALE - 1.0f) - paneY0 + 3.0f / UI_SCALE;
         float contentH = optionPaneHeight(optCategory);
 
         float selY = optionRowY(optCategory, optItemHighlight, 0.0f);
@@ -494,8 +492,11 @@ void OptionsScreen::renderContent(MenuState& s) {
                 }
 
                 float progress = (nVals > 1) ? (float)valIdx / (float)(nVals - 1) : 0.0f;
-                uiDraw(s, (trackX0 + barWidth * progress - 5.0f) * UI_SCALE, sliderY * UI_SCALE,
-                       11.0f * UI_SCALE, 17.0f * UI_SCALE, 225.0f, 125.0f,
+
+                float knobCx = (trackX0 + barWidth * progress) * UI_SCALE;
+                float knobCy = (sliderY + 8.5f) * UI_SCALE;
+                uiDraw(s, floorf(knobCx - 11.0f), floorf(knobCy - 17.0f),
+                       22.0f, 34.0f, 225.0f, 125.0f,
                        GA_SS_SLIDER_KNOB_X, GA_SS_SLIDER_KNOB_Y, 11.0f, 17.0f, WHITE);
 
                 if (valTxt)

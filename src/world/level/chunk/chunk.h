@@ -148,7 +148,6 @@ static inline bool isCubeShaped(unsigned char id) { return Tile::tiles[id]->cube
 static inline bool isSolidBlocking(unsigned char id) { return Tile::tiles[id]->solidPhys; }
 
 static inline bool autoJumpable(unsigned char id, unsigned char data) {
-    if (isStairs(id)) return false;
     if (isSlab(id))   return (data & SLAB_TOP_SLOT_BIT) != 0;
     if (isFence(id) || isFenceGate(id)) return false;
     if (isTrapdoor(id) || isSign(id))   return false;
