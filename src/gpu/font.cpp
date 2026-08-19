@@ -53,6 +53,10 @@ void fontFree(Font* f) {
 }
 
 static void drawGlyphs(const Font* f, float x, float y, const char* text, unsigned int color, float scale) {
+
+    const int ditherPrev = guDitherWanted();
+    guSetDither(0);
+
     textureBind(&f->tex);
 
     float cursorX = x, cursorY = y;
@@ -73,6 +77,7 @@ static void drawGlyphs(const Font* f, float x, float y, const char* text, unsign
         cursorX += f->charWidth[ch] * scale;
         guMark(GU_MARK_UI_TEXT);
     }
+    guSetDither(ditherPrev);
 }
 
 void fontDrawText(const Font* f, float x, float y, const char* text, unsigned int color, float scale) {

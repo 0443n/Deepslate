@@ -4,6 +4,8 @@
 
 struct PngReader;
 
+extern char g_pngLastError[64];
+
 PngReader* pngOpen(const char* path, int* outW, int* outH);
 
 bool pngReadRow(PngReader* r, unsigned char* rgbaRow);

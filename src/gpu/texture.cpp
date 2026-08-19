@@ -21,6 +21,19 @@ static int nextPow2(int v) {
 unsigned int g_textureBindFailures = 0;
 char g_textureLastFailed[80] = "";
 
+unsigned int g_textureLoadFailures = 0;
+const char*  g_textureFailReason = "";
+unsigned int g_textureFailHeapUsed = 0;
+unsigned int g_textureFailHeapBig  = 0;
+
+static unsigned int probeLargestBlock(void) {
+    for (unsigned int sz = 1u << 20; sz >= 4096u; sz >>= 1) {
+        void* p = malloc(sz);
+        if (p) { free(p); return sz; }
+    }
+    return 0;
+}
+
 static char s_failed[32][80];
 static int  s_failedCount = 0;
 static bool alreadyFailed(const char* path) {
@@ -30,7 +43,15 @@ static bool alreadyFailed(const char* path) {
 }
 void textureForgetFailures() { s_failedCount = 0; }
 
-static void markFailed(const char* path) {
+static void markFailed(const char* path, const char* why, bool optional = false) {
+    if (optional) return;
+    g_textureLoadFailures++;
+    {
+        struct mallinfo mi = mallinfo();
+        g_textureFailHeapUsed = (unsigned int)mi.uordblks;
+        g_textureFailHeapBig  = probeLargestBlock();
+    }
+    g_textureFailReason = why;
     std::strncpy(g_textureLastFailed, path, sizeof(g_textureLastFailed) - 1);
     g_textureLastFailed[sizeof(g_textureLastFailed) - 1] = 0;
     if (s_failedCount >= (int)(sizeof(s_failed) / sizeof(s_failed[0]))) return;
@@ -66,7 +87,8 @@ static void texFree(bool vram, void* p) {
     if (vram) guVramFreeTexture(p); else free(p);
 }
 
-static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVram = false) {
+static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVram = false,
+                           bool optional = false) {
 #if TEXTURE_FORCE_8888
     psm = GU_PSM_8888;
 #endif
@@ -77,7 +99,8 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVra
     int w = 0, h = 0;
     PngReader* png = pngOpen(path, &w, &h);
     if (!png) {
-        markFailed(path);
+
+        markFailed(path, g_pngLastError[0] ? g_pngLastError : "open", optional);
         return false;
     }
 
@@ -90,8 +113,9 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVra
 
     void* data = texAlloc(wantVram, bytes, &out->vram);
     if (!data) {
+
         pngClose(png);
-        markFailed(path);
+        markFailed(path, "mem", optional);
         return false;
     }
     memset(data, 0, bytes);
@@ -100,15 +124,16 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVra
     if (!row) {
         texFree(out->vram, data);
         pngClose(png);
-        markFailed(path);
+        markFailed(path, "row", optional);
         return false;
     }
     for (int y = 0; y < h; y++) {
         if (!pngReadRow(png, row)) {
+
             free(row);
             texFree(out->vram, data);
             pngClose(png);
-            markFailed(path);
+            markFailed(path, g_pngLastError[0] ? g_pngLastError : "decode", optional);
             return false;
         }
         if (is16) {
@@ -144,6 +169,10 @@ bool textureLoad4444(const char* path, Texture* out) {
 
 bool textureLoad16(const char* path, Texture* out, int psm) {
     return textureLoadPsm(path, out, psm);
+}
+
+bool textureLoad16Optional(const char* path, Texture* out, int psm) {
+    return textureLoadPsm(path, out, psm, false, true);
 }
 
 bool textureLoadVram(const char* path, Texture* out, int psm) {

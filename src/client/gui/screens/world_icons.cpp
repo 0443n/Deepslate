@@ -34,7 +34,7 @@ Texture* worldIcon(const char* name) {
     char rel[320];
     std::snprintf(rel, sizeof(rel), "saves/%s/icon.png", name);
 
-    victim->have = textureLoad16(assetPath(rel), &victim->tex, GU_PSM_5650);
+    victim->have = textureLoad16Optional(assetPath(rel), &victim->tex, GU_PSM_5650);
     return victim->have ? &victim->tex : 0;
 }
 

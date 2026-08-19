@@ -15,6 +15,8 @@ int ItemPack::getCount(int id) const {
     return it->second;
 }
 
+static inline bool isAnyAuxKey(int key) { return ((key + 256) & 511) == 255; }
+
 int ItemPack::getMaxMultipliesOf(const ItemPack& v) const {
     if (v.items.empty()) return 0;
     int minCount = 99;
@@ -23,11 +25,21 @@ int ItemPack::getMaxMultipliesOf(const ItemPack& v) const {
     while (it != v.items.end()) {
         if (it->first <= 0) { ++it; continue; }
 
-        Map::const_iterator jt = items.find(it->first);
-        if (jt == items.end()) return 0;
+        int have;
+        if (isAnyAuxKey(it->first)) {
+
+            const int id = (it->first + 256) / 512;
+            have = getCount(it->first);
+            for (int aux = 0; aux < 16; aux++) have += getCount(id * 512 + aux);
+        } else {
+            Map::const_iterator jt = items.find(it->first);
+            if (jt == items.end()) return 0;
+            have = jt->second;
+        }
+        if (have == 0)         return 0;
         if (it->second == 0)   return 0;
 
-        int count = jt->second / it->second;
+        int count = have / it->second;
         if (count == 0) return 0;
         if (count < minCount) minCount = count;
         ++it;
@@ -63,7 +75,8 @@ ItemInstance ItemPack::getItemInstanceForId(int id) {
 bool Recipe::isAnyAuxValue(int id) {
     bool isTile = id < 256;
     if (!isTile) return false;
-    if (id == BLOCK_WOOL || id == BLOCK_SLAB || id == BLOCK_SANDSTONE)
+    if (id == BLOCK_WOOL || id == BLOCK_SLAB || id == BLOCK_SANDSTONE ||
+        id == BLOCK_QUARTZ_BLOCK)
         return false;
     return true;
 }

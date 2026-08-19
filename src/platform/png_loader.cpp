@@ -3,6 +3,7 @@
 #include <png.h>
 #include <cstdio>
 #include <cstdlib>
+#include <csetjmp>
 
 struct PngReader {
     png_structp png;
@@ -10,11 +11,27 @@ struct PngReader {
     FILE*       fp;
 };
 
+char g_pngLastError[64] = "";
+
+static void pngErrorFn(png_structp png, png_const_charp msg) {
+    if (msg) {
+        int i = 0;
+        for (; msg[i] && i < (int)sizeof(g_pngLastError) - 1; i++) g_pngLastError[i] = msg[i];
+        g_pngLastError[i] = 0;
+    }
+
+    longjmp(png_jmpbuf(png), 1);
+}
+
+static void pngWarnFn(png_structp, png_const_charp) {}
+
 PngReader* pngOpen(const char* path, int* outW, int* outH) {
     FILE* fp = fopen(path, "rb");
     if (!fp) return 0;
 
-    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    g_pngLastError[0] = 0;
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0,
+                                             pngErrorFn, pngWarnFn);
     if (!png) { fclose(fp); return 0; }
     png_infop info = png_create_info_struct(png);
     if (!info) { png_destroy_read_struct(&png, 0, 0); fclose(fp); return 0; }

@@ -65,6 +65,10 @@ static void detectLowMemPsp(void) {
 static volatile int g_exitRequested = 0;
 
 static float drawFaultCounters(MenuState& s, float ty) {
+#if !MCPSP_DIAG
+    (void)s; return ty;
+#else
+
     extern unsigned int g_listPeakBytes, g_listOverruns;
     char buf[80];
 
@@ -104,7 +108,25 @@ static float drawFaultCounters(MenuState& s, float ty) {
         ty += 12.0f;
     }
 
+    extern unsigned int g_textureLoadFailures;
+    extern const char*  g_textureFailReason;
+    extern char g_textureLastFailed[80];
+    if (g_textureLoadFailures) {
+        const char* base = std::strrchr(g_textureLastFailed, '/');
+
+        extern unsigned int g_textureFailHeapUsed, g_textureFailHeapBig;
+        std::snprintf(buf, sizeof(buf), "TEX %u %s (%s) big %uK used %uK vram %uK",
+                      g_textureLoadFailures,
+                      base ? base + 1 : g_textureLastFailed,
+                      g_textureFailReason,
+                      g_textureFailHeapBig / 1024, g_textureFailHeapUsed / 1024,
+                      guVramFree() / 1024);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF5050FFu, 1.0f);
+        ty += 12.0f;
+    }
+
     return ty;
+#endif
 }
 
 static int exitCallback(int , int , void* ) {
@@ -224,6 +246,11 @@ int main(int argc, char* argv[]) {
     s.haveFont         = loadFnt(&s.font, "data/images/font/default8.png");
 
     s.haveGui          = loadTexVram(&s.guiAtlas, "data/images/gui/gui_game.png", GU_PSM_4444);
+
+    extern bool g_haveGuiBlocks;
+    extern Texture g_guiBlocks;
+    if (!g_haveGuiBlocks)
+        g_haveGuiBlocks = loadTexVram(&g_guiBlocks, "data/images/gui/gui_blocks.png", GU_PSM_5551);
     s.haveLogo         = loadTex16(&s.logo, "data/images/gui/title.png", GU_PSM_5551);
     s.haveBg           = loadTex(&s.dirtBg, "data/images/gui/background.png");
     s.haveTouch        = loadTex(&s.touchGui, "data/images/gui/touchgui.png");
@@ -278,6 +305,7 @@ int main(int argc, char* argv[]) {
                                                   PSP_CTRL_VOLUP | PSP_CTRL_VOLDOWN);
         unsigned int pressed = currentBtn & ~lastBtn;
 
+#if MCPSP_DIAG
         {
             const unsigned int DUMP = PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER | PSP_CTRL_SELECT;
             static bool s_dumpHeld = false;
@@ -285,6 +313,8 @@ int main(int argc, char* argv[]) {
             if (held && !s_dumpHeld) guDumpFrameLog();
             s_dumpHeld = held;
         }
+#endif
+
         g_heldButtons = currentBtn;
         lastBtn = currentBtn;
 
@@ -403,6 +433,7 @@ int main(int argc, char* argv[]) {
                         }
                     }
 #endif
+#if MCPSP_DIAG
 
                     {
                         extern unsigned int g_frameAllocFails;
@@ -463,6 +494,7 @@ int main(int argc, char* argv[]) {
                                            0xFF5050FFu, 1.0f);
                         ty += 12.0f;
                     }
+#endif
 #if MEM_OVERLAY
 
                     if (g_worldBuilt) {
@@ -602,7 +634,6 @@ int main(int argc, char* argv[]) {
 
     soundShutdown();
     worldGenWorkerStop();
-    guDumpFrameLog();
 
     if (s.haveFont)  fontFree(&s.font);
     if (s.haveGui)   textureFree(&s.guiAtlas);

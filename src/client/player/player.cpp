@@ -19,7 +19,6 @@
 #include "client/gui/hud.h"
 #include "client/gui/inventory_ui.h"
 #include "util/prof.h"
-#include "gpu/gu.h"
 
 #include <cmath>
 #include <cstdio>
@@ -317,8 +316,6 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
     if (pressed & PSP_CTRL_SELECT) {
         g_paused = true;
         g_pauseSel = 0;
-
-        guDumpFrameLog();
 
         soundStopAll();
         return;

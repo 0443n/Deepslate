@@ -94,7 +94,11 @@ struct FrameRec {
 };
 
 #ifndef GU_TRACE_FRAMES
+#if MCPSP_DIAG
 #define GU_TRACE_FRAMES 512
+#else
+#define GU_TRACE_FRAMES 0
+#endif
 #endif
 #if GU_TRACE_FRAMES > 0
 static FrameRec s_trace[GU_TRACE_FRAMES];
@@ -235,7 +239,9 @@ void guInit(void) {
 
     for (int i = 0; i < GU_LIST_COUNT; i++) {
         g_listUncached[i] = (void*)((unsigned int)g_list[i] | 0x40000000u);
+#if MCPSP_DIAG
         canaryArm(guListCanary(i));
+#endif
     }
     g_listIdx = 0;
 
@@ -338,6 +344,8 @@ bool guStartFrame(unsigned int clearColor) {
     sceGuAlphaFunc(GU_GREATER, 0, 0xff);
     sceGuDisable(GU_FOG);
     sceGuEnable(GU_TEXTURE_2D);
+
+    guSetDither(0);
 
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
 
@@ -709,7 +717,8 @@ bool guSavePhotoPng(const char* path, int shrink) {
 }
 
 void guOrtho(void) {
-    guSetDither(0);
+
+    guSetDither(1);
     sceGumMatrixMode(GU_PROJECTION);
     sceGumLoadIdentity();
     sceGumOrtho(0, GU_SCR_WIDTH, GU_SCR_HEIGHT, 0, -1.0f, 1.0f);
@@ -735,6 +744,9 @@ void guPerspective(float fovDeg, float nearZ, float farZ) {
 }
 
 #include "platform/path.h"
+#if !MCPSP_DIAG
+void guDumpFrameLog(void) {}
+#else
 void guDumpFrameLog(void) {
     FILE* fp = fopen(assetPath("framelog.csv"), "w");
     if (!fp) fp = fopen("ms0:/framelog.csv", "w");
@@ -803,3 +815,4 @@ void guDumpFrameLog(void) {
     }
 #endif
 }
+#endif

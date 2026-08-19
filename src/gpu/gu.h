@@ -19,6 +19,10 @@ void guSetDither(int wanted);
 
 int guDitherWanted(void);
 
+#ifndef MCPSP_DIAG
+#define MCPSP_DIAG 0
+#endif
+
 extern unsigned int g_frameMarks;
 
 extern unsigned int g_canaryBroken;
@@ -47,7 +51,11 @@ enum {
     GU_MARK_COUNT
 };
 
+#if MCPSP_DIAG
 static inline void guMark(int bit) { g_frameMarks |= (1u << bit); }
+#else
+static inline void guMark(int) {}
+#endif
 
 unsigned int guFrameId(void);
 

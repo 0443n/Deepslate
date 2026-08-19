@@ -514,8 +514,9 @@ static void renderCloudsFast(float alpha, float px, float py, float pz) {
             float step = (float)s / sub;
             for (int i = 0; i < sub; i++) {
                 for (int j = 0; j < sub; j++) {
-                    float wx0 = xx + i * step,  wx1 = wx0 + step;
-                    float wz0 = zz + j * step,  wz1 = wz0 + step;
+
+                    float wx0 = xx + i * step,  wx1 = xx + (i + 1) * step;
+                    float wz0 = zz + j * step,  wz1 = zz + (j + 1) * step;
                     float u0 = (wx0 + xo) * scale, u1 = (wx1 + xo) * scale;
                     float v0 = (wz0 + zo) * scale, v1 = (wz1 + zo) * scale;
 
@@ -605,7 +606,8 @@ static void renderCloudsFancy(float alpha, float px, float py, float pz) {
                 float x0 = gridPx + cx * qS, z0 = gridPz + cz * qS;
                 if (!isSolid(x0, z0)) continue;
                 if (n + CLOUD_SUB_VERTS > CLOUD_MAX_VERTS) break;
-                float x1 = x0 + qS, z1 = z0 + qS;
+
+                float x1 = gridPx + (cx + 1) * qS, z1 = gridPz + (cz + 1) * qS;
                 float y0 = CLOUD_HEIGHT - CLOUD_THICKNESS, y1 = CLOUD_HEIGHT;
 
                 float texX = fmodf(x0 + snappedOffset, texW * qS); if (texX < 0) texX += texW * qS;
@@ -632,10 +634,10 @@ static void renderCloudsFancy(float alpha, float px, float py, float pz) {
                 float sx = qS / sub, sy = CLOUD_THICKNESS / vsub;
 
                 for (int i = 0; i < sub; i++) {
-                    float ax0 = x0 + i * sx, ax1 = ax0 + sx;
+                    float ax0 = x0 + i * sx, ax1 = x0 + (i + 1) * sx;
                     float au0 = u0 + (u1 - u0) * i / sub, au1 = u0 + (u1 - u0) * (i + 1) / sub;
                     for (int j = 0; j < sub; j++) {
-                        float az0 = z0 + j * sx, az1 = az0 + sx;
+                        float az0 = z0 + j * sx, az1 = z0 + (j + 1) * sx;
                         float av0 = v0 + (v1 - v0) * j / sub, av1 = v0 + (v1 - v0) * (j + 1) / sub;
 
                         CLOUD_QUAD(au0, av0, au1, av1, colorBottom,
@@ -644,7 +646,8 @@ static void renderCloudsFancy(float alpha, float px, float py, float pz) {
                                    ax0,y1,az0, ax1,y1,az0, ax0,y1,az1, ax1,y1,az1);
 
                         for (int k = 0; k < vsub; k++) {
-                            float ay0 = y0 + k * sy, ay1 = ay0 + sy;
+
+                            float ay0 = y0 + k * sy, ay1 = y0 + (k + 1) * sy;
                             if (openL && i == 0)
                                 CLOUD_QUAD(uM,vM,uM,vM, colorSide, x0,ay1,az0, x0,ay1,az1, x0,ay0,az0, x0,ay0,az1);
                             if (openR && i == sub - 1)
@@ -1393,29 +1396,38 @@ void gameRender(MenuState& s) {
             for (int ddy = -1; ddy <= 1; ddy++)
             for (int ddz = -1; ddz <= 1; ddz++) {
                 int bxx = cbx + ddx, byy = cby + ddy, bzz = cbz + ddz;
-                if (!isSolidPhys(worldBlock(&g_world, bxx, byy, bzz))) continue;
+                unsigned char bid = worldBlock(&g_world, bxx, byy, bzz);
+                if (!isSolidPhys(bid)) continue;
 
-                float cx = nearOx < bxx ? bxx : (nearOx > bxx + 1 ? bxx + 1 : nearOx);
-                float cy = nearOy < byy ? byy : (nearOy > byy + 1 ? byy + 1 : nearOy);
-                float cz = nearOz < bzz ? bzz : (nearOz > bzz + 1 ? bzz + 1 : nearOz);
-                float vx = nearOx - cx, vy = nearOy - cy, vz = nearOz - cz;
-                float d2 = vx * vx + vy * vy + vz * vz;
-                if (d2 >= CLEAR * CLEAR) continue;
-                if (d2 > 1e-8f) {
-                    float d = sqrtf(d2), push = (CLEAR - d) / d;
-                    nearOx += vx * push; nearOy += vy * push; nearOz += vz * push;
-                } else {
-                    float ex0 = nearOx - bxx, ex1 = (bxx + 1) - nearOx;
-                    float ey0 = nearOy - byy, ey1 = (byy + 1) - nearOy;
-                    float ez0 = nearOz - bzz, ez1 = (bzz + 1) - nearOz;
-                    float mx = ex0 < ex1 ? -(ex0 + CLEAR) : (ex1 + CLEAR);
-                    float my = ey0 < ey1 ? -(ey0 + CLEAR) : (ey1 + CLEAR);
-                    float mz = ez0 < ez1 ? -(ez0 + CLEAR) : (ez1 + CLEAR);
-                    if (fabsf(mx) <= fabsf(my) && fabsf(mx) <= fabsf(mz)) nearOx += mx;
-                    else if (fabsf(my) <= fabsf(mz)) nearOy += my;
-                    else nearOz += mz;
+                float bx[3][6];
+                int nb = tileShapeBoxes(&g_world, bxx, byy, bzz, bid,
+                                        worldData(&g_world, bxx, byy, bzz), bx);
+                for (int b = 0; b < nb; b++) {
+                    const float x0 = bx[b][0], y0 = bx[b][1], z0 = bx[b][2];
+                    const float x1 = bx[b][3], y1 = bx[b][4], z1 = bx[b][5];
+
+                    float cx = nearOx < x0 ? x0 : (nearOx > x1 ? x1 : nearOx);
+                    float cy = nearOy < y0 ? y0 : (nearOy > y1 ? y1 : nearOy);
+                    float cz = nearOz < z0 ? z0 : (nearOz > z1 ? z1 : nearOz);
+                    float vx = nearOx - cx, vy = nearOy - cy, vz = nearOz - cz;
+                    float d2 = vx * vx + vy * vy + vz * vz;
+                    if (d2 >= CLEAR * CLEAR) continue;
+                    if (d2 > 1e-8f) {
+                        float d = sqrtf(d2), push = (CLEAR - d) / d;
+                        nearOx += vx * push; nearOy += vy * push; nearOz += vz * push;
+                    } else {
+                        float ex0 = nearOx - x0, ex1 = x1 - nearOx;
+                        float ey0 = nearOy - y0, ey1 = y1 - nearOy;
+                        float ez0 = nearOz - z0, ez1 = z1 - nearOz;
+                        float mx = ex0 < ex1 ? -(ex0 + CLEAR) : (ex1 + CLEAR);
+                        float my = ey0 < ey1 ? -(ey0 + CLEAR) : (ey1 + CLEAR);
+                        float mz = ez0 < ez1 ? -(ez0 + CLEAR) : (ez1 + CLEAR);
+                        if (fabsf(mx) <= fabsf(my) && fabsf(mx) <= fabsf(mz)) nearOx += mx;
+                        else if (fabsf(my) <= fabsf(mz)) nearOy += my;
+                        else nearOz += mz;
+                    }
+                    moved = true;
                 }
-                moved = true;
             }
             if (!moved) break;
         }
@@ -1682,10 +1694,11 @@ void gameRender(MenuState& s) {
     profBegin(PROF_HUD);
 
     guOrtho();
-
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
-    sceGuDisable(GU_ALPHA_TEST);
+
+    sceGuEnable(GU_ALPHA_TEST);
+    sceGuAlphaFunc(GU_GREATER, 0, 0xff);
     sceGuDisable(GU_FOG);
     sceGuDisable(GU_DEPTH_TEST);
 
