@@ -660,6 +660,11 @@ CrosshairTarget gameModeCrosshairTarget() {
         return t;
     }
 
+    if (sel && (sel->id == ITEM_EGG || sel->id == ITEM_SNOWBALL)) {
+        t.useLabel = "Throw";
+        return t;
+    }
+
     if (sel && sel->id == ITEM_CAMERA) {
         t.useLabel = nearbyTripodCamera() ? "Take Picture" : "Place";
         return t;

@@ -119,7 +119,8 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
                     const bool thinZ = (z1 - z0) < (x1 - x0);
                     if (edgeFace && thinZ) {
                         uv_u = (cz == 0.0f) ? uz0 : uz1;
-                        uv_v = (cx == 0.0f) ? ux0 : ux1;
+
+                        uv_v = 1.0f - ((cx == 0.0f) ? ux0 : ux1);
                     } else {
                         uv_u = (cx == 0.0f) ? ux0 : ux1;
                         uv_v = (cz == 0.0f) ? uz0 : uz1;
@@ -128,11 +129,14 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
                     uv_v = 1.0f - ((cy == 0.0f) ? uy0 : uy1);
 
                     bool mirror = (f == F_RIGHT || f == F_BACK);
+
+                    const bool cellMirror = isPane(id) && !edgeFace;
                     if (f == F_LEFT || f == F_RIGHT) {
-                        uv_u = ((cz == 0.0f) != mirror) ? uz0 : uz1;
+                        uv_u = ((cz == 0.0f) != (mirror && !cellMirror)) ? uz0 : uz1;
                     } else {
-                        uv_u = ((cx == 0.0f) != mirror) ? ux0 : ux1;
+                        uv_u = ((cx == 0.0f) != (mirror && !cellMirror)) ? ux0 : ux1;
                     }
+                    if (mirror && cellMirror) uv_u = 1.0f - uv_u;
                     if (uv_u < 0.0f) uv_u = 0.0f;
                     if (uv_u > 1.0f) uv_u = 1.0f;
                     if (uv_v < 0.0f) uv_v = 0.0f;

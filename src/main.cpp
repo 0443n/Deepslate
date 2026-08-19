@@ -70,11 +70,12 @@ static float drawFaultCounters(MenuState& s, float ty) {
 
     extern unsigned int g_listPeakBytes, g_listOverruns;
     char buf[80];
-    std::snprintf(buf, sizeof(buf), "GE-LIST %uK/512K%s",
-                  g_listPeakBytes / 1024, g_listOverruns ? " OVERRUN" : "");
-    fontDrawTextShadow(&s.font, 10, ty, buf,
-                       g_listOverruns ? 0xFF5050FFu : 0xFF50FFFFu, 1.0f);
-    ty += 12.0f;
+
+    if (g_listOverruns) {
+        std::snprintf(buf, sizeof(buf), "GE-LIST %uK/512K OVERRUN", g_listPeakBytes / 1024);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF5050FFu, 1.0f);
+        ty += 12.0f;
+    }
 
     extern unsigned int g_frameAllocFails;
     if (g_frameAllocFails) {
@@ -94,10 +95,7 @@ static float drawFaultCounters(MenuState& s, float ty) {
         fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF5050FFu, 1.0f);
         ty += 12.0f;
     }
-    extern unsigned int guVramFree(void);
-    std::snprintf(buf, sizeof(buf), "VRAM FREE %uK", guVramFree() / 1024);
-    fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
-    ty += 12.0f;
+
     return ty;
 }
 
@@ -444,14 +442,11 @@ int main(int argc, char* argv[]) {
                     {
                         extern unsigned int g_listPeakBytes, g_listOverruns;
 
-                        {
+                        if (g_listOverruns) {
                             char lbBuf[64];
-                            std::snprintf(lbBuf, sizeof(lbBuf), "GE-LIST %uK/512K%s",
-                                          g_listPeakBytes / 1024,
-                                          g_listOverruns ? " OVERRUN" : "");
-
-                            fontDrawTextShadow(&s.font, 10, ty, lbBuf,
-                                               g_listOverruns ? 0xFF5050FFu : 0xFF50FFFFu, 1.0f);
+                            std::snprintf(lbBuf, sizeof(lbBuf), "GE-LIST %uK/512K OVERRUN",
+                                          g_listPeakBytes / 1024);
+                            fontDrawTextShadow(&s.font, 10, ty, lbBuf, 0xFF5050FFu, 1.0f);
                             ty += 12.0f;
                         }
                     }

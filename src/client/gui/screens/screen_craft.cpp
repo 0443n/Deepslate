@@ -290,7 +290,7 @@ void CraftScreen::renderContent(MenuState& s) {
 
         if (s.haveGui) {
             unsigned int tint = WHITE;
-            const float sz = (catH - 6) * 24.0f / 32.0f, off = 3 + (catH - 6) * 4.0f / 32.0f;
+            const float sz = 24.0f, off = (catH - sz) / 2.0f;
             textureBind(&s.guiAtlas);
             spriteDraw(&s.guiAtlas, G(bx + off), G(by + off), G(sz), G(sz),
                        GA_SS_CRAFTICONS_X + 24.0f * (icon / 2), GA_SS_CRAFTICONS_Y + (icon & 1) * 24.0f, 24, 24, tint);
@@ -327,10 +327,11 @@ void CraftScreen::renderContent(MenuState& s) {
 
         if (haveFont) {
             const char* name = getBlockName(ci.item.id, (unsigned char)(ci.item.data < 0 ? 0 : ci.item.data));
-            if (ci.canCraft)
-                fontDrawTextClipped(&font, G(paneX + 2), G(ry + 7), name, rgbActive, UI_SCALE, paneW - 22.0f);
-            else
-                fontDrawTextClipped(&font, G(paneX + 2), G(ry + 7), name, rgbInactive, UI_SCALE, paneW - 22.0f);
+
+            const float ns = UI_SCALE * 2.0f / 3.0f;
+            const float nw = G(paneW - 22.0f) / ns;
+            fontDrawTextClipped(&font, G(paneX + 2), G(ry + 8), name,
+                                ci.canCraft ? rgbActive : rgbInactive, ns, nw);
         }
 
         short aux = ci.item.data < 0 ? 0 : ci.item.data;
