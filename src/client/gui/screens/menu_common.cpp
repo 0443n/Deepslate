@@ -40,6 +40,7 @@ void uiDraw(MenuState& s, float x, float y, float w, float h,
     float sx = s.haveTouch ? tsx : asx, sy = s.haveTouch ? tsy : asy;
     textureBind(tex);
     spriteDraw(tex, x, y, w, h, sx, sy, sw, sh, tint);
+    guMark(GU_MARK_UI_SPRITE);
 }
 
 void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,

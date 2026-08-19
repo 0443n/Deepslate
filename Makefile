@@ -185,7 +185,12 @@ INCDIR = src
 # grew by 64KB once and every object that wasn't touched still had the old
 # offsets). -MP adds a dummy rule per header so a DELETED header doesn't wedge
 # make with "no rule to make target".
-CFLAGS = -O2 -G0 -Wall -MMD -MP
+# EXTRA_CFLAGS: build-time switches that must not be edited into the file for
+# one run. The diagnostic build is `make EXTRA_CFLAGS=-DPROF=1`, which turns
+# on the 30-phase profiler (prof.txt) alongside the per-frame trace ring
+# (framelog.csv, always on). Default empty -- the shipped build carries neither.
+EXTRA_CFLAGS ?=
+CFLAGS = -O2 -G0 -Wall -MMD -MP $(EXTRA_CFLAGS)
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 

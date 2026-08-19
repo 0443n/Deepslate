@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "gpu/sprite.h"
+#include "gpu/gu.h"
 
 #include <cstring>
 
@@ -70,6 +71,7 @@ static void drawGlyphs(const Font* f, float x, float y, const char* text, unsign
                   (float)(xt * CELL), (float)(yt * CELL), (float)CELL, (float)CELL,
                   color);
         cursorX += f->charWidth[ch] * scale;
+        guMark(GU_MARK_UI_TEXT);
     }
 }
 

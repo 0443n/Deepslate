@@ -19,6 +19,36 @@ void guSetDither(int wanted);
 
 int guDitherWanted(void);
 
+extern unsigned int g_frameMarks;
+
+extern unsigned int g_canaryBroken;
+
+extern unsigned int g_pixDriftHits;
+
+enum {
+    GU_MARK_SKY_BACKDROP = 0,
+    GU_MARK_SKY_DOME,
+    GU_MARK_SKY_BODIES,
+    GU_MARK_CLOUDS,
+    GU_MARK_TERRAIN,
+    GU_MARK_WATER,
+    GU_MARK_ENTITIES,
+    GU_MARK_PARTICLES,
+    GU_MARK_HAND,
+    GU_MARK_HUD,
+    GU_MARK_OVERLAY,
+    GU_MARK_MENU,
+    GU_MARK_HINTS,
+
+    GU_MARK_MENU_BG,
+    GU_MARK_MENU_CONTENT,
+    GU_MARK_UI_SPRITE,
+    GU_MARK_UI_TEXT,
+    GU_MARK_COUNT
+};
+
+static inline void guMark(int bit) { g_frameMarks |= (1u << bit); }
+
 unsigned int guFrameId(void);
 
 static inline void* guFrameCopy(const void* src, int bytes) {

@@ -152,9 +152,10 @@ static Texture* armorTexture(int mat, int file) {
 }
 
 static void drawArmorLayers(unsigned int brCol) {
-    sceGuColor(brCol);
+
     LocalPlayer* p = g_level.player;
     if (!p) return;
+    sceGuColor(brCol);
     buildArmor();
 
     sceGuEnable(GU_ALPHA_TEST);

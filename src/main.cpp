@@ -65,11 +65,19 @@ static void detectLowMemPsp(void) {
 static volatile int g_exitRequested = 0;
 
 static float drawFaultCounters(MenuState& s, float ty) {
-    extern int g_showFps;
-    if (!g_showFps) return ty;
-
     extern unsigned int g_listPeakBytes, g_listOverruns;
     char buf[80];
+
+    if (g_pixDriftHits) {
+        std::snprintf(buf, sizeof(buf), "FB DRIFT %u", g_pixDriftHits);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF00FFFFu, 1.0f);
+        ty += 12.0f;
+    }
+    if (g_canaryBroken) {
+        std::snprintf(buf, sizeof(buf), "GE-LIST CANARY BROKEN +%u", g_canaryBroken - 1);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF0000FFu, 1.0f);
+        ty += 12.0f;
+    }
 
     if (g_listOverruns) {
         std::snprintf(buf, sizeof(buf), "GE-LIST %uK/512K OVERRUN", g_listPeakBytes / 1024);
@@ -269,6 +277,14 @@ int main(int argc, char* argv[]) {
                                                   PSP_CTRL_NOTE | PSP_CTRL_SCREEN |
                                                   PSP_CTRL_VOLUP | PSP_CTRL_VOLDOWN);
         unsigned int pressed = currentBtn & ~lastBtn;
+
+        {
+            const unsigned int DUMP = PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER | PSP_CTRL_SELECT;
+            static bool s_dumpHeld = false;
+            const bool held = (currentBtn & DUMP) == DUMP;
+            if (held && !s_dumpHeld) guDumpFrameLog();
+            s_dumpHeld = held;
+        }
         g_heldButtons = currentBtn;
         lastBtn = currentBtn;
 
@@ -410,30 +426,12 @@ int main(int argc, char* argv[]) {
                     }
 
                     {
-                        extern int g_vblankRegisterFail;
-                        if (g_vblankRegisterFail) {
-                            char vrBuf[56];
-                            std::snprintf(vrBuf, sizeof(vrBuf), "VBLANK-REG FAILED %d",
-                                          g_vblankRegisterFail);
-                            fontDrawTextShadow(&s.font, 10, ty, vrBuf, 0xFF5050FFu, 1.0f);
-                            ty += 12.0f;
-                        }
-
-                        extern unsigned int g_vblankLate;
-                        if (g_vblankLate) {
-                            char vbBuf[48];
-                            std::snprintf(vbBuf, sizeof(vbBuf), "VBLANK-LATE %u", g_vblankLate);
-                            fontDrawTextShadow(&s.font, 10, ty, vbBuf, 0xFF5050FFu, 1.0f);
-                            ty += 12.0f;
-                        }
-                    }
-                    {
-                        extern unsigned int g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs;
+                        extern unsigned int g_drawLiveHits, g_drawLiveOurs;
                         if (g_drawLiveHits) {
                             char dlBuf[64];
 
-                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u/%u/%u (corrected)",
-                                          g_drawLiveHits, g_drawLiveNext, g_drawLiveOurs);
+                            std::snprintf(dlBuf, sizeof(dlBuf), "DRAW-LIVE %u/%u (corrected)",
+                                          g_drawLiveHits, g_drawLiveOurs);
                             fontDrawTextShadow(&s.font, 10, ty, dlBuf, 0xFF50FFFFu, 1.0f);
                             ty += 12.0f;
                         }
@@ -535,9 +533,10 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (Screen* over = overlayScreen()) over->render(s);
+            if (Screen* over = overlayScreen()) { over->render(s); guMark(GU_MARK_OVERLAY); }
 
             gameHintsDraw(s);
+            guMark(GU_MARK_HINTS);
 
             sceGuEnable(GU_DEPTH_TEST);
 
@@ -592,8 +591,9 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        if (Screen* cur = menuScreen(s.screen)) cur->render(s);
+        if (Screen* cur = menuScreen(s.screen)) { cur->render(s); guMark(GU_MARK_MENU); }
         menuHintsDraw(s);
+        guMark(GU_MARK_HINTS);
 
         drawFaultCounters(s, 10.0f);
 
