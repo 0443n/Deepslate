@@ -3,6 +3,7 @@
 #include <pspsysmem.h>
 #include <pspctrl.h>
 #include <psppower.h>
+#include <pspfpu.h>
 #include <cstring>
 #include <malloc.h>
 #include <cstdlib>
@@ -195,6 +196,8 @@ int main(int argc, char* argv[]) {
     Item::initItems();
     Tile::initTiles();
     scePowerSetClockFrequency(333, 333, 166);
+
+    pspFpuSetEnable(0);
     setupCallbacks();
     pathInit(argc > 0 ? argv[0] : 0);
 

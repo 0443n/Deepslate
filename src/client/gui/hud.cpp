@@ -906,10 +906,11 @@ void hotbarDraw(MenuState& s) {
             float row2 = row1 - hs - gap;
 
             const float POKE = 8.0f;
-            hx0    = barX - POKE;                              hy     = row1;
-            armorX = barX - POKE;                              armorY = row2;
 
-            airX   = barX + barW - armorW + POKE;
+            const float rightX = barX + barW - armorW + POKE;
+            hx0    = barX - POKE;                              hy     = row1;
+            armorX = rightX;                                   armorY = row1;
+            airX   = rightX;
             airY   = (armorVal > 0) ? row2 : row1;
         }
         textureBind(&s.guiAtlas);
@@ -1073,7 +1074,13 @@ void guiFillGradient(float x, float y, float w, float h,
 #include "world/level/tile/entity/furnace_tile_entity.h"
 #include "gpu/gui_atlas.h"
 
+struct HintDepthOff {
+    HintDepthOff()  { sceGuDisable(GU_DEPTH_TEST); }
+    ~HintDepthOff() { sceGuEnable(GU_DEPTH_TEST); }
+};
+
 void gameHintsDraw(MenuState& s) {
+    HintDepthOff depthOff;
 
     extern bool g_photoPending;
     if (g_photoPending) return;

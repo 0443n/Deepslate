@@ -16,12 +16,15 @@
 static int s_splash = -1;
 
 static const float btnSizeV = 75.0f;
-static const float yBaseV   = 2.0f + VH / 3.0f;
-static const float spacingV = (VW - 3.0f * btnSizeV) / 4.0f;
+static const float BTN_PX   = btnSizeV * UI_SCALE;
+static const float BTN_Y    = 95.0f;
+static const float BTN_X0   = 7.0f;
+static const float BTN_X1   = BTN_X0 + BTN_PX + 8.0f;
+static const float BTN_X2   = BTN_X1 + BTN_PX + 8.0f;
 static PocketButton buttons[3] = {
-    { (spacingV + 0 * (btnSizeV + spacingV)) * UI_SCALE, yBaseV * UI_SCALE, btnSizeV * UI_SCALE, 0.0f, 176.0f, 75.0f, "Join Game",  true },
-    { (spacingV + 1 * (btnSizeV + spacingV)) * UI_SCALE, yBaseV * UI_SCALE, btnSizeV * UI_SCALE, 0.0f, 101.0f, 75.0f, "Start Game", true },
-    { (spacingV + 2 * (btnSizeV + spacingV)) * UI_SCALE, yBaseV * UI_SCALE, btnSizeV * UI_SCALE, 0.0f,  26.0f, 75.0f, "Options",    true },
+    { BTN_X0, BTN_Y, BTN_PX, 0.0f, 176.0f, 75.0f, "Join Game",  true },
+    { BTN_X1, BTN_Y, BTN_PX, 0.0f, 101.0f, 75.0f, "Start Game", true },
+    { BTN_X2, BTN_Y, BTN_PX, 0.0f,  26.0f, 75.0f, "Options",    true },
 };
 static const int numButtons = 3;
 
@@ -79,11 +82,10 @@ void TitleScreen::renderContent(MenuState& s) {
     Texture& touchGui = s.touchGui; bool haveTouch = s.haveTouch;
     int& selected = s.selected;
 
-    const float LOGO_SCALE = 1.15f;
-    float logoYV = 4.0f;
+    float logoYV = 6.0f;
 
-    float logoWV = ((VW < (float)logo.realW) ? VW : (float)logo.realW) * LOGO_SCALE;
-    float logoHV = logoWV / (float)logo.realW * (float)logo.realH;
+    float logoWV = (float)logo.realW / UI_SCALE;
+    float logoHV = (float)logo.realH / UI_SCALE;
     float logoXV = (VW - logoWV) / 2.0f;
     if (haveLogo) {
         textureBind(&logo);

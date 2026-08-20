@@ -191,13 +191,14 @@ INCDIR = src
 # on the 30-phase profiler (prof.txt) alongside the per-frame trace ring
 # (framelog.csv, always on). Default empty -- the shipped build carries neither.
 EXTRA_CFLAGS ?=
+
 CFLAGS = -O2 -G0 -Wall -MMD -MP $(EXTRA_CFLAGS)
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 LDFLAGS =
-LIBS = -lpspgum -lpspgu -lpspge -lpspdisplay -lpspctrl -lpsppower -lpspaudio -lpng -lz -lm -lstdc++
+LIBS = -lpspgum -lpspgu -lpspge -lpspfpu -lpspdisplay -lpspctrl -lpsppower -lpspaudio -lpng -lz -lm -lstdc++
 
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = Minecraft Pocket-Edition

@@ -25,6 +25,9 @@ void Monster::updateSunburn() {
 
     if (((++sunburnCounter) & 1) == 0) return;
     if (level->isClientSide) return;
+
+    if (!worldIsDay()) return;
+
     float br = getBrightness(1.0f);
     if (br <= 0.5f) return;
     int xt = (int)floorf(x);

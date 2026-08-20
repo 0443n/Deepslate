@@ -3,6 +3,7 @@
 #include <pspgu.h>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 #include "client/gui/screens/menu.h"
 #include "client/gui/screens/screen.h"
@@ -98,7 +99,8 @@ void WorldsScreen::renderContent(MenuState& s) {
         }
 
         int numEntries = worlds.count + 1;
-        float rowY = 42.0f;
+
+        float rowY = 36.0f;
 
         for (int i = 0; i < numEntries; i++) {
             float xOffsetV = (i * itemWidthV) - listScrollX;
@@ -203,19 +205,16 @@ void WorldsScreen::renderContent(MenuState& s) {
             bool delHovered = (uiRow == 2);
             textureBind(&touchGui);
 
-            float trashW = 24.0f, trashH = 18.0f;
-            float trashX = (VW - trashW) / 2.0f;
-            float trashY = VH - 22.0f;
+            const float TRASH_ZOOM = 2.0f;
+            const float trashPxW = 34.0f * TRASH_ZOOM;
+            const float trashPxH = 26.0f * TRASH_ZOOM;
+            const float trashPxX = floorf((VW * UI_SCALE - trashPxW) / 2.0f);
 
-            float scale = delHovered ? 0.95f : 1.0f;
-            float drawW = trashW * scale;
-            float drawH = trashH * scale;
-            float drawX = trashX + (trashW - drawW) / 2.0f;
-            float drawY = trashY + (trashH - drawH) / 2.0f;
+            const float trashPxY = VH * UI_SCALE - trashPxH;
 
             float trashU = delHovered ? 184.0f : 150.0f;
 
-            spriteDraw(&touchGui, drawX * UI_SCALE, drawY * UI_SCALE, drawW * UI_SCALE, drawH * UI_SCALE,
+            spriteDraw(&touchGui, trashPxX, trashPxY, trashPxW, trashPxH,
                        trashU, 0.0f, 34.0f, 26.0f, WHITE);
         }
 

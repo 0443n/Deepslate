@@ -158,26 +158,6 @@ int stairShapeBoxes(const World* w, int gx, int y, int gz, unsigned char data, f
     return n;
 }
 
-float stairTopAt(const World* w, int gx, int y, int gz, unsigned char data, float fx, float fz) {
-    float b[3][6];
-    int nb = stairShapeBoxes(w, gx, y, gz, data, b);
-    float top = 0.0f;
-    for (int i = 0; i < nb; i++)
-        if (fx >= b[i][0] && fx <= b[i][3] && fz >= b[i][2] && fz <= b[i][5] && b[i][4] > top)
-            top = b[i][4];
-    return top;
-}
-
-float stairTopEntering(const World* w, int gx, int y, int gz, unsigned char data,
-                       float xa, float za, float wx, float wz) {
-
-    float fx = (xa > 0.0f) ? 0.0f : (xa < 0.0f ? 1.0f : wx - (float)gx);
-    float fz = (za > 0.0f) ? 0.0f : (za < 0.0f ? 1.0f : wz - (float)gz);
-    if (fx < 0.0f) fx = 0.0f; else if (fx > 1.0f) fx = 1.0f;
-    if (fz < 0.0f) fz = 0.0f; else if (fz > 1.0f) fz = 1.0f;
-    return stairTopAt(w, gx, y, gz, data, fx, fz);
-}
-
 int tileShapeBoxes(const World* w, int x, int y, int z, unsigned char id,
                    unsigned char data, float out[3][6]) {
     if (id == BLOCK_AIR) return 0;

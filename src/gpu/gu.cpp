@@ -142,7 +142,7 @@ static void* guVramAlloc(unsigned int width, unsigned int height,
     return result;
 }
 
-#define VRAM_TOTAL (2u * 1024 * 1024)
+static unsigned int guVramTotal(void) { return sceGeEdramGetSize(); }
 
 void* guVramAllocTexture(unsigned int bytes) {
     unsigned int off = vramAlloc(bytes);
@@ -214,7 +214,7 @@ void guInit(void) {
     g_zbp = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_4444);
     g_drawIdx = 0;
 
-    vramAllocInit(g_vramOffset, VRAM_TOTAL);
+    vramAllocInit(g_vramOffset, guVramTotal());
 
     sceGuInit();
     sceGuStart(GU_DIRECT, guListCur());

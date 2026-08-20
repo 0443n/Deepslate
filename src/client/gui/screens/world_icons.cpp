@@ -7,7 +7,7 @@
 #include "client/gui/screens/world_icons.h"
 #include "platform/path.h"
 
-static const int ICON_SLOTS = 3;
+static const int ICON_SLOTS = 4;
 static struct IconSlot {
     char name[64];
     Texture tex;

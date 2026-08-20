@@ -212,7 +212,8 @@ void LocalPlayer::move(float xa, float ya, float za) {
 
     extern int g_autoJump;
 
-    if (autoJumpTime > 0 || !g_autoJump || sneaking || flying) return;
+    if (autoJumpTime > 0 || !g_autoJump || sneaking || flying || !onGround) return;
+
     if ((int)floorf(prevX * 2.0f) == (int)floorf(x * 2.0f) &&
         (int)floorf(prevZ * 2.0f) == (int)floorf(z * 2.0f)) return;
 
@@ -226,10 +227,10 @@ void LocalPlayer::move(float xa, float ya, float za) {
     const unsigned char step = worldBlock(&g_world, ax, stepY, az);
     const unsigned char stepData = worldData(&g_world, ax, stepY, az);
 
-    const bool jumpable = isStairs(step)
-        ? stairTopEntering(&g_world, ax, stepY, az, stepData, xa, za, x, z) > 0.5f
-        : autoJumpable(step, stepData);
-    if (!isSolidPhys(step) || !jumpable) return;
+    if (!isSolidPhys(step)) return;
+    if (isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y), az)) ||
+        isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y + 1.0f), az))) return;
+    if (!autoJumpable(step, stepData)) return;
 
     const float halfW = bbWidth * 0.5f;
     BlockAABB cb[3];
@@ -240,9 +241,7 @@ void LocalPlayer::move(float xa, float ya, float za) {
                    pz >= cb[i].z0 - halfW && pz <= cb[i].z1 + halfW;
     if (!inTheWay) return;
 
-    if (!isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y), az))
-        && !isSolidPhys(worldBlock(&g_world, ax, (int)floorf(y + 1.0f), az)))
-        autoJumpTime = 1;
+    autoJumpTime = 1;
 }
 
 void LocalPlayer::doWaterSplashEffect() {

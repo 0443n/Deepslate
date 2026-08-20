@@ -251,6 +251,9 @@ static void renderSunOrMoon(float alpha, bool isSun, float px, float py, float p
     SkyVertex* q = (SkyVertex*)guFrameAlloc(6 * sizeof(SkyVertex));
     if (!q) return;
 
+    const int ditherPrev = guDitherWanted();
+    guSetDither(0);
+
     textureBind(tex);
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0xFFFFFFFF, 0xFFFFFFFF);
@@ -277,6 +280,7 @@ static void renderSunOrMoon(float alpha, bool isSun, float px, float py, float p
     sceGumDrawArray(GU_TRIANGLES, GU_TEXTURE_32BITF | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 6, 0, q);
 
     sceGumPopMatrix();
+    guSetDither(ditherPrev);
     sceGuEnable(GU_FOG);
     sceGuEnable(GU_CULL_FACE);
 }
