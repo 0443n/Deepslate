@@ -88,6 +88,8 @@ void WorldsScreen::renderContent(MenuState& s) {
         sceGuDisable(GU_DEPTH_TEST);
 
         const float listScale = 0.88f;
+
+        const float listText = 2.0f;
         const float itemWidthV = 120.0f * listScale;
         float targetScrollX = worldSelected * itemWidthV;
         listScrollX += (targetScrollX - listScrollX) * 0.3f;
@@ -164,32 +166,36 @@ void WorldsScreen::renderContent(MenuState& s) {
 
                 float xText = xCenterV - 55.0f * listScale;
 
-                const float rowTextMaxW = 120.0f - 10.0f;
+                const float rowTextMaxW = (120.0f - 10.0f) * listScale * UI_SCALE / listText;
 
                 const char* t0 = worlds.displayNames[i];
-                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 44.0f * listScale) * UI_SCALE, t0, colTitle, UI_SCALE * listScale, rowTextMaxW);
+                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 44.0f * listScale) * UI_SCALE, t0, colTitle, listText, rowTextMaxW);
 
                 const char* t1 = worlds.dates[i];
-                fontDrawTextShadow(&font, xText * UI_SCALE, (rowY + 54.0f * listScale) * UI_SCALE, t1, colGrey, UI_SCALE * listScale);
+                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 54.0f * listScale) * UI_SCALE, t1, colGrey, listText, rowTextMaxW);
 
                 const char* t2 = worlds.names[i];
-                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 64.0f * listScale) * UI_SCALE, t2, colGrey, UI_SCALE * listScale, rowTextMaxW);
+                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 64.0f * listScale) * UI_SCALE, t2, colGrey, listText, rowTextMaxW);
 
                 const char* t3 = worlds.gameModes[i] == 1 ? "Creative" : "Survival";
-                fontDrawTextShadow(&font, xText * UI_SCALE, (rowY + 74.0f * listScale) * UI_SCALE, t3, colGrey, UI_SCALE * listScale);
+                fontDrawTextShadow(&font, xText * UI_SCALE, (rowY + 74.0f * listScale) * UI_SCALE, t3, colGrey, listText);
             } else {
 
                 textureBind(&touchGui);
-                float w = 54.0f * listScale, h = 54.0f * listScale;
-                float iconX = xCenterV - w / 2.0f;
-                float iconY = rowY + 4.0f * listScale;
+
+                const float iconPx = 54.0f * listText;
+                float iconX = xCenterV * UI_SCALE - iconPx / 2.0f;
+                float iconY = (rowY + 4.0f * listScale) * UI_SCALE;
                 float iconV = isHovered ? 86.0f : 32.0f;
-                spriteDraw(&touchGui, iconX * UI_SCALE, iconY * UI_SCALE, w * UI_SCALE, h * UI_SCALE,
+                spriteDraw(&touchGui, iconX, iconY, iconPx, iconPx,
                            168.0f, iconV, 54.0f, 54.0f, colWhite);
 
                 const char* cn = "Create new";
-                float cnw = fontTextWidth(&font, cn) * listScale;
-                fontDrawTextShadow(&font, (xCenterV - cnw / 2.0f) * UI_SCALE, (rowY + 62.0f * listScale) * UI_SCALE, cn, colTitle, UI_SCALE * listScale);
+
+                float cnw = fontTextWidth(&font, cn) * listText;
+
+                fontDrawTextShadow(&font, xCenterV * UI_SCALE - cnw / 2.0f,
+                                   iconY + iconPx + 2.0f, cn, colTitle, listText);
             }
         }
 

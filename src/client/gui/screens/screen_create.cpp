@@ -23,7 +23,7 @@ namespace {
 const float PX     = 0.625f;
 const float TEXT_S = 1.0f;
 
-const float BEVEL = 2.0f * PX;
+const float BEVEL = 2.0f;
 
 struct CreateRowDef {
     const char* label;
@@ -117,7 +117,8 @@ Layout layout(MenuState& s) {
 
     L.btnH    = 18.0f * MENU_PX;
     L.headerH = L.btnH + 8.0f * MENU_PX;
-    L.hdrBtnY = (L.headerH - L.btnH) / 2.0f;
+
+    L.hdrBtnY = MENU_BAR_Y + MENU_BAR_BTNY;
     L.backW   = menuBarButtonW(s, "Back");
     L.backX   = 4.0f * MENU_PX;
     L.advW    = menuBarButtonW(s, "Advanced");

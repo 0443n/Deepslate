@@ -8,7 +8,7 @@
 static inline void dcacheFlush(const void* p, size_t bytes) {
     unsigned int a = (unsigned int)p & ~63u;
     unsigned int e = ((unsigned int)p + (unsigned int)bytes + 63u) & ~63u;
-    sceKernelDcacheWritebackInvalidateRange((void*)a, e - a);
+    sceKernelDcacheWritebackRange((void*)a, e - a);
 }
 
 #endif

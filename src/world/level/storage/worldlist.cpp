@@ -48,8 +48,9 @@ void worldListScan(WorldList* out) {
             out->names[out->count][sizeof(out->names[0]) - 1] = '\0';
 
             ScePspDateTime* t = &entry.d_stat.sce_st_mtime;
-            snprintf(out->dates[out->count], sizeof(out->dates[0]), "%02d/%02d/%04d %02d:%02d:%02d",
-                     t->month, t->day, t->year, t->hour, t->minute, t->second);
+
+            snprintf(out->dates[out->count], sizeof(out->dates[0]), "%02d/%02d/%02d %02d:%02d",
+                     t->month, t->day, t->year % 100, t->hour, t->minute);
 
             out->gameModes[out->count] = 0;
             out->seeds[out->count] = 0;

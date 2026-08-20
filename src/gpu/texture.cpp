@@ -7,6 +7,7 @@
 #include <pspkernel.h>
 #include <cstdlib>
 #include <cstring>
+#include "platform/dcache.h"
 #include <malloc.h>
 
 static const Texture* s_lastBound = nullptr;
@@ -148,7 +149,7 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVra
     free(row);
     pngClose(png);
 
-    sceKernelDcacheWritebackRange(data, bytes);
+    dcacheFlush(data, bytes);
 
     out->realW = w;
     out->realH = h;
@@ -207,7 +208,7 @@ bool textureLoadMipLevel(Texture* tex, int level, const char* path) {
             pngClose(png); return false;
         }
     pngClose(png);
-    sceKernelDcacheWritebackRange(data, (size_t)w * h * 4);
+    dcacheFlush(data, (size_t)w * h * 4);
 
     texFree(tex->vram, tex->mip[level]);
     tex->mip[level] = data;
@@ -259,7 +260,7 @@ void textureGenMips(Texture* tex, int minSize) {
             if (tex->vram && !gotVram) { free(tex->mip[i]); tex->mip[i] = 0; break; }
         }
         downsample2x(src, w, h, (unsigned char*)tex->mip[i]);
-        sceKernelDcacheWritebackRange(tex->mip[i], (size_t)dstW * dstH * 4);
+        dcacheFlush(tex->mip[i], (size_t)dstW * dstH * 4);
         src = (const unsigned char*)tex->mip[i];
         w = dstW; h = dstH;
         i++;
@@ -301,7 +302,7 @@ static void swizzleLevelInPlace(void** dataPtr, int w, int h) {
     swizzleBlock(tmp, *dataPtr, rowBytes, h);
     memcpy(*dataPtr, tmp, size);
     free(tmp);
-    sceKernelDcacheWritebackRange(*dataPtr, size);
+    dcacheFlush(*dataPtr, size);
 }
 
 void textureSwizzle(Texture* tex) {
@@ -325,7 +326,7 @@ void textureSwizzleBandInto(Texture* tex, int yTop, int bandH, const void* linea
     size_t offset = (size_t)(yTop / 8) * blockX * 128;
     memcpy((unsigned char*)tex->data + offset, tmp, bandSize);
     free(tmp);
-    sceKernelDcacheWritebackRange((unsigned char*)tex->data + offset, bandSize);
+    dcacheFlush((unsigned char*)tex->data + offset, bandSize);
 }
 
 void textureBindLastBoundReset() { s_lastBound = nullptr; }

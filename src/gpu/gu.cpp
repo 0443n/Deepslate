@@ -45,80 +45,8 @@ unsigned int g_frameAllocFails = 0;
 unsigned int g_listPeakBytes = 0;
 unsigned int g_listOverruns  = 0;
 
-unsigned int g_shortListHits = 0;
-unsigned int g_shortListBytes = 0;
-unsigned int g_shortListPeak = 0;
-
-struct ShortListEvent {
-    unsigned frameNo, bytes, peak, prevBytes, nextBytes;
-    unsigned shown, drawn;
-    unsigned scratch, allocFails, drawLive;
-};
-static ShortListEvent s_events[32];
-static unsigned s_eventCount = 0;
-
-unsigned int g_emptyFrames = 0;
-unsigned int g_emptyFrameNo = 0;
-
-static unsigned int g_alarmFrames = 0;
-
-struct EmptyFrameEvent { unsigned frameNo, shown, drawn, listBytes; };
-static EmptyFrameEvent s_empties[16];
-static unsigned s_emptyCount = 0;
-
-unsigned int g_frameMarks = 0;
-
 unsigned int g_canaryBroken = 0;
-
-struct FrameRec {
-    unsigned frameId;
-    unsigned us;
-    unsigned marks;
-    unsigned listBytes;
-    unsigned listUsed;
-    unsigned scratch;
-    unsigned allocFails;
-    unsigned failBytes;
-    unsigned failGate;
-    unsigned failAt;
-    unsigned shown, drawn;
-    unsigned vramFree;
-    unsigned short texFails;
-    unsigned short canary;
-    unsigned short bufIdx;
-    unsigned pixSum;
-    unsigned pixDrift;
-    unsigned short driftCount;
-    unsigned short driftIdx;
-    unsigned short driftOld, driftNew;
-};
-
-#ifndef GU_TRACE_FRAMES
-#if MCPSP_DIAG
-#define GU_TRACE_FRAMES 512
-#else
-#define GU_TRACE_FRAMES 0
-#endif
-#endif
-#if GU_TRACE_FRAMES > 0
-static FrameRec s_trace[GU_TRACE_FRAMES];
-#endif
-static unsigned s_traceCount = 0;
-
-typedef char FrameRec_layout_check[(sizeof(FrameRec) == 76) ? 1 : -1];
-
-static unsigned s_failBytes = 0;
-static unsigned s_failGate  = 0;
-static unsigned s_failAt    = 0;
-static unsigned s_failCount = 0;
-
-static inline void guTraceResetFrame(void) {
-    g_frameMarks = 0;
-    s_failBytes = 0;
-    s_failGate  = 0;
-    s_failAt    = 0;
-    s_failCount = 0;
-}
+unsigned int guFrameId(void) { return g_frameId; }
 
 int g_dither = 0;
 
@@ -132,19 +60,13 @@ void guSetDither(int wanted) {
 
 int guDitherWanted(void) { return g_ditherWant; }
 
-unsigned int guFrameId(void) { return g_frameId; }
-
 static unsigned int g_listUsed = 0;
 
 #define GU_LIST_MARGIN (64 * 1024)
 
 static inline void guTraceFail(int bytes, unsigned gate) {
+    (void)bytes; (void)gate;
     g_frameAllocFails++;
-    s_failCount++;
-    if (s_failGate) return;
-    s_failGate  = gate;
-    s_failBytes = (unsigned)bytes;
-    s_failAt    = ((g_frameScratch >> 4) << 16) | ((g_listUsed >> 4) & 0xffffu);
 }
 
 static void* frameAllocUpTo(int bytes, unsigned int limit) {
@@ -172,6 +94,7 @@ static unsigned int g_vramOffset = 0;
 
 #define GU_FB_COUNT 3
 static void* g_fb[GU_FB_COUNT] = { 0 };
+static void* g_zbp = 0;
 static int   g_drawIdx = 0;
 
 static volatile int g_queuedIdx  = -1;
@@ -235,29 +158,8 @@ unsigned int guVramFree(void) {
     return vramBytesFree();
 }
 
-void guInit(void) {
-
-    for (int i = 0; i < GU_LIST_COUNT; i++) {
-        g_listUncached[i] = (void*)((unsigned int)g_list[i] | 0x40000000u);
-#if MCPSP_DIAG
-        canaryArm(guListCanary(i));
-#endif
-    }
-    g_listIdx = 0;
-
-    for (int i = 0; i < GU_FB_COUNT; i++)
-        g_fb[i] = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_5650);
-    void* zbp = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_4444);
-    g_drawIdx = 0;
-
-    vramAllocInit(g_vramOffset, VRAM_TOTAL);
-
-    sceGuInit();
-    sceGuStart(GU_DIRECT, guListCur());
-
-    sceGuDrawBuffer(GU_PSM_5650, g_fb[0], GU_BUF_WIDTH);
-    sceGuDispBuffer(GU_SCR_WIDTH, GU_SCR_HEIGHT, g_fb[1], GU_BUF_WIDTH);
-    sceGuDepthBuffer(zbp, GU_BUF_WIDTH);
+static void guApplyPersistentState(void) {
+    sceGuDepthBuffer(g_zbp, GU_BUF_WIDTH);
 
     sceGuOffset(2048 - (GU_SCR_WIDTH / 2), 2048 - (GU_SCR_HEIGHT / 2));
     sceGuViewport(2048, 2048, GU_SCR_WIDTH, GU_SCR_HEIGHT);
@@ -295,6 +197,30 @@ void guInit(void) {
 
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+}
+
+void guInit(void) {
+
+    for (int i = 0; i < GU_LIST_COUNT; i++) {
+        g_listUncached[i] = (void*)((unsigned int)g_list[i] | 0x40000000u);
+
+        canaryArm(guListCanary(i));
+    }
+    g_listIdx = 0;
+
+    for (int i = 0; i < GU_FB_COUNT; i++)
+        g_fb[i] = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_5650);
+    g_zbp = guVramAlloc(GU_BUF_WIDTH, GU_SCR_HEIGHT, GU_PSM_4444);
+    g_drawIdx = 0;
+
+    vramAllocInit(g_vramOffset, VRAM_TOTAL);
+
+    sceGuInit();
+    sceGuStart(GU_DIRECT, guListCur());
+
+    sceGuDrawBuffer(GU_PSM_5650, g_fb[0], GU_BUF_WIDTH);
+    sceGuDispBuffer(GU_SCR_WIDTH, GU_SCR_HEIGHT, g_fb[1], GU_BUF_WIDTH);
+    guApplyPersistentState();
 
     sceGuFinish();
     sceGuSync(0, 0);
@@ -319,11 +245,6 @@ bool guStartFrame(unsigned int clearColor) {
     g_frameScratch = 0;
     g_listUsed     = 0;
     g_frameId++;
-    guTraceResetFrame();
-
-#if DIAG_OVERLAY
-    if (g_alarmFrames) { g_alarmFrames--; clearColor = 0xFF0000FFu; }
-#endif
 
     if (g_drawIdx == g_frontIdx || g_drawIdx == g_queuedIdx) {
         g_drawLiveHits++;
@@ -355,114 +276,13 @@ bool guStartFrame(unsigned int clearColor) {
     return true;
 }
 
-#ifndef GU_PIXSAMPLE
-#define GU_PIXSAMPLE 0
-#endif
-
-#define GU_PIX_COLS   60
-#define GU_PIX_ROWS   68
-#define GU_PIX_SAMPLES (GU_PIX_COLS * GU_PIX_ROWS)
-static unsigned short s_bufPix[GU_FB_COUNT][GU_PIX_SAMPLES];
-
-static inline unsigned guPixOffset(int i) {
-    const unsigned row = (unsigned)(i / GU_PIX_COLS) * 4u;
-    const unsigned col = (unsigned)(i % GU_PIX_COLS) * 8u;
-    return row * GU_BUF_WIDTH + col;
-}
-
-static unsigned guSamplePixels(int idx) {
-#if !GU_PIXSAMPLE
-    (void)idx; return 0;
-#else
-    const unsigned short* fb =
-        (const unsigned short*)((unsigned)guFbAddr(idx) | 0x40000000u);
-    unsigned short* keep = s_bufPix[idx];
-    unsigned sum = 0;
-    for (int i = 0; i < GU_PIX_SAMPLES; i++) {
-        const unsigned short p = fb[guPixOffset(i)];
-        keep[i] = p;
-        sum = sum * 33u + p;
-    }
-    return sum ? sum : 1u;
-#endif
-}
-
-static unsigned guRecheckPixels(int idx, unsigned* firstIdx,
-                                unsigned* oldVal, unsigned* newVal) {
-#if !GU_PIXSAMPLE
-    (void)idx; (void)firstIdx; (void)oldVal; (void)newVal; return 0;
-#else
-    const unsigned short* fb =
-        (const unsigned short*)((unsigned)guFbAddr(idx) | 0x40000000u);
-    const unsigned short* keep = s_bufPix[idx];
-    unsigned changed = 0;
-    for (int i = 0; i < GU_PIX_SAMPLES; i++) {
-        const unsigned short p = fb[guPixOffset(i)];
-        if (p != keep[i]) {
-            if (!changed) { *firstIdx = (unsigned)i; *oldVal = keep[i]; *newVal = p; }
-            changed++;
-        }
-    }
-    return changed;
-#endif
-}
-
-static unsigned s_bufSum[GU_FB_COUNT];
-static int      s_bufLast = -1;
-unsigned int g_pixDriftHits = 0;
-
 static bool s_dialogUp = false;
+static int  s_dlgDraw  = 0;
+static int  s_dlgShown = 1;
 
-#define GU_DRIFT_SIGNIFICANT (GU_PIX_SAMPLES / 64)
-
-static void guTraceRecord(unsigned listBytes) {
-    static unsigned s_lastUs = 0;
-    const unsigned nowUs = sceKernelGetSystemTimeLow();
-    void* traceShown = 0; int tw = 0, tpf = 0;
-    sceDisplayGetFrameBuf(&traceShown, &tw, &tpf, 0);
-
-#if GU_TRACE_FRAMES > 0
-    FrameRec* r = &s_trace[s_traceCount % GU_TRACE_FRAMES];
-    r->frameId    = g_frameId;
-    r->us     = s_lastUs ? (nowUs - s_lastUs) : 0;
-    r->marks      = g_frameMarks;
-    r->listBytes  = listBytes;
-    r->listUsed   = g_listUsed;
-    r->scratch    = g_frameScratch;
-    r->allocFails = s_failCount;
-    r->failBytes  = s_failBytes;
-    r->failGate   = s_failGate;
-    r->failAt     = s_failAt;
-    r->shown      = (unsigned)traceShown;
-    r->drawn      = (unsigned)sceGeEdramGetAddr() + (unsigned)g_fb[g_drawIdx];
-    r->vramFree   = guVramFree();
-    r->canary     = (unsigned short)canaryCheck(guListCanary(g_listIdx));
-    if (r->canary) g_canaryBroken = r->canary;
-    r->texFails   = (unsigned short)g_textureBindFailures;
-    r->bufIdx     = (unsigned short)((g_drawIdx << 8) | (g_frontIdx & 0xff));
-    r->pixDrift = 0; r->driftCount = 0; r->driftIdx = 0;
-    r->driftOld = 0; r->driftNew = 0;
-
-    if (!s_dialogUp && s_bufLast >= 0 && s_bufSum[s_bufLast]) {
-        unsigned fi = 0, ov = 0, nv = 0;
-        const unsigned changed = guRecheckPixels(s_bufLast, &fi, &ov, &nv);
-        if (changed) {
-            r->pixDrift   = 1;
-            r->driftCount = (unsigned short)changed;
-            r->driftIdx   = (unsigned short)fi;
-            r->driftOld   = (unsigned short)ov;
-            r->driftNew   = (unsigned short)nv;
-            if (changed >= GU_DRIFT_SIGNIFICANT) g_pixDriftHits++;
-        }
-    }
-    r->pixSum = guSamplePixels(g_drawIdx);
-    if (r->pixSum) { s_bufSum[g_drawIdx] = r->pixSum; s_bufLast = g_drawIdx; }
-#else
-    (void)traceShown;
-    { const int c = canaryCheck(guListCanary(g_listIdx)); if (c) g_canaryBroken = (unsigned)c; }
-#endif
-    s_traceCount++;
-    s_lastUs = nowUs;
+static void guCheckListCanary(void) {
+    const int c = canaryCheck(guListCanary(g_listIdx));
+    if (c) g_canaryBroken = (unsigned)c;
 }
 
 void guFinishFrame(void) {
@@ -494,27 +314,6 @@ void guFinishFrame(void) {
             s_frameNo++;
             if (listBytes > s_listPeak) s_listPeak = listBytes;
 
-            if (guShortListTrigger(s_hist[0], s_hist[1], listBytes, s_listPeak)) {
-                g_shortListHits++;
-                g_shortListBytes = s_hist[1];
-                g_shortListPeak  = s_listPeak;
-
-                if (s_eventCount < 32) {
-                    ShortListEvent* e = &s_events[s_eventCount];
-                    e->frameNo    = s_frameNo - 1;
-                    e->bytes      = s_hist[1];
-                    e->peak       = s_listPeak;
-                    e->prevBytes  = s_hist[0];
-                    e->nextBytes  = listBytes;
-                    e->shown      = s_histShown[1];
-                    e->drawn      = s_histDrawn[1];
-                    e->scratch    = g_frameScratch;
-                    e->allocFails = g_frameAllocFails;
-                    e->drawLive   = g_drawLiveHits;
-                }
-                s_eventCount++;
-            }
-
             void* shown = 0; int bw = 0, pf = 0;
             sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
             s_hist[0] = s_hist[1];
@@ -528,53 +327,8 @@ void guFinishFrame(void) {
 
     sceGuSync(0, 0);
 
-    guTraceRecord(listBytes);
+    guCheckListCanary();
 
-#if DIAG_OVERLAY
-    {
-
-        extern bool g_photoPending;
-        bool gameProgressScreenUp();
-
-        static bool s_hadContent[2] = { false, false };
-
-        static unsigned s_prevShown = 0, s_prevDrawn = 0, s_prevList = 0;
-
-        if (g_photoPending || gameProgressScreenUp()) {
-
-        } else {
-
-            const unsigned short* fb = (const unsigned short*)
-                (((unsigned)sceGeEdramGetAddr() + (unsigned)g_fb[g_drawIdx]) | 0x40000000u);
-
-            const bool hasContent =
-                !guRowIsUniform(fb + 255 * GU_BUF_WIDTH, 20, 28, 16);
-
-            if (s_hadContent[0] && !s_hadContent[1] && hasContent) {
-                g_emptyFrames++;
-                g_emptyFrameNo = g_frameId - 1;
-                g_alarmFrames = 30;
-                if (s_emptyCount < 16) {
-                    EmptyFrameEvent* e = &s_empties[s_emptyCount];
-                    e->frameNo   = g_frameId - 1;
-                    e->shown     = s_prevShown;
-                    e->drawn     = s_prevDrawn;
-                    e->listBytes = s_prevList;
-                }
-                s_emptyCount++;
-            }
-            {
-                void* shown = 0; int bw = 0, pf = 0;
-                sceDisplayGetFrameBuf(&shown, &bw, &pf, 0);
-                s_prevShown = (unsigned)shown;
-                s_prevDrawn = (unsigned)sceGeEdramGetAddr() + (unsigned)g_fb[g_drawIdx];
-                s_prevList  = listBytes;
-            }
-            s_hadContent[0] = s_hadContent[1];
-            s_hadContent[1] = hasContent;
-        }
-    }
-#endif
     profEnd(PROF_GESYNC);
 }
 
@@ -599,20 +353,34 @@ void guSuspendForDialog(void) {
 
     sceDisplayWaitVblankStart();
     if (g_queuedIdx >= 0) { g_frontIdx = g_queuedIdx; g_queuedIdx = -1; }
+
+    s_dlgShown = g_frontIdx;
+    s_dlgDraw  = guAcquireDrawBuffer((g_frontIdx + 1) % GU_FB_COUNT);
+    g_drawIdx  = s_dlgDraw;
+    sceGuStart(GU_DIRECT, guListCur());
+    sceGuDrawBuffer(GU_PSM_5650, g_fb[s_dlgDraw], GU_BUF_WIDTH);
+    sceGuDispBuffer(GU_SCR_WIDTH, GU_SCR_HEIGHT, g_fb[s_dlgShown], GU_BUF_WIDTH);
+    sceGuFinish();
+    sceGuSync(0, 0);
 }
 
 void guResumeFromDialog(void) {
     sceGuSync(0, 0);
 
+    sceDisplayWaitVblankStart();
+    if (g_queuedIdx >= 0) { g_frontIdx = g_queuedIdx; g_queuedIdx = -1; }
     sceDisplaySetFrameBuf(guFbAddr(g_frontIdx), GU_BUF_WIDTH,
                           PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
     sceDisplayWaitVblankStart();
     g_queuedIdx = -1;
     g_drawIdx   = guAcquireDrawBuffer((g_frontIdx + 1) % GU_FB_COUNT);
 
-    for (int i = 0; i < GU_FB_COUNT; i++) s_bufSum[i] = 0;
-    s_bufLast   = -1;
-    s_dialogUp  = false;
+    sceGuStart(GU_DIRECT, guListCur());
+    guApplyPersistentState();
+    sceGuFinish();
+    sceGuSync(0, 0);
+
+    s_dialogUp = false;
 
 }
 
@@ -623,8 +391,9 @@ void guDialogBegin(unsigned int clearColor) {
     g_frameScratch = 0;
     g_listUsed     = 0;
     g_frameId++;
-    guTraceResetFrame();
-    sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
+
+    sceGuDrawBuffer(GU_PSM_5650, g_fb[s_dlgDraw], GU_BUF_WIDTH);
+    guApplyPersistentState();
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
     sceGuClearColor(clearColor);
     sceGuClearDepth(0);
@@ -632,15 +401,23 @@ void guDialogBegin(unsigned int clearColor) {
 }
 
 void guDialogEnd(void) {
-    unsigned listBytes = (unsigned)sceGuFinish();
+    sceGuFinish();
     sceGuSync(0, 0);
 
-    guTraceRecord(listBytes);
+    guCheckListCanary();
 }
 
 void guDialogPresent(void) {
 
-    guPresent();
+    sceDisplayWaitVblankStart();
+    sceGuSwapBuffers();
+
+    const int wasDrawn = s_dlgDraw;
+    s_dlgDraw   = s_dlgShown;
+    s_dlgShown  = wasDrawn;
+    g_frontIdx  = s_dlgShown;
+    g_queuedIdx = -1;
+    g_drawIdx   = s_dlgDraw;
 }
 
 void guEndFrame(void) {
@@ -744,75 +521,3 @@ void guPerspective(float fovDeg, float nearZ, float farZ) {
 }
 
 #include "platform/path.h"
-#if !MCPSP_DIAG
-void guDumpFrameLog(void) {}
-#else
-void guDumpFrameLog(void) {
-    FILE* fp = fopen(assetPath("framelog.csv"), "w");
-    if (!fp) fp = fopen("ms0:/framelog.csv", "w");
-    if (!fp) return;
-
-    fprintf(fp, "# marks bits: 0 skybackdrop 1 skydome 2 skybodies 3 clouds 4 terrain\n");
-    fprintf(fp, "# 5 water 6 entities 7 particles 8 hand 9 hud 10 overlay 11 menu 12 hints\n");
-    fprintf(fp, "# 13 menubg 14 menucontent 15 uisprite 16 uitext\n");
-    fprintf(fp, "# gate: 0=no refusal 1=scratch budget 2=list room. failat = scratch16<<16|listused16\n");
-    fprintf(fp, "# a bad frame with bits MISSING = the draw was never issued (read gate/failbytes).\n");
-    fprintf(fp, "# a bad frame with bits FULL    = it was issued and did not appear (GE/display).\n");
-    fprintf(fp, "# frames seen this session: %u, ring holds the last %u\n",
-            s_traceCount, (unsigned)GU_TRACE_FRAMES);
-
-    fprintf(fp, "# empty-frame events: %u | short-list events: %u\n",
-            s_emptyCount, s_eventCount);
-    {
-        unsigned n = s_emptyCount < 16 ? s_emptyCount : 16u;
-        for (unsigned i = 0; i < n; i++) {
-            const EmptyFrameEvent* e = &s_empties[i];
-            fprintf(fp, "# empty frame %u shown %08x drawn %08x %s list %u\n",
-                    e->frameNo, e->shown, e->drawn,
-                    (e->shown == e->drawn) ? "SAME-BUFFER" : "ok", e->listBytes);
-        }
-        n = s_eventCount < 32 ? s_eventCount : 32u;
-        for (unsigned i = 0; i < n; i++) {
-            const ShortListEvent* e = &s_events[i];
-            fprintf(fp, "# short-list frame %u list %u prev %u next %u peak %u scratch %u fails %u\n",
-                    e->frameNo, e->bytes, e->prevBytes, e->nextBytes,
-                    e->peak, e->scratch, e->allocFails);
-        }
-    }
-
-    fprintf(fp, "frame,us,marks,list,listused,scratch,fails,failbytes,gate,failat,"
-                "shown,drawn,samebuf,vramfree,texfails,canary,draw,front,pixsum,pixdrift\n");
-
-#if GU_TRACE_FRAMES > 0
-
-    const unsigned CSV_ROWS = 1024;
-    unsigned n = s_traceCount < GU_TRACE_FRAMES ? s_traceCount : (unsigned)GU_TRACE_FRAMES;
-    if (n > CSV_ROWS) n = CSV_ROWS;
-    const unsigned first = s_traceCount - n;
-    for (unsigned i = 0; i < n; i++) {
-        const FrameRec* r = &s_trace[(first + i) % GU_TRACE_FRAMES];
-        fprintf(fp, "%u,%u,%04x,%u,%u,%u,%u,%u,%u,%08x,%08x,%08x,%d,%u,%u,%u,%u,%u,%08x,%u,%u,%u,%04x,%04x\n",
-                r->frameId, r->us, r->marks, r->listBytes, r->listUsed,
-                r->scratch, r->allocFails, r->failBytes, r->failGate, r->failAt,
-                r->shown, r->drawn, (r->shown == r->drawn) ? 1 : 0,
-                r->vramFree, (unsigned)r->texFails, (unsigned)r->canary,
-                (unsigned)(r->bufIdx >> 8), (unsigned)(r->bufIdx & 0xff), r->pixSum, r->pixDrift, (unsigned)r->driftCount, (unsigned)r->driftIdx,
-                (unsigned)r->driftOld, (unsigned)r->driftNew);
-    }
-#endif
-    fclose(fp);
-
-#if GU_TRACE_FRAMES > 0
-
-    FILE* bf = fopen(assetPath("framelog.bin"), "wb");
-    if (!bf) bf = fopen("ms0:/framelog.bin", "wb");
-    if (bf) {
-        const unsigned hdr[4] = { 0x4d43464cu, (unsigned)sizeof(FrameRec),
-                                  (unsigned)GU_TRACE_FRAMES, s_traceCount };
-        fwrite(hdr, sizeof(hdr), 1, bf);
-        fwrite(s_trace, sizeof(FrameRec), GU_TRACE_FRAMES, bf);
-        fclose(bf);
-    }
-#endif
-}
-#endif

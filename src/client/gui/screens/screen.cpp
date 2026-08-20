@@ -12,11 +12,9 @@ extern bool g_craftOpen, g_armorOpen, g_furnaceOpen, g_chestOpen, g_deadScreen;
 
 void Screen::render(MenuState& s) {
     renderBackground(s);
-    guMark(GU_MARK_MENU_BG);
 
     sceGuDisable(GU_DEPTH_TEST);
     renderContent(s);
-    guMark(GU_MARK_MENU_CONTENT);
 }
 
 void Screen::renderBackground(MenuState& s) {

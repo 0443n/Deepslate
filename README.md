@@ -149,6 +149,20 @@ model; that is worth more than a warning nobody reads.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
 
+### PSP engines this port learned from
+
+- [**DaedalusX64**](https://github.com/DaedalusX64/daedalus) — the N64 emulator
+  for PSP, and the sharpest PSP renderer to read. `src/util/fast_memcpy.cpp` is
+  its `memcpy_vfpu` (`Source/SysPSP/Utility/FastMemcpyPSP.cpp`, © 2009 Raphael,
+  modified by Corn) copied essentially verbatim; Daedalus is
+  GPL-2.0-**or-later**, so it is carried here under GPLv3. Two of its practices
+  were adopted rather than copied: composing simple model matrices by hand
+  instead of paying the `sceGum*` stack for them
+  (`Source/SysPSP/HLEGraphics/RendererPSP.cpp` uses no `sceGum*` at all), and
+  writing D-cache ranges back **without** invalidating them when the reader is
+  the GE (`NativeTexturePSP.cpp` writes back for textures and keeps
+  invalidate for the audio path, where the CPU is the one reading).
+
 ## License
 
 The original engine code written for this port — the world storage, the PSP

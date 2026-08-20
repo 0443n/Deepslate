@@ -2,7 +2,7 @@
 #include "platform/dcache.h"
 #include "util/prof.h"
 #include "world/level/chunk/mesh_sink.h"
-#include <string.h>
+#include "util/fast_memcpy.h"
 #include <pspgu.h>
 #include <pspgum.h>
 #include <malloc.h>
@@ -28,10 +28,11 @@ float chunkPackDecodeY(int q, int oy) { return (float)q / (float)POS_ENC + oy; }
 
 DrawVertex* chunkPackFinish(const DrawVertex* staging, int n) {
     profBegin(PROF_MALLOC);
-    DrawVertex* d = (DrawVertex*)memalign(16, (size_t)n * sizeof(DrawVertex));
+    DrawVertex* d = (DrawVertex*)memalign(64, (size_t)n * sizeof(DrawVertex));
     profEnd(PROF_MALLOC);
     if (!d) return 0;
-    memcpy(d, staging, (size_t)n * sizeof(DrawVertex));
+
+    memcpy_vfpu(d, staging, (size_t)n * sizeof(DrawVertex));
     dcacheFlush(d, (size_t)n * sizeof(DrawVertex));
     return d;
 }
@@ -39,7 +40,7 @@ DrawVertex* chunkPackFinish(const DrawVertex* staging, int n) {
 DrawVertex* chunkPack(const ChunkVertex* s, int n, int ox, int oy, int oz,
                       float* ylo, float* yhi) {
     profBegin(PROF_MALLOC);
-    DrawVertex* d = (DrawVertex*)memalign(16, (size_t)n * sizeof(DrawVertex));
+    DrawVertex* d = (DrawVertex*)memalign(64, (size_t)n * sizeof(DrawVertex));
     profEnd(PROF_MALLOC);
     if (!d) return 0;
     int qlo = 32767, qhi = -32768;
@@ -56,13 +57,17 @@ float g_relBaseX = 0.0f, g_relBaseY = 0.0f, g_relBaseZ = 0.0f;
 #define SEAM_OVERSCALE_TRANS  (32768.0f / 32763.0f)
 
 static inline void chunkSetModel(const ChunkSection* s, float scaleMul) {
+    const float sm = POS_MODEL_SCALE * scaleMul;
+    ScePspFMatrix4 m;
+    m.x.x = sm;   m.x.y = 0.0f; m.x.z = 0.0f; m.x.w = 0.0f;
+    m.y.x = 0.0f; m.y.y = sm;   m.y.z = 0.0f; m.y.w = 0.0f;
+    m.z.x = 0.0f; m.z.y = 0.0f; m.z.z = sm;   m.z.w = 0.0f;
+    m.w.x = (float)s->ox - g_relBaseX;
+    m.w.y = (float)s->oy - g_relBaseY;
+    m.w.z = (float)s->oz - g_relBaseZ;
+    m.w.w = 1.0f;
     sceGumMatrixMode(GU_MODEL);
-    sceGumLoadIdentity();
-    ScePspFVector3 t = { (float)s->ox - g_relBaseX, (float)s->oy - g_relBaseY, (float)s->oz - g_relBaseZ };
-    sceGumTranslate(&t);
-    float sm = POS_MODEL_SCALE * scaleMul;
-    ScePspFVector3 sc = { sm, sm, sm };
-    sceGumScale(&sc);
+    sceGumLoadMatrix(&m);
 }
 
 void chunkDrawSection(const ChunkSection* s) {

@@ -720,7 +720,6 @@ static void renderCloudPass(float a, float px, float py, float pz) {
 
     if (fancy) renderCloudsFancy(a, px, py, pz);
     else       renderCloudsFast(a, px, py, pz);
-    guMark(GU_MARK_CLOUDS);
 
     sceGuFrontFace(GU_CCW);
     sceGuEnable(GU_CULL_FACE);
@@ -1543,14 +1542,11 @@ void gameRender(MenuState& s) {
         sceGuFog(0.0f, SKY_FOG_FAR, g_skyColorNow);
 
         skyBackdrop(g_skyColorNow);
-        guMark(GU_MARK_SKY_BACKDROP);
         renderSky(px0, py0, pz0);
-        guMark(GU_MARK_SKY_DOME);
 
         renderSunOrMoon(a, true,  px0, py0, pz0);
         renderSunOrMoon(a, false, px0, py0, pz0);
         renderStars(a, px0, py0, pz0);
-        guMark(GU_MARK_SKY_BODIES);
         sceGumMatrixMode(GU_PROJECTION);
         sceGumPopMatrix();
 
@@ -1633,14 +1629,12 @@ void gameRender(MenuState& s) {
     profBegin(PROF_WORLD);
     worldDraw(&g_world, px0, py0, pz0, vdEff, g_haveTerrain ? &g_terrain : 0);
     profEnd(PROF_WORLD);
-    guMark(GU_MARK_TERRAIN);
 
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     profBegin(PROF_ENTITY);
     EntityRenderDispatcher::getInstance()->renderAll(&g_level, a);
     renderAllTileEntities(&g_level, a);
-    guMark(GU_MARK_ENTITIES);
 
     renderMiningCrack(px0, py0, pz0);
 
@@ -1664,7 +1658,6 @@ void gameRender(MenuState& s) {
     profBegin(PROF_WATER);
     worldDrawWater(&g_world, px0, py0, pz0, g_viewDist);
     profEnd(PROF_WATER);
-    guMark(GU_MARK_WATER);
     if (isWaterId(eyeBlk)) sceGuFrontFace(GU_CCW);
 
     profBegin(PROF_PART);
@@ -1673,7 +1666,6 @@ void gameRender(MenuState& s) {
                         g_haveTerrain ? &g_terrain : 0, &g_particles,
                         g_haveGuiBlocks ? &g_guiBlocks : 0);
     profEnd(PROF_PART);
-    guMark(GU_MARK_PARTICLES);
 
     sceGuDepthMask(GU_FALSE);
 
@@ -1686,7 +1678,6 @@ void gameRender(MenuState& s) {
     if (!g_thirdPerson && g_level.player && g_level.player->health > 0 &&
         !g_level.player->isSleeping() && !g_photoPending && !g_hideGui) {
         itemHandDraw(a, bs, bc);
-        guMark(GU_MARK_HAND);
     }
 
     if (g_worldBuilt) fireScreenEffect();
@@ -1713,6 +1704,5 @@ void gameRender(MenuState& s) {
     if (g_worldBuilt && !g_photoPending && !g_hideGui) {
         if (g_invOpen) inventoryDraw(s);
         hotbarDraw(s);
-        guMark(GU_MARK_HUD);
     }
 }

@@ -328,9 +328,10 @@ void CraftScreen::renderContent(MenuState& s) {
         if (haveFont) {
             const char* name = getBlockName(ci.item.id, (unsigned char)(ci.item.data < 0 ? 0 : ci.item.data));
 
-            const float ns = UI_SCALE * 2.0f / 3.0f;
+            const float ns = 2.0f;
             const float nw = G(paneW - 22.0f) / ns;
-            fontDrawTextClipped(&font, G(paneX + 2), G(ry + 8), name,
+
+            fontDrawTextClipped(&font, G(paneX + 2), G(ry + 5), name,
                                 ci.canCraft ? rgbActive : rgbInactive, ns, nw);
         }
 
@@ -341,7 +342,8 @@ void CraftScreen::renderContent(MenuState& s) {
         if (haveFont) {
             char buf[16];
             snprintf(buf, sizeof(buf), "%d", ci.inventoryCount);
-            float ts = UI_SCALE * 2.0f / 3.0f;
+
+            const float ts = 1.0f;
             float tw = fontTextWidth(&font, buf) * ts;
             fontDrawTextShadow(&font, G(paneX + paneW - 2.0f) - tw, G(ry + RowH - 7.0f), buf,
                                ci.canCraft ? rgbActive : rgbInactive, ts);
@@ -377,14 +379,15 @@ void CraftScreen::renderContent(MenuState& s) {
                           req.enough() ? WHITE : 0xFF707070u);
             char buf[16];
             snprintf(buf, sizeof(buf), "%d/%d", req.has, (int)req.item.count);
-            float ts = UI_SCALE * 2.0f / 3.0f;
+
+            const float ts = 1.0f;
             fontDrawTextShadow(&font, G(xx), G(yy + 17), buf,
                                req.enough() ? rgbActive : rgbInactive, ts);
         }
 
         const char* desc = getBlockDescription(cur->item.id, (unsigned char)(cur->item.data < 0 ? 0 : cur->item.data));
 
-        const float descScale = UI_SCALE * 2.0f / 3.0f;
+        const float descScale = 1.0f;
         fontDrawTextWrapped(&font, G(craftX), G(craftY + craftH + 4.0f), desc,
                             rgbActive, descScale, craftW * 1.5f);
         (void)rgbInactiveShadow;

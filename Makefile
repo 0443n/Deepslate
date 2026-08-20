@@ -59,6 +59,7 @@ OBJS = \
 	src/world/level/storage/level_storage.o \
 	src/util/data_io.o \
 	src/util/prof.o \
+	src/util/fast_memcpy.o \
 	src/nbt/tag.o \
 	src/world/level/chunk/chunk.o \
 	src/world/level/chunk/chunk_build.o \

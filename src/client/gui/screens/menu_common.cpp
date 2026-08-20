@@ -5,6 +5,7 @@
 #include <psputility.h>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 #include "client/gui/screens/menu.h"
 #include "client/gui/screens/panorama.h"
@@ -40,7 +41,6 @@ void uiDraw(MenuState& s, float x, float y, float w, float h,
     float sx = s.haveTouch ? tsx : asx, sy = s.haveTouch ? tsy : asy;
     textureBind(tex);
     spriteDraw(tex, x, y, w, h, sx, sy, sw, sh, tint);
-    guMark(GU_MARK_UI_SPRITE);
 }
 
 void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,
@@ -177,16 +177,19 @@ void drawNinePatch(MenuState& s, float sx, float sy, float sw, float sh, float c
 
     const float c = corner, S = UI_SCALE;
     const float dc = (destCorner < 0.0f) ? corner : destCorner;
-    const float xs[4] = { 0, dc, gw - dc, gw };
+    const float X0 = floorf(gx * S + 0.5f),        Y0 = floorf(gy * S + 0.5f);
+    const float X1 = floorf((gx + gw) * S + 0.5f), Y1 = floorf((gy + gh) * S + 0.5f);
+    const float dcp = floorf(dc * S + 0.5f);
+    const float xs[4] = { X0, X0 + dcp, X1 - dcp, X1 };
+    const float ys[4] = { Y0, Y0 + dcp, Y1 - dcp, Y1 };
     const float us[4] = { 0, c, sw - c, sw };
-    const float ys[4] = { 0, dc, gh - dc, gh };
     const float vs[4] = { 0, c, sh - c, sh };
     textureBind(&s.guiAtlas);
     for (int j = 0; j < 3; ++j)
         for (int i = 0; i < 3; ++i) {
             float dw = xs[i + 1] - xs[i], dh = ys[j + 1] - ys[j];
             if (dw <= 0 || dh <= 0) continue;
-            spriteDraw(&s.guiAtlas, (gx + xs[i]) * S, (gy + ys[j]) * S, dw * S, dh * S,
+            spriteDraw(&s.guiAtlas, xs[i], ys[j], dw, dh,
                        sx + us[i], sy + vs[j], us[i + 1] - us[i], vs[j + 1] - vs[j], tint);
         }
 }
@@ -361,9 +364,11 @@ bool menuOskUpdate(MenuState& s) {
         drawDirtBackground(s);
     }
     guDialogEnd();
-    if (status == PSP_UTILITY_DIALOG_VISIBLE)
+    if (status == PSP_UTILITY_DIALOG_VISIBLE) {
         sceUtilityOskUpdate(1);
 
+        guWaitGeIdle();
+    }
     guDialogPresent();
     return true;
 }

@@ -65,18 +65,9 @@ static void detectLowMemPsp(void) {
 static volatile int g_exitRequested = 0;
 
 static float drawFaultCounters(MenuState& s, float ty) {
-#if !MCPSP_DIAG
-    (void)s; return ty;
-#else
-
     extern unsigned int g_listPeakBytes, g_listOverruns;
     char buf[80];
 
-    if (g_pixDriftHits) {
-        std::snprintf(buf, sizeof(buf), "FB DRIFT %u", g_pixDriftHits);
-        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF00FFFFu, 1.0f);
-        ty += 12.0f;
-    }
     if (g_canaryBroken) {
         std::snprintf(buf, sizeof(buf), "GE-LIST CANARY BROKEN +%u", g_canaryBroken - 1);
         fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF0000FFu, 1.0f);
@@ -125,8 +116,14 @@ static float drawFaultCounters(MenuState& s, float ty) {
         ty += 12.0f;
     }
 
+    extern bool g_haveTerrain, g_worldBuilt;
+    if (g_worldBuilt && !g_haveTerrain) {
+        fontDrawTextShadow(&s.font, 10, ty,
+                           "NO TERRAIN ATLAS (data/images/terrain.png)",
+                           0xFF5050FFu, 1.0f);
+        ty += 12.0f;
+    }
     return ty;
-#endif
 }
 
 static int exitCallback(int , int , void* ) {
@@ -305,16 +302,6 @@ int main(int argc, char* argv[]) {
                                                   PSP_CTRL_VOLUP | PSP_CTRL_VOLDOWN);
         unsigned int pressed = currentBtn & ~lastBtn;
 
-#if MCPSP_DIAG
-        {
-            const unsigned int DUMP = PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER | PSP_CTRL_SELECT;
-            static bool s_dumpHeld = false;
-            const bool held = (currentBtn & DUMP) == DUMP;
-            if (held && !s_dumpHeld) guDumpFrameLog();
-            s_dumpHeld = held;
-        }
-#endif
-
         g_heldButtons = currentBtn;
         lastBtn = currentBtn;
 
@@ -419,42 +406,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 {
-
-#if DIAG_OVERLAY
-
-                    {
-                        extern unsigned int g_emptyFrames, g_emptyFrameNo;
-                        if (g_emptyFrames) {
-                            char efBuf[48];
-                            std::snprintf(efBuf, sizeof(efBuf), "EMPTY-FRAME %u (last %u)",
-                                          g_emptyFrames, g_emptyFrameNo);
-                            fontDrawTextShadow(&s.font, 10, ty, efBuf, 0xFF50FFFFu, 1.0f);
-                            ty += 12.0f;
-                        }
-                    }
-#endif
 #if MCPSP_DIAG
-
-                    {
-                        extern unsigned int g_frameAllocFails;
-                        if (g_frameAllocFails) {
-                            char faBuf[48];
-                            std::snprintf(faBuf, sizeof(faBuf), "GU-SCRATCH FULL %u",
-                                          g_frameAllocFails);
-                            fontDrawTextShadow(&s.font, 10, ty, faBuf, 0xFF50FFFFu, 1.0f);
-                            ty += 12.0f;
-                        }
-                    }
-                    {
-                        extern unsigned int g_shortListHits, g_shortListBytes, g_shortListPeak;
-                        if (g_shortListHits) {
-                            char slBuf[64];
-                            std::snprintf(slBuf, sizeof(slBuf), "SHORT-LIST %u (%u/%u)",
-                                          g_shortListHits, g_shortListBytes, g_shortListPeak);
-                            fontDrawTextShadow(&s.font, 10, ty, slBuf, 0xFF5050FFu, 1.0f);
-                            ty += 12.0f;
-                        }
-                    }
 
                     {
                         extern unsigned int g_drawLiveHits, g_drawLiveOurs;
@@ -479,22 +431,8 @@ int main(int argc, char* argv[]) {
                             ty += 12.0f;
                         }
                     }
-                    if (g_textureBindFailures) {
-                        char txBuf[96];
-                        std::snprintf(txBuf, sizeof(txBuf), "TEX FAIL %u: %s",
-                                      g_textureBindFailures, g_textureLastFailed);
-                        fontDrawTextShadow(&s.font, 10, ty, txBuf, 0xFF5050FFu, 1.0f);
-                        ty += 12.0f;
-                    }
-
-                    extern bool g_haveTerrain;
-                    if (g_worldBuilt && !g_haveTerrain) {
-                        fontDrawTextShadow(&s.font, 10, ty,
-                                           "NO TERRAIN ATLAS (data/images/terrain.png)",
-                                           0xFF5050FFu, 1.0f);
-                        ty += 12.0f;
-                    }
 #endif
+
 #if MEM_OVERLAY
 
                     if (g_worldBuilt) {
@@ -555,6 +493,8 @@ int main(int argc, char* argv[]) {
 #endif
                 }
 
+                ty = drawFaultCounters(s, ty);
+
                 if (g_showCoords && g_worldBuilt && g_level.player) {
                     char posBuf[48];
                     std::snprintf(posBuf, sizeof(posBuf), "X %d  Y %d  Z %d",
@@ -565,10 +505,9 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (Screen* over = overlayScreen()) { over->render(s); guMark(GU_MARK_OVERLAY); }
+            if (Screen* over = overlayScreen()) { over->render(s); }
 
             gameHintsDraw(s);
-            guMark(GU_MARK_HINTS);
 
             sceGuEnable(GU_DEPTH_TEST);
 
@@ -623,9 +562,8 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        if (Screen* cur = menuScreen(s.screen)) { cur->render(s); guMark(GU_MARK_MENU); }
+        if (Screen* cur = menuScreen(s.screen)) { cur->render(s); }
         menuHintsDraw(s);
-        guMark(GU_MARK_HINTS);
 
         drawFaultCounters(s, 10.0f);
 

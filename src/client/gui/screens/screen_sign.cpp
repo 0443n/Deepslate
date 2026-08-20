@@ -56,8 +56,9 @@ void SignScreen::renderContent(MenuState& s) {
     }
 
     if (s.haveFont) {
+
         const float textScale = 8.0f / 11.0f;
-        const float ts = scale * textScale;
+        const float ts = fontSnapScale(scale * textScale);
         for (int i = 0; i < SignTileEntity::NUM_LINES; i++) {
             const std::string& msg = ste->messages[i];
             char buf[40];
