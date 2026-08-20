@@ -357,8 +357,10 @@ void guSuspendForDialog(void) {
     s_dlgShown = g_frontIdx;
     s_dlgDraw  = guAcquireDrawBuffer((g_frontIdx + 1) % GU_FB_COUNT);
     g_drawIdx  = s_dlgDraw;
+
     sceGuStart(GU_DIRECT, guListCur());
     sceGuDrawBuffer(GU_PSM_5650, g_fb[s_dlgDraw], GU_BUF_WIDTH);
+    sceDisplayWaitVblankStart();
     sceGuDispBuffer(GU_SCR_WIDTH, GU_SCR_HEIGHT, g_fb[s_dlgShown], GU_BUF_WIDTH);
     sceGuFinish();
     sceGuSync(0, 0);
@@ -410,6 +412,7 @@ void guDialogEnd(void) {
 void guDialogPresent(void) {
 
     sceDisplayWaitVblankStart();
+
     sceGuSwapBuffers();
 
     const int wasDrawn = s_dlgDraw;
