@@ -101,7 +101,8 @@ static volatile int g_queuedIdx  = -1;
 static volatile int g_frontIdx   = 1;
 
 static inline void* guFbAddr(int idx) {
-    return (void*)((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[idx]);
+    return (void*)(((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[idx])
+                   | 0x40000000u);
 }
 
 unsigned int g_drawLiveHits = 0;
