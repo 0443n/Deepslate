@@ -142,7 +142,11 @@ static void* guVramAlloc(unsigned int width, unsigned int height,
     return result;
 }
 
-static unsigned int guVramTotal(void) { return sceGeEdramGetSize(); }
+static unsigned int guVramTotal(void) {
+    const unsigned int have = sceGeEdramGetSize();
+    const unsigned int cap  = 2u * 1024 * 1024;
+    return have < cap ? have : cap;
+}
 
 void* guVramAllocTexture(unsigned int bytes) {
     unsigned int off = vramAlloc(bytes);
@@ -217,6 +221,9 @@ void guInit(void) {
     vramAllocInit(g_vramOffset, guVramTotal());
 
     sceGuInit();
+
+    sceDisplaySetMode(0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
+
     sceGuStart(GU_DIRECT, guListCur());
 
     sceGuDrawBuffer(GU_PSM_5650, g_fb[0], GU_BUF_WIDTH);
@@ -228,6 +235,9 @@ void guInit(void) {
 
     sceDisplayWaitVblankStart();
     sceGuDisplay(GU_TRUE);
+
+    sceDisplaySetFrameBuf(guFbAddr(1), GU_BUF_WIDTH,
+                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 
     g_frontIdx   = 1;
     g_queuedIdx  = -1;
@@ -363,6 +373,9 @@ void guSuspendForDialog(void) {
     sceGuDrawBuffer(GU_PSM_5650, g_fb[s_dlgDraw], GU_BUF_WIDTH);
     sceDisplayWaitVblankStart();
     sceGuDispBuffer(GU_SCR_WIDTH, GU_SCR_HEIGHT, g_fb[s_dlgShown], GU_BUF_WIDTH);
+
+    sceDisplaySetFrameBuf(guFbAddr(s_dlgShown), GU_BUF_WIDTH,
+                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
     sceGuFinish();
     sceGuSync(0, 0);
 }
@@ -422,6 +435,9 @@ void guDialogPresent(void) {
     g_frontIdx  = s_dlgShown;
     g_queuedIdx = -1;
     g_drawIdx   = s_dlgDraw;
+
+    sceDisplaySetFrameBuf(guFbAddr(s_dlgShown), GU_BUF_WIDTH,
+                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 }
 
 void guEndFrame(void) {
