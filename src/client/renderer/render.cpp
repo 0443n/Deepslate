@@ -1647,6 +1647,8 @@ void gameRender(MenuState& s) {
     if ((g_photoPending && !g_photoIsIcon) ||
         (g_thirdPerson && !(g_level.player && g_level.player->isSleeping())))
         playerModelRender(a);
+
+    guListSync();
     profEnd(PROF_ENTITY);
 
     if (g_worldBuilt && g_beautifulSkies && g_cloudMode) {

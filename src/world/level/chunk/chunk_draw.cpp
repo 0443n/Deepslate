@@ -1,4 +1,5 @@
 #include "world/level/chunk/chunk.h"
+#include "gpu/gu.h"
 #include "platform/dcache.h"
 #include "util/prof.h"
 #include "world/level/chunk/mesh_sink.h"
@@ -111,10 +112,10 @@ void chunkDrawNoMipSection(const ChunkSection* s, int part) {
 void chunkFreeMesh(ChunkMesh* c) {
     for (int si = 0; si < N_SECTIONS; si++) {
         ChunkSection* s = &c->sec[si];
-        if (s->mesh)   { free(s->mesh);   s->mesh = 0; }
-        if (s->water)  { free(s->water);  s->water = 0; }
-        if (s->leaves) { free(s->leaves); s->leaves = 0; }
-        if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
+        if (s->mesh)   { guDeferFree(s->mesh);   s->mesh = 0; }
+        if (s->water)  { guDeferFree(s->water);  s->water = 0; }
+        if (s->leaves) { guDeferFree(s->leaves); s->leaves = 0; }
+        if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
         s->noMipLavaStart = 0;
     }

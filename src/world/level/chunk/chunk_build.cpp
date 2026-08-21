@@ -1,4 +1,5 @@
 #include "world/level/chunk/chunk.h"
+#include "gpu/gu.h"
 #include "world/level/chunk/mesh_sink.h"
 #include "client/renderer/level/frustum.h"
 #include <malloc.h>
@@ -142,10 +143,10 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     s->ox = ox; s->oy = y0; s->oz = oz;
 
     if (sectionCannotEmit(w, ox, oz, si)) {
-        if (s->mesh)   { free(s->mesh);   s->mesh = 0; }
-        if (s->water)  { free(s->water);  s->water = 0; }
-        if (s->leaves) { free(s->leaves); s->leaves = 0; }
-        if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
+        if (s->mesh)   { guDeferFree(s->mesh);   s->mesh = 0; }
+        if (s->water)  { guDeferFree(s->water);  s->water = 0; }
+        if (s->leaves) { guDeferFree(s->leaves); s->leaves = 0; }
+        if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
         s->noMipLavaStart = 0;
         s->skyLit = false;
@@ -176,10 +177,10 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         }
     }
 
-    if (s->mesh)   { free(s->mesh);   s->mesh = 0; }
-    if (s->water)  { free(s->water);  s->water = 0; }
-    if (s->leaves) { free(s->leaves); s->leaves = 0; }
-    if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
+    if (s->mesh)   { guDeferFree(s->mesh);   s->mesh = 0; }
+    if (s->water)  { guDeferFree(s->water);  s->water = 0; }
+    if (s->leaves) { guDeferFree(s->leaves); s->leaves = 0; }
+    if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
     s->noMipLavaStart = 0;
 
     bool leavesOpaque = leafOpaqueBand(c, y0, y1, g_camX, g_camY, g_camZ, g_fancyGraphics != 0);

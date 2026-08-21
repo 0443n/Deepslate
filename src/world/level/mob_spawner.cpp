@@ -200,6 +200,8 @@ void populateInitial(Level* level) {
     if (g_level.player->inventory->isCreative()) return;
 
     if (!activeLevelSource().spawnsMobs()) return;
+
+    s_rng.setSeed(worldSeed());
     const float CREATURE_PROBABILITY = 0.08f;
     const int NCHUNKS = (WORLD_W / 16) * (WORLD_D / 16);
 
@@ -229,12 +231,9 @@ void populateInitial(Level* level) {
                         if (!m) return;
                         m->moveTo(x + 0.5f, (float)y, z + 0.5f, s_rng.nextFloat() * 360.0f, 0.0f);
 
-                        if (m->canSpawn()) {
-                            if (s_rng.nextInt(2) == 0) ((Animal*)m)->setAge(-24000);
-                            level->addEntity(m);
-                            break;
-                        }
-                        delete m;
+                        if (s_rng.nextInt(2) == 0) ((Animal*)m)->setAge(-24000);
+                        level->addEntity(m);
+                        break;
                     }
                     x += s_rng.nextInt(5) - s_rng.nextInt(5);
                     z += s_rng.nextInt(5) - s_rng.nextInt(5);

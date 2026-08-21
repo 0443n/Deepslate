@@ -87,6 +87,13 @@ static float drawFaultCounters(MenuState& s, float ty) {
         fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
         ty += 12.0f;
     }
+
+    extern unsigned int g_deferStalls;
+    if (g_deferStalls) {
+        std::snprintf(buf, sizeof(buf), "GU-DEFER STALL %u", g_deferStalls);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
+        ty += 12.0f;
+    }
     extern unsigned int g_drawLiveHits;
     if (g_drawLiveHits) {
         std::snprintf(buf, sizeof(buf), "DRAW-LIVE %u", g_drawLiveHits);

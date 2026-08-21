@@ -13,6 +13,10 @@ void* guFrameAlloc(int bytes);
 
 void* guFrameAllocPriority(int bytes);
 
+void guListSync(void);
+
+void guDeferFree(void* p);
+
 extern int g_dither;
 
 void guSetDither(int wanted);

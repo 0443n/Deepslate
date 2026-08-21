@@ -22,6 +22,8 @@
 static int g_meshBuildCursor = 0;
 static long g_worldSeed = 0;
 
+long worldSeed(void) { return g_worldSeed; }
+
 int g_skyDarken = 0;
 
 float worldTimeOfDay(long dayTime, float a) {

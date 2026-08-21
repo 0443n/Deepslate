@@ -3,6 +3,7 @@
 #include "world/level/chunk/chunk_cache.h"
 
 #include "gpu/texture.h"
+#include "gpu/gu.h"
 #include "util/prof.h"
 #include "platform/time.h"
 
@@ -16,10 +17,10 @@
 #include "client/renderer/level/frustum.h"
 
 static inline void streamFreeSection(ChunkSection* s) {
-    if (s->mesh)   { free(s->mesh);   s->mesh = 0; }
-    if (s->water)  { free(s->water);  s->water = 0; }
-    if (s->leaves) { free(s->leaves); s->leaves = 0; }
-    if (s->noMip)  { free(s->noMip);  s->noMip = 0; }
+    if (s->mesh)   { guDeferFree(s->mesh);   s->mesh = 0; }
+    if (s->water)  { guDeferFree(s->water);  s->water = 0; }
+    if (s->leaves) { guDeferFree(s->leaves); s->leaves = 0; }
+    if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
     s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
     s->noMipLavaStart = 0;
     s->dirty = true;
@@ -321,6 +322,8 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         sceGuTexFilter(GU_NEAREST_MIPMAP_LINEAR, GU_NEAREST);
         textureMipAuto();
     }
+
+    guListSync();
 }
 
 struct WaterSec { float d2; const ChunkSection* s; };
@@ -365,4 +368,5 @@ void worldDrawWater(const World* w, float camX, float camY, float camZ, float vi
         chunkDrawWaterSection(g_waterList[i].s);
     }
     if (distMip) textureMipAuto();
+    guListSync();
 }

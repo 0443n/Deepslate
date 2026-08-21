@@ -119,6 +119,8 @@ extern volatile bool g_terrainThreadDone;
 
 bool worldInitTerrain(World* w, long seed, int worldType = WORLD_TYPE_OLD);
 
+long worldSeed(void);
+
 bool worldAllocArrays(World* w);
 
 int worldBuildMeshesStep(World* w, int maxChunks);

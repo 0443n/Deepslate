@@ -1,4 +1,5 @@
 #include "gpu/gu.h"
+#include <stdlib.h>
 #include "platform/canary.h"
 #include "platform/dcache.h"
 
@@ -21,6 +22,34 @@ static unsigned int __attribute__((aligned(16)))
     g_list[GU_LIST_COUNT][GU_LIST_BYTES / 4 + CANARY_WORDS];
 static void*    g_listUncached[GU_LIST_COUNT] = { 0, 0 };
 static int      g_listIdx = 0;
+
+static unsigned int __attribute__((aligned(16))) g_callList[64];
+
+static void* g_callListUncached = 0;
+
+#define GU_DEFER_MAX 512
+static void* g_deferBuf[2][GU_DEFER_MAX];
+static int   g_deferN[2] = { 0, 0 };
+static int   g_deferCur  = 0;
+unsigned int g_deferStalls = 0;
+
+void guDeferFree(void* p) {
+    if (!p) return;
+    if (g_deferN[g_deferCur] >= GU_DEFER_MAX) {
+        sceGuSync(0, 0);
+        free(p);
+        g_deferStalls++;
+        return;
+    }
+    g_deferBuf[g_deferCur][g_deferN[g_deferCur]++] = p;
+}
+
+static void guFlushDeferredFrees(void) {
+    const int old = g_deferCur ^ 1;
+    for (int i = 0; i < g_deferN[old]; i++) free(g_deferBuf[old][i]);
+    g_deferN[old] = 0;
+    g_deferCur    = old;
+}
 
 static inline volatile unsigned int* guListCanary(int i) {
     return (volatile unsigned int*)&g_list[i][GU_LIST_BYTES / 4];
@@ -80,11 +109,26 @@ static void* frameAllocUpTo(int bytes, unsigned int limit) {
     if (!p) return 0;
 
     const unsigned int off = (unsigned int)p - (unsigned int)guListCur();
-    if (off < GU_LIST_BYTES) g_listUsed = off + cost;
-    else                     g_listUsed = GU_LIST_BYTES;
+
+    if (off + cost > GU_LIST_BYTES) {
+
+        g_listUsed = GU_LIST_BYTES;
+        guTraceFail(bytes, 3);
+        return 0;
+    }
+    g_listUsed = off + cost;
 
     g_frameScratch += (unsigned int)bytes;
     return p;
+}
+
+void guListSync(void) {
+
+    if (g_listUsed + 8u > GU_LIST_BYTES) { g_listUsed = GU_LIST_BYTES; return; }
+    void* p = sceGuGetMemory(0);
+    if (!p) return;
+    const unsigned int off = (unsigned int)p - (unsigned int)guListCur();
+    g_listUsed = (off < GU_LIST_BYTES) ? off : GU_LIST_BYTES;
 }
 
 void* guFrameAlloc(int bytes)         { return frameAllocUpTo(bytes, GU_SCRATCH_GENERAL); }
@@ -92,13 +136,12 @@ void* guFrameAllocPriority(int bytes) { return frameAllocUpTo(bytes, GU_SCRATCH_
 
 static unsigned int g_vramOffset = 0;
 
-#define GU_FB_COUNT 3
+#define GU_FB_COUNT 2
 static void* g_fb[GU_FB_COUNT] = { 0 };
 static void* g_zbp = 0;
 static int   g_drawIdx = 0;
 
-static volatile int g_queuedIdx  = -1;
-static volatile int g_frontIdx   = 1;
+static bool s_dialogUp = false;
 
 static inline void* guFbAddr(int idx) {
     return (void*)(((unsigned int)sceGeEdramGetAddr() + (unsigned int)g_fb[idx])
@@ -107,14 +150,6 @@ static inline void* guFbAddr(int idx) {
 
 unsigned int g_drawLiveHits = 0;
 unsigned int g_drawLiveOurs = 0;
-
-static int guAcquireDrawBuffer(int from) {
-    for (int i = 0; i < GU_FB_COUNT; i++) {
-        int cand = (from + i) % GU_FB_COUNT;
-        if (cand != g_frontIdx && cand != g_queuedIdx) return cand;
-    }
-    return from;
-}
 
 void guWaitGeIdle(void) { sceGuSync(0, 0); }
 
@@ -163,6 +198,23 @@ unsigned int guVramFree(void) {
     return vramBytesFree();
 }
 
+static const ScePspIMatrix4 kDitherA = {
+    { -2,  1, -1,  2 },
+    { -1,  2, -2,  1 },
+    {  2, -1,  1, -2 },
+    {  1, -2,  2, -1 },
+};
+static const ScePspIMatrix4 kDitherB = {
+    { -2, -1,  2,  1 },
+    {  1,  2, -1, -2 },
+    { -1, -2,  1,  2 },
+    {  2,  1, -2, -1 },
+};
+
+static void guSetDitherPhase(int phase) {
+    sceGuSetDither(phase ? (ScePspIMatrix4*)&kDitherB : (ScePspIMatrix4*)&kDitherA);
+}
+
 static void guApplyPersistentState(void) {
     sceGuDepthBuffer(g_zbp, GU_BUF_WIDTH);
 
@@ -183,13 +235,7 @@ static void guApplyPersistentState(void) {
     sceGuEnable(GU_CULL_FACE);
     sceGuEnable(GU_CLIP_PLANES);
 
-    ScePspIMatrix4 dither = {
-        { -4,  0, -3,  1 },
-        {  2, -2,  3, -1 },
-        { -3,  1, -4,  0 },
-        {  3, -1,  2, -2 },
-    };
-    sceGuSetDither(&dither);
+    guSetDitherPhase(g_listIdx);
     guSetDither(1);
 
     sceGuEnable(GU_TEXTURE_2D);
@@ -211,6 +257,8 @@ void guInit(void) {
 
         canaryArm(guListCanary(i));
     }
+
+    g_callListUncached = (void*)((unsigned int)g_callList | 0x40000000u);
     g_listIdx = 0;
 
     for (int i = 0; i < GU_FB_COUNT; i++)
@@ -239,9 +287,7 @@ void guInit(void) {
     sceDisplaySetFrameBuf(guFbAddr(1), GU_BUF_WIDTH,
                           PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 
-    g_frontIdx   = 1;
-    g_queuedIdx  = -1;
-    g_drawIdx    = 0;
+    g_drawIdx = 0;
 
 }
 
@@ -249,22 +295,7 @@ void guTerm(void) {
     sceGuTerm();
 }
 
-bool guStartFrame(unsigned int clearColor) {
-
-    g_listIdx ^= 1;
-    sceGuStart(GU_DIRECT, guListCur());
-    g_frameScratch = 0;
-    g_listUsed     = 0;
-    g_frameId++;
-
-    if (g_drawIdx == g_frontIdx || g_drawIdx == g_queuedIdx) {
-        g_drawLiveHits++;
-        g_drawLiveOurs++;
-        profAdd(PROFC_DRAWLIVE, 1);
-        g_drawIdx = guAcquireDrawBuffer(g_drawIdx);
-    }
-    sceGuDrawBuffer(GU_PSM_5650, g_fb[g_drawIdx], GU_BUF_WIDTH);
-
+static void guApplyFrameBaseline(void) {
     sceGuDepthFunc(GU_GEQUAL);
     sceGuEnable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_FALSE);
@@ -276,6 +307,21 @@ bool guStartFrame(unsigned int clearColor) {
     sceGuAlphaFunc(GU_GREATER, 0, 0xff);
     sceGuDisable(GU_FOG);
     sceGuEnable(GU_TEXTURE_2D);
+}
+
+bool guStartFrame(unsigned int clearColor) {
+
+    if (s_dialogUp) return false;
+
+    g_listIdx ^= 1;
+    sceGuStart(GU_DIRECT, guListCur());
+    g_frameScratch = 0;
+    g_listUsed     = 0;
+    g_frameId++;
+
+    guSetDitherPhase(g_listIdx);
+
+    guApplyFrameBaseline();
 
     guSetDither(0);
 
@@ -283,13 +329,10 @@ bool guStartFrame(unsigned int clearColor) {
 
     sceGuClearColor(clearColor);
     sceGuClearDepth(0);
+
     sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
     return true;
 }
-
-static bool s_dialogUp = false;
-static int  s_dlgDraw  = 0;
-static int  s_dlgShown = 1;
 
 static void guCheckListCanary(void) {
     const int c = canaryCheck(guListCanary(g_listIdx));
@@ -337,9 +380,9 @@ void guFinishFrame(void) {
     }
 
     sceGuSync(0, 0);
-
     guCheckListCanary();
 
+    guFlushDeferredFrees();
     profEnd(PROF_GESYNC);
 }
 
@@ -348,68 +391,39 @@ void guPresent(void) {
     profBegin(PROF_VBLANK);
     sceDisplayWaitVblankStart();
     profEnd(PROF_VBLANK);
-
-    if (g_queuedIdx >= 0) { g_frontIdx = g_queuedIdx; g_queuedIdx = -1; }
-
-    sceDisplaySetFrameBuf(guFbAddr(g_drawIdx), GU_BUF_WIDTH,
-                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
-    g_queuedIdx = g_drawIdx;
-
-    g_drawIdx = guAcquireDrawBuffer((g_drawIdx + 1) % GU_FB_COUNT);
+    sceGuSwapBuffers();
+    g_drawIdx ^= 1;
 }
 
 void guSuspendForDialog(void) {
+
     sceGuSync(0, 0);
+    guFlushDeferredFrees();
     s_dialogUp = true;
-
-    sceDisplayWaitVblankStart();
-    if (g_queuedIdx >= 0) { g_frontIdx = g_queuedIdx; g_queuedIdx = -1; }
-
-    s_dlgShown = g_frontIdx;
-    s_dlgDraw  = guAcquireDrawBuffer((g_frontIdx + 1) % GU_FB_COUNT);
-    g_drawIdx  = s_dlgDraw;
-
-    sceGuStart(GU_DIRECT, guListCur());
-    sceGuDrawBuffer(GU_PSM_5650, g_fb[s_dlgDraw], GU_BUF_WIDTH);
-    sceDisplayWaitVblankStart();
-    sceGuDispBuffer(GU_SCR_WIDTH, GU_SCR_HEIGHT, g_fb[s_dlgShown], GU_BUF_WIDTH);
-
-    sceDisplaySetFrameBuf(guFbAddr(s_dlgShown), GU_BUF_WIDTH,
-                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
-    sceGuFinish();
-    sceGuSync(0, 0);
 }
 
 void guResumeFromDialog(void) {
     sceGuSync(0, 0);
 
-    sceDisplayWaitVblankStart();
-    if (g_queuedIdx >= 0) { g_frontIdx = g_queuedIdx; g_queuedIdx = -1; }
-    sceDisplaySetFrameBuf(guFbAddr(g_frontIdx), GU_BUF_WIDTH,
-                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
-    sceDisplayWaitVblankStart();
-    g_queuedIdx = -1;
-    g_drawIdx   = guAcquireDrawBuffer((g_frontIdx + 1) % GU_FB_COUNT);
-
-    sceGuStart(GU_DIRECT, guListCur());
+    sceGuStart(GU_DIRECT, g_callListUncached);
     guApplyPersistentState();
     sceGuFinish();
     sceGuSync(0, 0);
 
     s_dialogUp = false;
-
 }
 
 void guDialogBegin(unsigned int clearColor) {
-
     g_listIdx ^= 1;
     sceGuStart(GU_DIRECT, guListCur());
     g_frameScratch = 0;
     g_listUsed     = 0;
     g_frameId++;
 
-    sceGuDrawBuffer(GU_PSM_5650, g_fb[s_dlgDraw], GU_BUF_WIDTH);
     guApplyPersistentState();
+
+    guApplyFrameBaseline();
+    guSetDither(0);
     sceGuScissor(0, 0, GU_SCR_WIDTH, GU_SCR_HEIGHT);
     sceGuClearColor(clearColor);
     sceGuClearDepth(0);
@@ -417,27 +431,21 @@ void guDialogBegin(unsigned int clearColor) {
 }
 
 void guDialogEnd(void) {
-    sceGuFinish();
-    sceGuSync(0, 0);
 
+    unsigned listBytes = (unsigned)sceGuFinish();
+    profListBytes(listBytes);
+    if (listBytes > g_listPeakBytes) g_listPeakBytes = listBytes;
+    if (listBytes >= GU_LIST_BYTES) g_listOverruns++;
+    sceGuSync(0, 0);
     guCheckListCanary();
+
+    guFlushDeferredFrees();
 }
 
 void guDialogPresent(void) {
-
     sceDisplayWaitVblankStart();
-
     sceGuSwapBuffers();
-
-    const int wasDrawn = s_dlgDraw;
-    s_dlgDraw   = s_dlgShown;
-    s_dlgShown  = wasDrawn;
-    g_frontIdx  = s_dlgShown;
-    g_queuedIdx = -1;
-    g_drawIdx   = s_dlgDraw;
-
-    sceDisplaySetFrameBuf(guFbAddr(s_dlgShown), GU_BUF_WIDTH,
-                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
+    g_drawIdx ^= 1;
 }
 
 void guEndFrame(void) {
