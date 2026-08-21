@@ -148,7 +148,8 @@ void WorldsScreen::renderContent(MenuState& s) {
                 Texture* img = iconDist <= 1 ? worldIcon(worlds.names[i]) : 0;
                 if (!img) img = &defaultWorld;
                 textureBind(img);
-                float imgW = 64.0f * listScale, imgH = 48.0f * listScale;
+
+                float imgW = 64.0f * listScale, imgH = 45.0f * listScale;
                 float imgX = xCenterV - imgW / 2.0f;
                 float imgY = rowY - 8.0f * listScale;
 
@@ -170,17 +171,29 @@ void WorldsScreen::renderContent(MenuState& s) {
 
                 const float rowTextMaxW = (120.0f - 10.0f) * listScale * UI_SCALE / listText;
 
+                const float TEXT_Y0    = 139.0f;
+                const float SHADOW     = 2.0f;
+                const float GAP_NAME   = 3.0f;
+                const float GAP_DATE   = 2.0f;
+                const float GAP_FOLDER = 2.0f;
+
+                #define LINE_BOTTOM(y, str) ((y) + fontTextInkRows(&font, (str)) * listText + SHADOW)
                 const char* t0 = worlds.displayNames[i];
-                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 44.0f * listScale) * UI_SCALE, t0, colTitle, listText, rowTextMaxW);
-
                 const char* t1 = worlds.dates[i];
-                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 54.0f * listScale) * UI_SCALE, t1, colGrey, listText, rowTextMaxW);
-
                 const char* t2 = worlds.names[i];
-                fontDrawTextClipped(&font, xText * UI_SCALE, (rowY + 64.0f * listScale) * UI_SCALE, t2, colGrey, listText, rowTextMaxW);
-
                 const char* t3 = worlds.gameModes[i] == 1 ? "Creative" : "Survival";
-                fontDrawTextShadow(&font, xText * UI_SCALE, (rowY + 74.0f * listScale) * UI_SCALE, t3, colGrey, listText);
+                const float TEXT_Y1 = LINE_BOTTOM(TEXT_Y0, t0) + GAP_NAME;
+                const float TEXT_Y2 = LINE_BOTTOM(TEXT_Y1, t1) + GAP_DATE;
+                const float TEXT_Y3 = LINE_BOTTOM(TEXT_Y2, t2) + GAP_FOLDER;
+                #undef LINE_BOTTOM
+
+                fontDrawTextClipped(&font, xText * UI_SCALE, TEXT_Y0, t0, colTitle, listText, rowTextMaxW);
+
+                fontDrawTextClipped(&font, xText * UI_SCALE, TEXT_Y1, t1, colGrey, listText, rowTextMaxW);
+
+                fontDrawTextClipped(&font, xText * UI_SCALE, TEXT_Y2, t2, colGrey, listText, rowTextMaxW);
+
+                fontDrawTextShadow(&font, xText * UI_SCALE, TEXT_Y3, t3, colGrey, listText);
             } else {
 
                 textureBind(&touchGui);
@@ -197,7 +210,7 @@ void WorldsScreen::renderContent(MenuState& s) {
                 float cnw = fontTextWidth(&font, cn) * listText;
 
                 fontDrawTextShadow(&font, xCenterV * UI_SCALE - cnw / 2.0f,
-                                   iconY + iconPx + 2.0f, cn, colTitle, listText);
+                                   iconY + iconPx + 4.0f, cn, colTitle, listText);
             }
         }
 
@@ -205,17 +218,19 @@ void WorldsScreen::renderContent(MenuState& s) {
             bool delHovered = (uiRow == 2);
             textureBind(&touchGui);
 
-            const float TRASH_ZOOM = 2.0f;
-            const float trashPxW = 34.0f * TRASH_ZOOM;
-            const float trashPxH = 26.0f * TRASH_ZOOM;
-            const float trashPxX = floorf((VW * UI_SCALE - trashPxW) / 2.0f);
+            const float X_CELL = 26.0f;
+            const float X_ZOOM = 2.0f;
+            const float btnPx  = X_CELL * X_ZOOM;
+            const float btnX   = floorf((VW * UI_SCALE - btnPx) / 2.0f);
 
-            const float trashPxY = VH * UI_SCALE - trashPxH;
+            const float btnY   = VH * UI_SCALE - btnPx - 2.0f;
 
-            float trashU = delHovered ? 184.0f : 150.0f;
+            const float INSET  = delHovered ? 2.0f : 0.0f;
 
-            spriteDraw(&touchGui, trashPxX, trashPxY, trashPxW, trashPxH,
-                       trashU, 0.0f, 34.0f, 26.0f, WHITE);
+            textureBind(&touchGui);
+            spriteDraw(&touchGui, btnX + INSET, btnY + INSET,
+                       btnPx - INSET * 2.0f, btnPx - INSET * 2.0f,
+                       delHovered ? 158.0f : 132.0f, 0.0f, X_CELL, X_CELL, WHITE);
         }
 
         {

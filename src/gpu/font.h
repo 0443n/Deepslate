@@ -7,8 +7,12 @@
 struct Font {
     Texture tex;
     unsigned char charWidth[256];
+
+    unsigned char charBottom[256];
     int lineHeight;
 };
+
+int fontTextInkRows(const Font* f, const char* text);
 
 bool fontLoad(const char* path, Font* out);
 

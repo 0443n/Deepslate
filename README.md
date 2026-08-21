@@ -148,6 +148,10 @@ model; that is worth more than a warning nobody reads.
   which dropped the tag already under a key instead of freeing it.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
+- [**Stann**](https://www.youtube.com/channel/UCT_snDyWXMIDKiCPs606mzg) — drew
+  the delete-world **X** button (both states, in `touchgui.png`), and spotted the
+  uneven border widths on the world-type pills that turned out to be a fractional
+  nine-patch corner.
 
 ### PSP engines this port learned from
 

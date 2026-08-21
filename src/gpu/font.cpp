@@ -43,8 +43,28 @@ bool fontLoad(const char* path, Font* out) {
         if (i == ' ')
             x = 4 - 2;
         out->charWidth[i] = (unsigned char)(x + 2);
+
+        int b = CELL - 1;
+        for (; b >= 0; b--) {
+            bool emptyRow = true;
+            for (int q = 0; q < CELL && emptyRow; q++) {
+                unsigned char a = px[((size_t)(cellY + b) * stride + (cellX + q)) * 4 + 3];
+                if (a > 0) emptyRow = false;
+            }
+            if (!emptyRow) break;
+        }
+        out->charBottom[i] = (unsigned char)(b + 1);
     }
     return true;
+}
+
+int fontTextInkRows(const Font* f, const char* text) {
+    int rows = 0;
+    for (const unsigned char* p = (const unsigned char*)text; *p; p++) {
+        const int b = f->charBottom[*p];
+        if (b > rows) rows = b;
+    }
+    return rows;
 }
 
 void fontFree(Font* f) {

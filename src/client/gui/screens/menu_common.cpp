@@ -45,11 +45,13 @@ void uiDraw(MenuState& s, float x, float y, float w, float h,
 
 void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,
                      bool on, bool hovered, unsigned int tint) {
-    float scale = hovered ? 0.95f : 1.0f;
-    float drawW = w * scale, drawH = h * scale;
-    float drawX = x + (w - drawW) / 2.0f, drawY = y + (h - drawH) / 2.0f;
+
+    (void)hovered;
+    const float dw = 38.0f, dh = 20.0f;
+    const float px = floorf(x * UI_SCALE + (w * UI_SCALE - dw) / 2.0f);
+    const float py = floorf(y * UI_SCALE + (h * UI_SCALE - dh) / 2.0f);
     float onOff = on ? 38.0f : 0.0f;
-    uiDraw(s, drawX * UI_SCALE, drawY * UI_SCALE, drawW * UI_SCALE, drawH * UI_SCALE,
+    uiDraw(s, px, py, dw, dh,
            160.0f + onOff, 206.0f, GA_SS_TOGGLE_X + onOff, GA_SS_TOGGLE_Y, 38.0f, 20.0f, tint);
 }
 
