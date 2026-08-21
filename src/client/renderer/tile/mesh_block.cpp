@@ -34,14 +34,17 @@ static const signed char kFaceCorner[6][4][3] = {
 #define WATER_TOP 0.889f
 
 static int writeQuadDouble(ChunkVertex* out, int n, const float P[4][3],
-                           const float UV[4][2], unsigned int color) {
+                           const float UV[4][2], unsigned int color,
+                           bool mirrorBack = true) {
     static const int triF[6] = { 0, 1, 2, 2, 3, 0 };
     static const int triB[6] = { 0, 2, 1, 2, 0, 3 };
     for (int pass = 0; pass < 2; pass++) {
         const int* tri = pass ? triB : triF;
         for (int t = 0; t < 6; t++) {
             int k = tri[t];
-            out[n].u = UV[k][0]; out[n].v = UV[k][1]; out[n].color = color;
+
+            const int uk = (pass && mirrorBack) ? (3 - k) : k;
+            out[n].u = UV[uk][0]; out[n].v = UV[uk][1]; out[n].color = color;
             out[n].x = P[k][0]; out[n].y = P[k][1]; out[n].z = P[k][2];
             n++;
         }
@@ -155,16 +158,22 @@ int emitCropRows(ChunkVertex* out, int n, int gx, int y, int gz, unsigned char i
     float u1 = (col + 1) * TILE_UV - HT, v1 = (row + 1) * TILE_UV - HT;
     unsigned int color = mulColor(bright, tint);
     const float UV[4][2] = { {u0, v0}, {u0, v1}, {u1, v1}, {u1, v0} };
-    float yb = (float)y, yt = (float)y + 1.0f;
+
+    const float SINK = 1.0f / 16.0f;
+    float yb = (float)y - SINK, yt = (float)y + 1.0f - SINK;
 
     for (int i = 0; i < 2; i++) {
         float px = gx + (i == 0 ? 0.25f : 0.75f);
-        float P[4][3] = { {px, yt, (float)gz}, {px, yb, (float)gz}, {px, yb, gz + 1.0f}, {px, yt, gz + 1.0f} };
+        float za = (i == 0) ? (float)gz : gz + 1.0f;
+        float zb = (i == 0) ? gz + 1.0f : (float)gz;
+        float P[4][3] = { {px, yt, za}, {px, yb, za}, {px, yb, zb}, {px, yt, zb} };
         n = writeQuadDouble(out, n, P, UV, color);
     }
     for (int i = 0; i < 2; i++) {
         float pz = gz + (i == 0 ? 0.25f : 0.75f);
-        float P[4][3] = { {(float)gx, yt, pz}, {(float)gx, yb, pz}, {gx + 1.0f, yb, pz}, {gx + 1.0f, yt, pz} };
+        float xa = (i == 0) ? (float)gx : gx + 1.0f;
+        float xb = (i == 0) ? gx + 1.0f : (float)gx;
+        float P[4][3] = { {xa, yt, pz}, {xa, yb, pz}, {xb, yb, pz}, {xb, yt, pz} };
         n = writeQuadDouble(out, n, P, UV, color);
     }
     return n;
@@ -195,8 +204,9 @@ int emitMelonStem(const World* w, ChunkVertex* out, int n, int gx, int y, int gz
 
     float A[4][3] = { {x0, yt, z0}, {x0, yb, z0}, {x1, yb, z1}, {x1, yt, z1} };
     float B[4][3] = { {x0, yt, z1}, {x0, yb, z1}, {x1, yb, z0}, {x1, yt, z0} };
-    n = writeQuadDouble(out, n, A, UV, color);
-    n = writeQuadDouble(out, n, B, UV, color);
+
+    n = writeQuadDouble(out, n, A, UV, color, false);
+    n = writeQuadDouble(out, n, B, UV, color, false);
 
     if (connectDir >= 0) {
         float cyb = (float)y - 1.0f / 16.0f, cyt = cyb + yy1;
@@ -220,7 +230,7 @@ int emitMelonStem(const World* w, ChunkVertex* out, int n, int gx, int y, int gz
             P[2][0] = xm; P[2][1] = cyb; P[2][2] = gzf;
             P[3][0] = xm; P[3][1] = cyt; P[3][2] = gzf;
         }
-        n = writeQuadDouble(out, n, P, CUV, color);
+        n = writeQuadDouble(out, n, P, CUV, color, false);
     }
     return n;
 }

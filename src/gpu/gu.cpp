@@ -391,8 +391,12 @@ void guPresent(void) {
     profBegin(PROF_VBLANK);
     sceDisplayWaitVblankStart();
     profEnd(PROF_VBLANK);
+    const int shown = g_drawIdx;
     sceGuSwapBuffers();
     g_drawIdx ^= 1;
+
+    sceDisplaySetFrameBuf(guFbAddr(shown), GU_BUF_WIDTH,
+                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_IMMEDIATE);
 }
 
 void guSuspendForDialog(void) {
@@ -444,8 +448,12 @@ void guDialogEnd(void) {
 
 void guDialogPresent(void) {
     sceDisplayWaitVblankStart();
+    const int shown = g_drawIdx;
     sceGuSwapBuffers();
     g_drawIdx ^= 1;
+
+    sceDisplaySetFrameBuf(guFbAddr(shown), GU_BUF_WIDTH,
+                          PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_IMMEDIATE);
 }
 
 void guEndFrame(void) {
