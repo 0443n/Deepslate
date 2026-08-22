@@ -78,6 +78,19 @@ void playerRespawn() {
     p->resetPos(true);
 }
 
+void releaseWorldAndPlayer() {
+    extern void skyFreeStars(void);
+    extern void cloudFreeMesh(void);
+    skyFreeStars();
+    cloudFreeMesh();
+    worldFree(&g_world);
+    g_level.removeAllEntities();
+    g_level.removeAllTileEntities();
+    delete g_level.player; g_level.player = 0;
+    gameModeShutdown();
+    g_worldBuilt = false;
+}
+
 void quitToMenuNoSave(MenuState& s) {
     g_saveRequested = false;
     g_quitAfterSave = false;
@@ -95,16 +108,7 @@ void quitToMenuNoSave(MenuState& s) {
 
     soundStopAll();
 
-    extern void skyFreeStars(void);
-    extern void cloudFreeMesh(void);
-    skyFreeStars();
-    cloudFreeMesh();
-    worldFree(&g_world);
-    g_level.removeAllEntities();
-    g_level.removeAllTileEntities();
-    delete g_level.player; g_level.player = 0;
-    gameModeShutdown();
-    g_worldBuilt = false;
+    releaseWorldAndPlayer();
 
     worldListScan(&s.worlds);
     s.worldSelected = 0;

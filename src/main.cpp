@@ -599,6 +599,8 @@ int main(int argc, char* argv[]) {
     }
 
     soundShutdown();
+
+    if (g_worldBuilt) releaseWorldAndPlayer();
     worldGenWorkerStop();
 
     if (s.haveFont)  fontFree(&s.font);

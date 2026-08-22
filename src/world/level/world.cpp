@@ -266,4 +266,6 @@ void worldFree(World* w) {
     w->tickNextTickList.clear();
     w->tickSet.clear();
     w->lightQueue.clear();
+
+    w->preservedTileEntities.clear();
 }

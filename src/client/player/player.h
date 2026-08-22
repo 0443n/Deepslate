@@ -36,6 +36,7 @@ extern bool g_quitAfterSave;
 
 void playerRespawn();
 
+void releaseWorldAndPlayer();
 void quitToMenuNoSave(MenuState& s);
 
 #endif

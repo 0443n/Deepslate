@@ -145,7 +145,10 @@ model; that is worth more than a warning nobody reads.
 - [**Oreo**](https://github.com/Oreo80) — helped with the porting.
 - [**CODINGBOTSTUDIO**](https://github.com/CODINGBOTSTUDIO) — contributed the
   code the 3D clouds are based on, and found the leak in `CompoundTag`'s put*,
-  which dropped the tag already under a key instead of freeing it.
+  which dropped the tag already under a key instead of freeing it. Also spotted
+  that exiting the app (HOME/START) skipped the world/player teardown that
+  quitting to the menu does, and that `worldFree` never cleared
+  `preservedTileEntities`.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
 - [**Stann**](https://www.youtube.com/channel/UCT_snDyWXMIDKiCPs606mzg) — drew
