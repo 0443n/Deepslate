@@ -175,7 +175,7 @@ void inventoryDraw(MenuState& s) {
             }
         }
 
-        guiScrollbar(G(paneX + paneW) + G(2.0f), G(paneY), G(3.0f), G(paneH - clipBottom),
+        guiScrollbar(G(paneX + paneW) + G(2.0f), G(paneY), G(2.0f), G(paneH - clipBottom),
                      G(rows * ItemSize), G(scrollY),
                      (unsigned int)(scrollAlpha * 255.0f));
     }

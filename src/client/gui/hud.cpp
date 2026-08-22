@@ -875,11 +875,12 @@ void hotbarDraw(MenuState& s) {
     }
     }
 
-    bool overlayUp = g_invOpen || g_chestOpen || g_furnaceOpen ||
-                     g_craftOpen || g_armorOpen || g_paused ||
-                     (sleeping && g_barOnTop);
+    const bool screenUp = g_invOpen || g_chestOpen || g_furnaceOpen ||
+                          g_craftOpen || g_armorOpen || g_paused;
+
+    const bool statusHidden = g_barOnTop && sleeping;
     extern int g_cloudTicks;
-    if (!overlayUp && !g_level.player->inventory->isCreative() && s.haveGui && g_level.player) {
+    if (!statusHidden && !g_level.player->inventory->isCreative() && s.haveGui && g_level.player) {
         int hp = g_level.player->health; if (hp < 0) hp = 0;
         int hearts = g_level.player->getMaxHealth() / 2;
 
@@ -955,7 +956,7 @@ void hotbarDraw(MenuState& s) {
     }
 
     if (s.haveFont) s_chatFont = &s.font;
-    if (!overlayUp && s.haveFont) {
+    if (!screenUp && s.haveFont) {
         float now = gameSeconds();
         float ly = HUD_HOTBAR_TOP - 14.0f;
         for (int i = CHAT_LINES - 1; i >= 0; i--) {

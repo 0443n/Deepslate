@@ -87,8 +87,9 @@ int toggleStep(const MenuState& s, int from, int dir) {
     return -1;
 }
 
-const float TOG_W   = 38.0f * PX;
-const float TOG_H   = 20.0f * PX;
+const float TOG_S   = 2.0f;
+const float TOG_W   = TOGGLE_CELL_W * TOG_S / UI_SCALE;
+const float TOG_H   = TOGGLE_CELL_H * TOG_S / UI_SCALE;
 const float TOG_ROW = ROW_BOX_H + 5.0f * PX;
 
 const char* modeDescription(int gamemode) {
@@ -341,15 +342,20 @@ void CreateScreen::renderContent(MenuState& s) {
             for (int i = FIELD_COUNT; i < ROW_COUNT; i++, togRowY += TOG_ROW) {
                 const bool on = genUsable && genFeatureEnabled(s.newWorldGenMask, rowFeature(i));
 
+                const float togRight = L.panelX + L.panelW - 5.0f * PX;
+                float labelW = (float)fontTextWidth(&font, rowLabel(i)) * TEXT_S / UI_SCALE;
+                float togX   = L.descX + labelW + 6.0f * PX;
+                if (togX + TOG_W > togRight) togX = togRight - TOG_W;
                 fontDrawTextClipped(&font, L.descX * UI_SCALE,
                                     (togRowY + (ROW_BOX_H - 8.0f * TEXT_S) / 2.0f) * UI_SCALE,
                                     rowLabel(i),
                                     !genUsable ? GUI_DISABLED
                                                : (sel == i ? 0xFFFFFFFFu : 0xFFE0E0E0u), TEXT_S,
-                                    (L.boxW - TOG_W - 2.0f) * UI_SCALE / TEXT_S);
-                guiOptionSwitch(s, L.descX + L.boxW - TOG_W,
+                                    (togX - 2.0f - L.descX) * UI_SCALE / TEXT_S);
+                guiOptionSwitch(s, togX,
                                 togRowY + (ROW_BOX_H - TOG_H) / 2.0f, TOG_W, TOG_H,
-                                on, sel == i, !genUsable ? GUI_DISABLED : 0xFFFFFFFFu);
+                                on, sel == i, !genUsable ? GUI_DISABLED : 0xFFFFFFFFu,
+                                TOG_S);
             }
         }
 

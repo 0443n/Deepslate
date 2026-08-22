@@ -44,15 +44,17 @@ void uiDraw(MenuState& s, float x, float y, float w, float h,
 }
 
 void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,
-                     bool on, bool hovered, unsigned int tint) {
+                     bool on, bool hovered, unsigned int tint, float scale) {
 
     (void)hovered;
-    const float dw = 38.0f, dh = 20.0f;
+    if (scale < 1.5f) scale = 1.0f; else scale = 2.0f;
+    const float dw = TOGGLE_CELL_W * scale, dh = TOGGLE_CELL_H * scale;
     const float px = floorf(x * UI_SCALE + (w * UI_SCALE - dw) / 2.0f);
     const float py = floorf(y * UI_SCALE + (h * UI_SCALE - dh) / 2.0f);
-    float onOff = on ? 38.0f : 0.0f;
+    float onOff = on ? TOGGLE_CELL_W : 0.0f;
     uiDraw(s, px, py, dw, dh,
-           160.0f + onOff, 206.0f, GA_SS_TOGGLE_X + onOff, GA_SS_TOGGLE_Y, 38.0f, 20.0f, tint);
+           160.0f + onOff, 206.0f, GA_SS_TOGGLE_X + onOff, GA_SS_TOGGLE_Y,
+           TOGGLE_CELL_W, TOGGLE_CELL_H, tint);
 }
 
 void drawMenuHeader(MenuState& s, const char* title, float x, float w, float h, float textScale,

@@ -158,8 +158,15 @@ void guiTButton(MenuState& s, float x, float y, float w, float h, bool pressed,
 void guiTButtonLabel(MenuState& s, float x, float y, float w, float h,
                      const char* label, bool hovered, bool active, float scale = UI_SCALE);
 
+static const float TOGGLE_CELL_W = 28.0f;
+static const float TOGGLE_CELL_H = 15.0f;
+
+static const float KNOB_CELL_W = 9.0f;
+static const float KNOB_CELL_H = 14.0f;
+
 void guiOptionSwitch(MenuState& s, float x, float y, float w, float h,
-                     bool on, bool hovered, unsigned int tint = 0xFFFFFFFFu);
+                     bool on, bool hovered, unsigned int tint = 0xFFFFFFFFu,
+                     float scale = 1.0f);
 
 unsigned int menuSelectionSig(const MenuState& s);
 

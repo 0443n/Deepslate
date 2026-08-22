@@ -263,7 +263,7 @@ static const float kCatIconUV[OPT_CATEGORIES][2] = {
     { OPT_CAT_ICON, OPT_CAT_ICON }, { 0.0f, OPT_CAT_ICON },
 };
 
-static const float kOptRowH    = 14.0f;
+static const float kOptRowH    = 16.0f;
 static const float kOptHeaderH = 9.0f;
 static float optionRowY(int category, int row, float y0) {
     float y = y0;
@@ -447,8 +447,9 @@ void OptionsScreen::renderContent(MenuState& s) {
             unsigned int togTint  = rowDisabled ? 0xFF707070u : WHITE;
 
             const float kWidgetMargin = 6.0f;
-            const float togW = 26.6f, togH = 14.0f;
-            const float sliderW = 60.0f, sliderH = 20.0f;
+            const float togW = TOGGLE_CELL_W, togH = TOGGLE_CELL_H;
+
+            const float sliderW = 60.0f, sliderH = kOptRowH;
             bool isBool = optionRowIsBoolean(row);
             int  nVals  = rowValueCount(optCategory, r);
 
@@ -473,31 +474,33 @@ void OptionsScreen::renderContent(MenuState& s) {
             if (isBool) {
 
                 guiOptionSwitch(s, widgetX, rY + (rowH - togH) / 2.0f, togW, togH,
-                                valIdx == 1, rowHovered, togTint);
+                                valIdx == 1, rowHovered, togTint, 2.0f);
             } else {
 
+                const float K = 2.0f;
                 float sliderX = widgetX;
                 float sliderY = rY + (rowH - sliderH) / 2.0f;
-                float trackX0 = sliderX + 5.0f, barWidth = sliderW - 10.0f;
 
-                drawRect(trackX0 * UI_SCALE, (sliderY + 7.0f) * UI_SCALE,
-                         barWidth * UI_SCALE, 3.0f * UI_SCALE, 0xFF706C70u);
+                const float cy       = floorf((sliderY + sliderH * 0.5f) * UI_SCALE);
+                const float trackX0  = sliderX * UI_SCALE + 5.0f * K;
+                const float barWidth = sliderW * UI_SCALE - 10.0f * K;
+
+                drawRect(trackX0, cy - 1.5f * K, barWidth, 3.0f * K, 0xFF706C70u);
 
                 if (!row.percent && nVals > 2) {
                     float step = barWidth / (float)(nVals - 1);
-                    float tx = sliderX + 4.0f;
+                    float tx = trackX0 - 1.0f * K;
                     for (int i = 0; i < nVals; i++, tx += step)
-                        drawRect(tx * UI_SCALE, (sliderY + 5.0f) * UI_SCALE,
-                                 4.0f * UI_SCALE, 7.0f * UI_SCALE, 0xFF908590u);
+                        drawRect(floorf(tx), cy - 3.5f * K, 4.0f * K, 7.0f * K, 0xFF908590u);
                 }
 
                 float progress = (nVals > 1) ? (float)valIdx / (float)(nVals - 1) : 0.0f;
-
-                float knobCx = (trackX0 + barWidth * progress) * UI_SCALE;
-                float knobCy = (sliderY + 8.5f) * UI_SCALE;
-                uiDraw(s, floorf(knobCx - 11.0f), floorf(knobCy - 17.0f),
-                       22.0f, 34.0f, 225.0f, 125.0f,
-                       GA_SS_SLIDER_KNOB_X, GA_SS_SLIDER_KNOB_Y, 11.0f, 17.0f, WHITE);
+                float knobCx = trackX0 + barWidth * progress;
+                uiDraw(s, floorf(knobCx - KNOB_CELL_W * K * 0.5f),
+                       cy - KNOB_CELL_H * K * 0.5f,
+                       KNOB_CELL_W * K, KNOB_CELL_H * K, 225.0f, 125.0f,
+                       GA_SS_SLIDER_KNOB_X, GA_SS_SLIDER_KNOB_Y,
+                       KNOB_CELL_W, KNOB_CELL_H, WHITE);
 
                 if (valTxt)
                     fontDrawTextShadow(&font, (sliderX - 4.0f) * UI_SCALE - valW * UI_SCALE,
