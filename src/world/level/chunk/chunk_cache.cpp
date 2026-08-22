@@ -132,7 +132,7 @@ static bool finishStep(World* w) {
 
         worldPlaceMushrooms(w);
         worldPlaceFlowers(w);
-        worldScheduleChunkLiquids(w, cx, cz);
+        worldScheduleChunkTicks(w, cx, cz);
         profEnd(PROF_SMISC);
         c->stage = ST_DONE;
         s_pend = false;

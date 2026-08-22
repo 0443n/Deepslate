@@ -3,8 +3,6 @@
 #include "world/level/chunk/chunk.h"
 #include "client/renderer/particle.h"
 
-static const int REDSTONE_LIT_DELAY = 30;
-
 static void relight(World* w, int x, int y, int z) {
     worldUpdateLights(w);
     worldRebuildAroundNow(w, x, y, z);

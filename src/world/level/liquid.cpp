@@ -394,20 +394,27 @@ void worldSettleLiquids(World* w) {
     }
 }
 
-void worldScheduleChunkLiquids(World* w, int cx, int cz) {
+static void scheduleFire(World* w, int x, int y, int z) {
+    worldScheduleTick(w, x, y, z, BLOCK_FIRE, FIRE_TICK_DELAY + rand() % 10);
+}
 
-    bool hasLiquid[N_SECTIONS];
+void worldScheduleChunkTicks(World* w, int cx, int cz) {
+
+    bool hasTick[N_SECTIONS];
     for (int si = 0; si < N_SECTIONS; si++) {
         unsigned char u;
-        hasLiquid[si] = !blockSectionUniform(w, cx * 16, si * SECTION_SY, cz * 16, &u)
-                        || isLiquidId(u);
+        hasTick[si] = !blockSectionUniform(w, cx * 16, si * SECTION_SY, cz * 16, &u)
+                      || isLiquidId(u) || u == BLOCK_FIRE
+                      || u == BLOCK_ORE_REDSTONE_LIT;
     }
     for (int lx = 0; lx < 16; lx++)
     for (int lz = 0; lz < 16; lz++) {
         int x = cx * 16 + lx, z = cz * 16 + lz;
         for (int y = 0; y < WORLD_H; y++) {
-            if (!hasLiquid[y >> 4]) { y |= (SECTION_SY - 1); continue; }
+            if (!hasTick[y >> 4]) { y |= (SECTION_SY - 1); continue; }
             unsigned char id = worldBlock(w, x, y, z);
+            if (id == BLOCK_FIRE) { scheduleFire(w, x, y, z); continue; }
+            if (id == BLOCK_ORE_REDSTONE_LIT) { worldScheduleTick(w, x, y, z, id, REDSTONE_LIT_DELAY); continue; }
             if (!isLiquidId(id)) continue;
             if (worldData(w, x, y, z) == 0) continue;
             unsigned char dyn = dynOf(id);
@@ -417,11 +424,13 @@ void worldScheduleChunkLiquids(World* w, int cx, int cz) {
     }
 }
 
-void worldScheduleLoadedLiquids(World* w) {
+void worldScheduleLoadedTicks(World* w) {
     for (int x = 0; x < WORLD_W; x++)
     for (int z = 0; z < WORLD_D; z++)
     for (int y = 0; y < WORLD_H; y++) {
         unsigned char id = worldBlock(w, x, y, z);
+        if (id == BLOCK_FIRE) { scheduleFire(w, x, y, z); continue; }
+        if (id == BLOCK_ORE_REDSTONE_LIT) { worldScheduleTick(w, x, y, z, id, REDSTONE_LIT_DELAY); continue; }
         if (!isLiquidId(id)) continue;
         if (worldData(w, x, y, z) == 0) continue;
         unsigned char dyn = dynOf(id);

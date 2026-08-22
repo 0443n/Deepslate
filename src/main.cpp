@@ -124,17 +124,6 @@ static float drawFaultCounters(MenuState& s, float ty) {
         ty += 12.0f;
     }
 
-    extern unsigned int g_breakRefuse, g_breakRefuseFirstMin;
-    extern const char*  g_breakRefuseWhy;
-    extern const char*  g_breakRefuseFirst;
-    if (g_breakRefuse) {
-        std::snprintf(buf, sizeof(buf), "BREAK %u last=%s first=%s@%um",
-                      g_breakRefuse, g_breakRefuseWhy,
-                      g_breakRefuseFirst[0] ? g_breakRefuseFirst : "-",
-                      g_breakRefuseFirstMin);
-        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF40FFFFu, 1.0f);
-        ty += 12.0f;
-    }
     extern World g_world;
     if (g_blockOomDrops || g_world.lightOomDrops) {
         std::snprintf(buf, sizeof(buf), "STORAGE OOM block %u light %u",

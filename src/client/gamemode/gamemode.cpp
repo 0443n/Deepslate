@@ -297,11 +297,11 @@ static void breakTargetedBlock(const BlockHit& hit) {
     }
 }
 
+static unsigned int s_breakCooldownUs = 0;
+
 static bool continueMining(const BlockHit& hit) {
     static unsigned int s_lastUs = 0;
     static float s_digTicks = 0.0f;
-
-    static unsigned int s_breakCooldownUs = 0;
     unsigned int now = sceKernelGetSystemTimeLow();
 
     unsigned char id   = worldBlock(&g_world, hit.x, hit.y, hit.z);
@@ -657,7 +657,13 @@ void gameModeInit(int gameType) {
 
     g_level.player->inventory->reinit(creative);
 }
-void gameModeShutdown() { delete g_gameMode; g_gameMode = 0; }
+void gameModeShutdown() {
+    delete g_gameMode; g_gameMode = 0;
+
+    s_breakCooldownUs = 0;
+    s_click[0].release();
+    s_click[1].release();
+}
 
 void gameModeHandleInput(unsigned int pressed, unsigned int held) {
     if (g_gameMode) g_gameMode->handleInput(pressed, held);

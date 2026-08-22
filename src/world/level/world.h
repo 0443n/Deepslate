@@ -520,7 +520,7 @@ void worldInitLight(World* w);
 void worldInitChunkLight(World* w, int cx, int cz);
 void worldRecalcChunkHeightmap(World* w, int cx, int cz);
 
-void worldScheduleChunkLiquids(World* w, int cx, int cz);
+void worldScheduleChunkTicks(World* w, int cx, int cz);
 void worldRecalcHeightmap(World* w);
 void worldUpdateLights(World* w);
 void worldMarkAllDirty(World* w);
@@ -548,7 +548,7 @@ void         lightLoadChunk(World* w, int cx, int cz,
 void worldScheduleTick(World* w, int x, int y, int z, unsigned char id, int tickDelay);
 void worldTick(World* w);
 void worldSettleLiquids(World* w);
-void worldScheduleLoadedLiquids(World* w);
+void worldScheduleLoadedTicks(World* w);
 void worldUpdateNeighbors(World* w, int x, int y, int z, unsigned char id);
 
 void liquidFlow(const World* w, int x, int y, int z, unsigned char id,

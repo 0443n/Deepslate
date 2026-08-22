@@ -521,7 +521,7 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
     loadChunks(w, Mth::floor(g_level.player->x) >> 4, Mth::floor(g_level.player->z) >> 4);
     g_terrainProgress = 60;
 
-    worldScheduleLoadedLiquids(w);
+    worldScheduleLoadedTicks(w);
 
     lightCompactAll(w);
     g_terrainProgress = 100;
