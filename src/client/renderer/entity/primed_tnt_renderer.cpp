@@ -49,7 +49,8 @@ void PrimedTntRenderer::render(Entity* entity, float x, float y, float z, float 
     float s = 1.0f;
     if (lifeF < 10.0f) {
         float g = 1.0f - lifeF / 10.0f;
-        if (g < 0) g = 0; if (g > 1) g = 1;
+        if (g < 0) g = 0;
+        if (g > 1) g = 1;
         g = g * g; g = g * g;
         s = 1.0f + g * 0.3f;
     }
@@ -72,7 +73,8 @@ void PrimedTntRenderer::render(Entity* entity, float x, float y, float z, float 
 
     if (((tnt->life / 5) & 1) == 0) {
         float br = (1.0f - lifeF / 100.0f) * 0.8f;
-        if (br < 0) br = 0; if (br > 0.8f) br = 0.8f;
+        if (br < 0) br = 0;
+        if (br > 0.8f) br = 0.8f;
         unsigned int col = ((unsigned int)(br * 255.0f) << 24) | 0x00FFFFFFu;
         sceGuDisable(GU_TEXTURE_2D);
         sceGuColor(col);

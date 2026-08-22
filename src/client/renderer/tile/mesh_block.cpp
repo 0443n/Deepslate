@@ -561,7 +561,7 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
                     MeshSink* skp, int* nLava, bool leavesOpaque, bool leavesCull) {
     MeshSink& sk = *skp;
 
-    int& no = sk.n[0]; int& nw = sk.n[1]; int& nl = sk.n[2]; int& nn = sk.n[3];
+    int& no = sk.n[0]; int& nw = sk.n[1]; int& nn = sk.n[3];
     bool sawLava = false;
 
     unsigned char lc[18 * 18 * 18];

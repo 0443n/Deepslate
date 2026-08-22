@@ -26,6 +26,11 @@ public:
 struct MiningState { bool active; int x, y, z; float progress; };
 extern MiningState g_mining;
 
+void breakRefuse(const char* why);
+extern unsigned int g_breakRefuse, g_breakRefuseFirstMin;
+extern const char*  g_breakRefuseWhy;
+extern const char*  g_breakRefuseFirst;
+
 extern GameMode* g_gameMode;
 void gameModeInit(int gameType);
 void gameModeShutdown();

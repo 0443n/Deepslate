@@ -44,8 +44,7 @@ void worldListScan(WorldList* out) {
     while (sceIoDread(d, &entry) > 0 && out->count < MCPSP_MAX_WORLDS) {
         if (FIO_S_ISDIR(entry.d_stat.st_mode) &&
             strcmp(entry.d_name, ".") != 0 && strcmp(entry.d_name, "..") != 0) {
-            strncpy(out->names[out->count], entry.d_name, sizeof(out->names[0]) - 1);
-            out->names[out->count][sizeof(out->names[0]) - 1] = '\0';
+            snprintf(out->names[out->count], sizeof(out->names[0]), "%.63s", entry.d_name);
 
             ScePspDateTime* t = &entry.d_stat.sce_st_mtime;
 
@@ -58,8 +57,7 @@ void worldListScan(WorldList* out) {
             out->worldTypes[out->count] = WORLD_TYPE_OLD;
 
             out->genMasks[out->count] = GEN_FEATURES_ALL_ON;
-            strncpy(out->displayNames[out->count], entry.d_name, sizeof(out->displayNames[0]) - 1);
-            out->displayNames[out->count][sizeof(out->displayNames[0]) - 1] = '\0';
+            snprintf(out->displayNames[out->count], sizeof(out->displayNames[0]), "%.63s", entry.d_name);
 
             char infoPath[320];
             snprintf(infoPath, sizeof(infoPath), "saves/%s/level.txt", entry.d_name);
@@ -69,16 +67,14 @@ void worldListScan(WorldList* out) {
                 char dirRel[320];
                 snprintf(dirRel, sizeof(dirRel), "saves/%s", entry.d_name);
                 char dirAbs[320];
-                strncpy(dirAbs, assetPath(dirRel), sizeof(dirAbs) - 1);
-                dirAbs[sizeof(dirAbs) - 1] = '\0';
+                snprintf(dirAbs, sizeof(dirAbs), "%s", assetPath(dirRel));
                 int gm = 0; long sd = 0;
                 if (LevelStorage::readInfo(dirAbs, out->displayNames[out->count],
                                            sizeof(out->displayNames[0]), &gm, &sd)) {
                     out->gameModes[out->count] = gm;
                     out->seeds[out->count] = sd;
                     if (out->displayNames[out->count][0] == '\0') {
-                        strncpy(out->displayNames[out->count], entry.d_name, sizeof(out->displayNames[0]) - 1);
-                        out->displayNames[out->count][sizeof(out->displayNames[0]) - 1] = '\0';
+                        snprintf(out->displayNames[out->count], sizeof(out->displayNames[0]), "%.63s", entry.d_name);
                     }
                 }
             }
@@ -108,8 +104,7 @@ void worldListScan(WorldList* out) {
                         }
                         if (end) *end = '\0';
                         if (name[0] != '\0') {
-                            strncpy(out->displayNames[out->count], name, sizeof(out->displayNames[0]) - 1);
-                            out->displayNames[out->count][sizeof(out->displayNames[0]) - 1] = '\0';
+                            snprintf(out->displayNames[out->count], sizeof(out->displayNames[0]), "%s", name);
                         }
                     }
                 }
@@ -166,15 +161,13 @@ bool worldListCreate(WorldList* list, const char* inName, char* outName, int gam
 
     char displayName[64];
     if (inName && inName[0] != '\0') {
-        strncpy(displayName, inName, sizeof(displayName) - 1);
-        displayName[sizeof(displayName) - 1] = '\0';
+        snprintf(displayName, sizeof(displayName), "%s", inName);
     } else {
         strcpy(displayName, "New world");
     }
 
     char candidate[64];
-    strncpy(candidate, displayName, sizeof(candidate) - 1);
-    candidate[sizeof(candidate) - 1] = '\0';
+    snprintf(candidate, sizeof(candidate), "%s", displayName);
     char full[320];
     for (int suffix = 0; suffix < 60; suffix++) {
         if (suffix > 0)
@@ -206,11 +199,9 @@ bool worldListCreate(WorldList* list, const char* inName, char* outName, int gam
         sceIoClose(fd);
     }
 
-    strncpy(list->names[list->count], candidate, sizeof(list->names[0]) - 1);
-    list->names[list->count][sizeof(list->names[0]) - 1] = '\0';
+    snprintf(list->names[list->count], sizeof(list->names[0]), "%s", candidate);
 
-    strncpy(list->displayNames[list->count], displayName, sizeof(list->displayNames[0]) - 1);
-    list->displayNames[list->count][sizeof(list->displayNames[0]) - 1] = '\0';
+    snprintf(list->displayNames[list->count], sizeof(list->displayNames[0]), "%s", displayName);
 
     snprintf(list->dates[list->count], sizeof(list->dates[0]), "Just now");
     list->gameModes[list->count] = gamemode;
@@ -230,8 +221,7 @@ bool worldListDelete(WorldList* list, int index) {
     char dirRel[320];
     snprintf(dirRel, sizeof(dirRel), "saves/%s", list->names[index]);
     char dirFull[320];
-    strncpy(dirFull, assetPath(dirRel), sizeof(dirFull) - 1);
-    dirFull[sizeof(dirFull) - 1] = '\0';
+    snprintf(dirFull, sizeof(dirFull), "%s", assetPath(dirRel));
 
     SceUID d = sceIoDopen(dirFull);
     if (d >= 0) {
@@ -240,7 +230,7 @@ bool worldListDelete(WorldList* list, int index) {
         while (sceIoDread(d, &entry) > 0) {
             if (!FIO_S_ISDIR(entry.d_stat.st_mode) &&
                 strcmp(entry.d_name, ".") != 0 && strcmp(entry.d_name, "..") != 0) {
-                char fileRel[384];
+                char fileRel[640];
                 snprintf(fileRel, sizeof(fileRel), "%s/%s", dirRel, entry.d_name);
                 sceIoRemove(assetPath(fileRel));
             }

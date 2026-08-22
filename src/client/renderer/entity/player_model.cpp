@@ -55,11 +55,6 @@ static void loadLocalPlayerSkinIfNeeded(void) {
     }
 }
 
-static void loadCharTextureIfNeeded(void) {
-    if (g_haveChar) return;
-    g_haveChar = textureLoad16("data/images/mob/char.png", &g_charTex, GU_PSM_5551);
-}
-
 static void buildBox(MobVertex* out,
                      float x0, float y0, float z0, float x1, float y1, float z1,
                      int tx, int ty, int w, int h, int d, bool mirror) {

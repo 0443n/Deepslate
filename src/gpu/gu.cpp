@@ -212,7 +212,8 @@ static const ScePspIMatrix4 kDitherB = {
 };
 
 static void guSetDitherPhase(int phase) {
-    sceGuSetDither(phase ? (ScePspIMatrix4*)&kDitherB : (ScePspIMatrix4*)&kDitherA);
+    (void)phase;
+    sceGuSetDither((ScePspIMatrix4*)&kDitherA);
 }
 
 static void guApplyPersistentState(void) {

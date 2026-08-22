@@ -91,10 +91,6 @@ static bool loadTex(Texture* out, const char* rel) {
     return textureLoad(assetPath(rel), out) || textureLoad(rel, out);
 }
 
-static bool loadTex4444(Texture* out, const char* rel) {
-    return textureLoad4444(assetPath(rel), out) || textureLoad4444(rel, out);
-}
-
 static bool loadTex16(Texture* out, const char* rel, int psm) {
     return textureLoad16(assetPath(rel), out, psm) || textureLoad16(rel, out, psm);
 }
@@ -179,11 +175,13 @@ static void updateDayColors(float alpha) {
     float c = cosf(td * 2.0f * 3.14159265f);
 
     float sb = c * 2.0f + 0.5f;
-    if (sb < 0.0f) sb = 0.0f; if (sb > 0.75f) sb = 0.75f;
+    if (sb < 0.0f) sb = 0.0f;
+    if (sb > 0.75f) sb = 0.75f;
     sb /= 0.75f;
 
     float fb = c * 2.0f + 0.5f;
-    if (fb < 0.0f) fb = 0.0f; if (fb > 1.0f) fb = 1.0f;
+    if (fb < 0.0f) fb = 0.0f;
+    if (fb > 1.0f) fb = 1.0f;
     g_skyDomeColorNow = scaleABGR(SKY_DOME_COLOR, sb, sb, sb);
     g_skyColorNow     = scaleABGR(SKY_COLOR, fb*0.94f+0.06f, fb*0.94f+0.06f, fb*0.91f+0.09f);
     g_cloudColorNow   = scaleABGR(0xCCFFFFFFu, fb*0.90f+0.10f, fb*0.90f+0.10f, fb*0.85f+0.15f);
@@ -199,7 +197,9 @@ static void updateDayColors(float alpha) {
             unsigned int nr = (unsigned int)(sr * 255.0f * w + fr  * inv);
             unsigned int ng = (unsigned int)(sg * 255.0f * w + fg  * inv);
             unsigned int nb = (unsigned int)(sb2 * 255.0f * w + fbb * inv);
-            if (nr > 255) nr = 255; if (ng > 255) ng = 255; if (nb > 255) nb = 255;
+            if (nr > 255) nr = 255;
+            if (ng > 255) ng = 255;
+            if (nb > 255) nb = 255;
             g_skyColorNow = (g_skyColorNow & 0xFF000000u) | (nb << 16) | (ng << 8) | nr;
         }
     }
@@ -818,7 +818,7 @@ static void loadWorldView(float ex, float ey, float ez,
 static void renderMiningCrack(float ex, float ey, float ez) {
     if (!g_mining.active || g_mining.progress <= 0.0f || !g_haveTerrain) return;
     unsigned char id   = worldBlock(&g_world, g_mining.x, g_mining.y, g_mining.z);
-    unsigned char data = worldData(&g_world, g_mining.x, g_mining.y, g_mining.z);
+
     if (id == BLOCK_AIR) return;
 
     int stage = (int)(g_mining.progress * 10.0f);
@@ -1496,7 +1496,7 @@ void gameRender(MenuState& s) {
 
     guPerspective(fov, NEAR_Z, g_viewDist);
 
-    float roll = 0.0f, rgxUp = 0.0f, rgzUp = 0.0f;
+    float roll = 0.0f;
 
     if (g_level.player->hurtTime > 0 && g_level.player->hurtDuration > 0) {
         float f = (g_level.player->hurtTime - a) / (float)g_level.player->hurtDuration;

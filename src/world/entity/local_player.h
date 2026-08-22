@@ -8,6 +8,7 @@ class LocalPlayer : public Player {
 public:
     LocalPlayer(Level* level);
 
+    using Mob::aiStep;
     void aiStep(unsigned int btn, unsigned char lx, unsigned char ly);
 
     bool prevSneakBtn = false;

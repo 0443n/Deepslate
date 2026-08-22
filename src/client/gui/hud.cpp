@@ -788,7 +788,8 @@ void drawDurabilityBar(short id, short data, float x, float y, float sizePx) {
     float p  = std::floor(13.5f  - (float)data * 13.0f  / (float)itm->maxDamage);
     int   cc = (int)std::floor(255.5f - (float)data * 255.0f / (float)itm->maxDamage);
     if (p < 0.0f) p = 0.0f;
-    if (cc < 0) cc = 0; if (cc > 255) cc = 255;
+    if (cc < 0) cc = 0;
+    if (cc > 255) cc = 255;
 
     unsigned int ca = 0xFF000000u | ((unsigned)cc << 8)         | (unsigned)(255 - cc);
     unsigned int cb = 0xFF000000u | ((unsigned)(255 / 4) << 8)  | (unsigned)((255 - cc) / 4);

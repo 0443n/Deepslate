@@ -29,6 +29,7 @@
 #include "world/level/tile/fire.h"
 #include "world/entity/item_entity.h"
 #include "platform/time.h"
+#include <cstring>
 #include "client/gamemode/click_repeat.h"
 
 static Mob* nearbyTripodCamera() {
@@ -212,6 +213,21 @@ static void spawnEatParticles(int iconCell, int count) {
                       0.5f + 0.5f * (rand() % 2), (r1 - r2) * 0.2f + 1.0f);
 }
 
+unsigned int g_breakRefuse = 0;
+const char*  g_breakRefuseWhy = "";
+const char*  g_breakRefuseFirst = "";
+unsigned int g_breakRefuseFirstMin = 0;
+
+void breakRefuse(const char* why) {
+    g_breakRefuse++;
+    g_breakRefuseWhy = why;
+    if (!g_breakRefuseFirst[0] && std::strcmp(why, "nohit") != 0) {
+        g_breakRefuseFirst = why;
+        g_breakRefuseFirstMin = (unsigned int)(nowSeconds() / 60.0f);
+    }
+}
+#define BREAK_REFUSE(w) breakRefuse(w)
+
 static void breakTargetedBlock(const BlockHit& hit) {
 
     unsigned char brokenId = worldBlock(&g_world, hit.x, hit.y, hit.z);
@@ -221,6 +237,8 @@ static void breakTargetedBlock(const BlockHit& hit) {
         brokenId == BLOCK_INVISIBLE_BEDROCK ||
         !worldReady(&g_world, hit.x, hit.z) ||
         hit.y < 0 || hit.y >= WORLD_H) {
+        BREAK_REFUSE(brokenId == BLOCK_INVISIBLE_BEDROCK ? "unloaded" :
+                     !worldReady(&g_world, hit.x, hit.z) ? "notready" : "bedrock");
         return;
     }
 
@@ -268,7 +286,9 @@ static void breakTargetedBlock(const BlockHit& hit) {
             unsigned char below = worldBlock(&g_world, hit.x, hit.y - 1, hit.z);
             if (isSolidPhys(below) || isLiquidId(below)) leaves = BLOCK_WATER;
         }
-        worldSetBlockAndData(&g_world, hit.x, hit.y, hit.z, leaves, 0);
+        if (!worldSetBlockAndData(&g_world, hit.x, hit.y, hit.z, leaves, 0))
+            BREAK_REFUSE("storage");
+
         if (isLiquidId(leaves)) worldScheduleTick(&g_world, hit.x, hit.y, hit.z, leaves, 5);
         worldNotifyNeighborsChanged(&g_world, hit.x, hit.y, hit.z);
 
@@ -297,7 +317,11 @@ static bool continueMining(const BlockHit& hit) {
     }
 
     float dt = Tile::tiles[id]->destroySpeed;
-    if (id == BLOCK_AIR || dt < 0.0f) { g_mining.progress = 0.0f; return false; }
+    if (id == BLOCK_AIR || dt < 0.0f) {
+        BREAK_REFUSE(id == BLOCK_AIR ? "air" :
+                     id == BLOCK_INVISIBLE_BEDROCK ? "unloaded" : "unbreakable");
+        g_mining.progress = 0.0f; return false;
+    }
     if (dt == 0.0f) return true;
 
     playerSwing();
@@ -318,7 +342,7 @@ static bool continueMining(const BlockHit& hit) {
     float ticks = (now - s_lastUs) / 50000.0f;
     s_lastUs = now;
 
-    if (s_breakCooldownUs && !timeReached(now, s_breakCooldownUs)) return false;
+    if (s_breakCooldownUs && !timeReached(now, s_breakCooldownUs)) { BREAK_REFUSE("cooldown"); return false; }
     g_mining.progress += perTick * ticks;
 
     s_digTicks += ticks;
@@ -408,6 +432,7 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
                 p = ((p * p) + p * 2) / 3.0f;
                 if (p > 1) p = 1;
                 g_level.player->bowPull = p;
+                if (pressed & PSP_CTRL_RTRIGGER) BREAK_REFUSE("bowdraw");
                 pressed &= ~PSP_CTRL_RTRIGGER;
             } else {
                 if (s_drawing) {
@@ -555,9 +580,12 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
         }
     }
 
+    if ((held & PSP_CTRL_RTRIGGER) && (!g_worldBuilt || !g_gameMode))
+        BREAK_REFUSE(!g_worldBuilt ? "notbuilt" : "nomode");
     if (g_worldBuilt && g_gameMode && !g_gameMode->isCreative()) {
         ItemInstance* mineSel = g_level.player->inventory->getSelected();
         bool bow = mineSel && mineSel->id == ITEM_BOW;
+        if ((held & PSP_CTRL_RTRIGGER) && bow) BREAK_REFUSE("bow");
         if ((held & PSP_CTRL_RTRIGGER) && !bow) {
             BlockHit hit = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z,
                                      g_level.player->yRot, g_level.player->xRot, 5.0f);
@@ -566,6 +594,7 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
                 g_mining.active = false;
                 g_mining.progress = 0.0f;
             } else if (!hit.hit) {
+                BREAK_REFUSE("nohit");
                 g_mining.active = false;
                 g_mining.progress = 0.0f;
             }
@@ -578,6 +607,7 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
     if (g_worldBuilt && (pressed & (PSP_CTRL_RTRIGGER | PSP_CTRL_LTRIGGER))) {
 
         if ((pressed & PSP_CTRL_RTRIGGER) && breakHangingEntityUnderCrosshair()) {
+            BREAK_REFUSE("painting");
             return;
         }
 
@@ -593,11 +623,13 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
         bool clipLiquids = (pressed & PSP_CTRL_LTRIGGER) && held && held->getItem() &&
                            held->getItem()->isLiquidClipItem(held->data);
         BlockHit hit = worldPick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z, g_level.player->yRot, g_level.player->xRot, 5.0f, clipLiquids);
+        if (!hit.hit && (pressed & PSP_CTRL_RTRIGGER)) BREAK_REFUSE("nohit");
         if (hit.hit) {
             if (pressed & PSP_CTRL_RTRIGGER) {
 
                 bool putOut = fireExtinguishAt(&g_world, hit.x, hit.y, hit.z, hit.face);
 
+                if (putOut) BREAK_REFUSE("fire");
                 if (g_gameMode->isCreative() && !putOut) breakTargetedBlock(hit);
             } else {
 

@@ -165,7 +165,7 @@ static void dropItem(int x, int y, int z, short id, short aux, Random&) {
 void Tile::spawnResources(World* , int x, int y, int z, int data, Random& rng) {
 
     if (id == BLOCK_GRAVEL) {
-        dropItem(x, y, z, (rng.nextInt(10) == 0) ? ITEM_FLINT : BLOCK_GRAVEL, 0, rng);
+        dropItem(x, y, z, (rng.nextInt(10) == 0) ? (int)ITEM_FLINT : (int)BLOCK_GRAVEL, 0, rng);
         return;
     }
     if (id == BLOCK_ORE_LAPIS) {
