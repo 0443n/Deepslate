@@ -94,6 +94,9 @@ public:
     void playSound(Entity* e, const char* name, float volume, float pitch) const;
     void playSound(float x, float y, float z, const char* name, float volume, float pitch) const;
 
+    void tickCaveMood();
+    float caveMood;
+
     void playStepSound(Entity*, int x, int y, int z, int tileId) const;
 
     void playLandSound(Entity*, int x, int y, int z, int tileId) const;

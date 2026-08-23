@@ -151,6 +151,8 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
         if (g_worldBuilt) g_level.tickTileEntities();
         profEnd(PROF_TTE);
         g_world.simTick = false;
+
+        if (g_worldBuilt) g_level.tickCaveMood();
         profBegin(PROF_TPART);
         if (g_worldBuilt && g_level.player) particlesTick(&g_world, g_level.player->x, g_level.player->y, g_level.player->z);
         profEnd(PROF_TPART);
@@ -206,6 +208,8 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
         return;
     }
     if (g_paused) {
+
+        soundStopWorld();
         pauseScreen().handleInput(s, pressed, pad.Buttons);
         float now = nowSeconds();
         g_timerLast = now; g_timerPassed = 0.0f; g_timerAlpha = 0.0f;

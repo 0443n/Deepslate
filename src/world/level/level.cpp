@@ -15,7 +15,8 @@
 #include "util/mth.h"
 
 Level::Level(World* world) : w(world), player(0), isClientSide(false),
-                             spawnX(WORLD_W / 2), spawnY(64), spawnZ(WORLD_D / 2) {
+                             spawnX(WORLD_W / 2), spawnY(64), spawnZ(WORLD_D / 2),
+                             caveMood(0.0f) {
     entities.reserve(Entity::ENTITY_POOL + 16);
     boxes.reserve(64);
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) chunkEntityHead[i] = 0;
@@ -453,6 +454,39 @@ void Level::playSound(float x, float y, float z, const char* name, float volume,
     float dx = x - player->x, dy = y - player->y, dz = z - player->z;
     float v = soundAttenuate(dx * dx + dy * dy + dz * dz, volume);
     if (v > 0.0f) soundPlay(name, v, pitch);
+}
+
+void Level::tickCaveMood() {
+    if (!player) return;
+
+    const int   kExtent    = 8;
+    const float kTickDelay = 6000.0f;
+    const float kPosOffset = 2.0f;
+
+    int bx = Mth::floor(player->x) + (rand() % (2 * kExtent + 1)) - kExtent;
+    int by = Mth::floor(player->y) + (rand() % (2 * kExtent + 1)) - kExtent;
+    int bz = Mth::floor(player->z) + (rand() % (2 * kExtent + 1)) - kExtent;
+
+    if (!hasChunksAt(bx, by, bz, bx, by, bz)) return;
+
+    int sky = lightSkyGet(w, bx, by, bz);
+    if (sky > 0) caveMood -= (sky / 15.0f) * 0.001f;
+    else         caveMood -= (lightBlockGet(w, bx, by, bz) - 1) / kTickDelay;
+
+    if (caveMood < 1.0f) {
+        if (caveMood < 0.0f) caveMood = 0.0f;
+        return;
+    }
+    caveMood = 0.0f;
+
+    float dx = (bx + 0.5f) - player->x;
+    float dy = (by + 0.5f) - player->y;
+    float dz = (bz + 0.5f) - player->z;
+    float d  = sqrtf(dx * dx + dy * dy + dz * dz);
+    if (d < 0.0001f) return;
+    float off = d + kPosOffset;
+    playSound(player->x + dx / d * off, player->y + dy / d * off, player->z + dz / d * off,
+              "ambient.cave", 1.0f, 1.0f);
 }
 
 void Level::playSound(Entity* e, const char* name, float volume, float pitch) const {

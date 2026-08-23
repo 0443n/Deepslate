@@ -89,8 +89,7 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     bool lightSettling = !w->lightQueue.empty() && s_heldFrames < MAX_HELD_FRAMES;
     s_heldFrames = lightSettling ? s_heldFrames + 1 : 0;
 
-    if (!lightSettling)
-        worldDrainPlayerEdits(w, 6);
+    worldDrainPlayerEdits(w, lightSettling ? 0 : 6);
 
     lightCompactStep(w);
 

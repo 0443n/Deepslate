@@ -50,6 +50,8 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { 0,       "Auto Jump",     {"Off", "On", 0, 0}, 2, 1 },
         { 0,       "Block Outline", {"Off", "On", 0, 0}, 2, 1 },
         { 0,       "Show Coordinates", {"Off", "On", 0, 0}, 2, 0 },
+
+        { 0,       "Fine Aim",      {"Off", "On", 0, 0}, 2, 1 },
     },
     {
 
@@ -73,11 +75,18 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
     {
 
-        { "Audio", "Sound Volume", {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { "Audio", "Sound Volume",  {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { 0,       "Music",         {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { 0,       "Blocks",        {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { 0,       "Hostile Mobs",  {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { 0,       "Friendly Mobs", {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { 0,       "Players",       {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { 0,       "Ambient",       {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { 0,       "UI",            {0, 0, 0, 0}, 11, 10, true, 0, 10 },
     },
 };
 
-static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 6, 11, 1 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 7, 11, 8 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
@@ -96,6 +105,7 @@ extern int   g_autoJump;
 extern int   g_dither;
 extern int   g_barOnTop;
 extern float g_sensitivity;
+extern int   g_fineAim;
 extern bool  g_thirdPerson;
 extern int   g_invertY;
 extern int   g_beautifulSkies;
@@ -133,6 +143,7 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 #define ROW_AUTOJUMP     3
 #define ROW_BLOCKOUTLINE 4
 #define ROW_SHOWCOORDS   5
+#define ROW_FINEAIM      6
 
 #define CAT_GAME        0
 #define ROW_DIFFICULTY  0
@@ -143,6 +154,7 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 
 #define CAT_AUDIO       3
 #define ROW_SOUNDVOL    0
+#define ROW_CATVOL0     1
 static const int kAutosaveTicks[4] = { 0, 18000, 24000, 36000 };
 
 unsigned int optionsValueSig() {
@@ -178,8 +190,11 @@ static void optionsApply() {
     g_dither       = g_optionValueIdx[CAT_GRAPHICS][ROW_DITHER];
     g_difficulty  = g_optionValueIdx[CAT_GAME][ROW_DIFFICULTY];
     soundSetVolume(g_optionValueIdx[CAT_AUDIO][ROW_SOUNDVOL] / 10.0f);
+    for (int c = 0; c < SND_CAT_COUNT; c++)
+        soundSetCategoryVolume(c, g_optionValueIdx[CAT_AUDIO][ROW_CATVOL0 + c] / 10.0f);
 
     g_sensitivity = g_optionValueIdx[CAT_CONTROLS][ROW_SENS] / 10.0f;
+    g_fineAim     = g_optionValueIdx[CAT_CONTROLS][ROW_FINEAIM];
 
     g_analogDeadzone = g_optionValueIdx[CAT_CONTROLS][ROW_DEADZONE] * 0.05f;
     g_thirdPerson = g_optionValueIdx[CAT_GAME][ROW_THIRDPERSON] != 0;
@@ -282,6 +297,15 @@ static float optionPaneHeight(int category) {
         h += kOptRowH;
     }
     return h;
+}
+
+static float optionRowTop(int category, int row) {
+    float y = optionRowY(category, row, 0.0f);
+    if (g_optionRows[category][row].group) y -= kOptHeaderH;
+    return y;
+}
+static float optionRowSpan(int category, int row) {
+    return kOptRowH + (g_optionRows[category][row].group ? kOptHeaderH : 0.0f);
 }
 
 static int rowValueCount(int category, int row) {
@@ -417,25 +441,45 @@ void OptionsScreen::renderContent(MenuState& s) {
         float paneH  = (UI_HINTS_Y / UI_SCALE - 1.0f) - paneY0 + 3.0f / UI_SCALE;
         float contentH = optionPaneHeight(optCategory);
 
-        float selY = optionRowY(optCategory, optItemHighlight, 0.0f);
-        if (g_optionRows[optCategory][optItemHighlight].group) selY -= kOptHeaderH;
-        float selH = rowH + (g_optionRows[optCategory][optItemHighlight].group ? kOptHeaderH : 0.0f);
-        float scroll = s.optScroll;
-        if (selY < scroll)                    scroll = selY;
-        if (selY + selH > scroll + paneH)     scroll = selY + selH - paneH;
-        float maxScroll = contentH - paneH; if (maxScroll < 0.0f) maxScroll = 0.0f;
-        if (scroll > maxScroll) scroll = maxScroll;
-        if (scroll < 0.0f) scroll = 0.0f;
-        s.optScroll = scroll;
+        int firstRow = (int)s.optScroll;
+        if (firstRow < 0) firstRow = 0;
+        if (firstRow > rowCount - 1) firstRow = rowCount - 1;
+
+        if (firstRow > optItemHighlight) firstRow = optItemHighlight;
+
+        {
+            float selBottom = optionRowTop(optCategory, optItemHighlight) +
+                              optionRowSpan(optCategory, optItemHighlight);
+            while (firstRow < optItemHighlight &&
+                   selBottom - optionRowTop(optCategory, firstRow) > paneH)
+                firstRow++;
+        }
+
+        while (firstRow > 0) {
+            float h = 0.0f;
+            for (int r = firstRow - 1; r < rowCount; r++) h += optionRowSpan(optCategory, r);
+            if (h > paneH) break;
+            firstRow--;
+        }
+        float scroll = optionRowTop(optCategory, firstRow);
+        s.optScroll = (float)firstRow;
         float rowY0 = paneY0 - scroll;
 
+        float visH = 0.0f;
+        for (int r = firstRow; r < rowCount; r++) {
+            float span = optionRowSpan(optCategory, r);
+            if (visH + span > paneH) break;
+            visH += span;
+        }
+        if (visH <= 0.0f) visH = paneH;
+
         sceGuScissor((int)(itemsX * UI_SCALE), (int)(paneY0 * UI_SCALE),
-                     (int)((VW - itemsX) * UI_SCALE), (int)(paneH * UI_SCALE));
+                     (int)((VW - itemsX) * UI_SCALE), (int)(visH * UI_SCALE));
         for (int r = 0; r < rowCount; r++) {
             const OptionRowDef& row = g_optionRows[optCategory][r];
             int valIdx = g_optionValueIdx[optCategory][r];
             float rY = optionRowY(optCategory, r, rowY0);
-            if (rY > paneY0 + paneH || rY + rowH < paneY0 - kOptHeaderH) continue;
+            if (rY > paneY0 + visH || rY + rowH < paneY0 - kOptHeaderH) continue;
 
             if (row.group)
                 fontDrawTextShadow(&font, (itemsX + 2.0f) * UI_SCALE, (rY - kOptHeaderH + 2.0f) * UI_SCALE,

@@ -96,8 +96,27 @@ static bool editQueuePromote(int ci, int si) {
     return false;
 }
 
+static void editQueueForceHead(int ci, int si) {
+    if (editQueuePromote(ci, si)) return;
+    if (g_editQueueN >= PLAYER_EDIT_QUEUE_CAP) {
+
+        int* tail = g_editQueue[g_editQueueN - 1];
+        g_inEditQueue[tail[0]][tail[1]] = false;
+        g_editQueueN--;
+    }
+    for (int j = g_editQueueN; j > 0; j--) {
+        g_editQueue[j][0] = g_editQueue[j-1][0];
+        g_editQueue[j][1] = g_editQueue[j-1][1];
+    }
+    g_editQueue[0][0] = ci; g_editQueue[0][1] = si;
+    g_editQueueN++;
+    g_inEditQueue[ci][si] = true;
+}
+
 void worldRebuildAroundNow(World* w, int x, int y, int z) {
     if (y < 0 || y >= WORLD_H) return;
+
+    if (w->simTick || !w->lightReady) return;
 
     int burst[8][2], nb = 0;
     for (int dz = 1; dz >= -1; dz--)
@@ -108,14 +127,14 @@ void worldRebuildAroundNow(World* w, int x, int y, int z) {
         int cx = nx >> 4, cz = nz >> 4;
         if (!worldChunkSettled(w, cx, cz)) continue;
         int ci = worldSlotIndex(w, cx, cz), si = ny / SECTION_SY;
-        if (!editQueuePromote(ci, si)) continue;
+        editQueueForceHead(ci, si);
         bool seen = false;
         for (int k = 0; k < nb; k++) if (burst[k][0] == ci && burst[k][1] == si) { seen = true; break; }
         if (!seen && nb < 8) { burst[nb][0] = ci; burst[nb][1] = si; nb++; }
     }
 
     if (worldChunkSettled(w, x >> 4, z >> 4))
-        editQueuePromote(worldSlotIndex(w, x >> 4, z >> 4), y / SECTION_SY);
+        editQueueForceHead(worldSlotIndex(w, x >> 4, z >> 4), y / SECTION_SY);
     g_editBurst = nb;
 }
 

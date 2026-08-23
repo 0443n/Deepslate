@@ -198,9 +198,10 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 LDFLAGS =
-LIBS = -lpspgum -lpspgu -lpspge -lpspfpu -lpspdisplay -lpspctrl -lpsppower -lpspaudio -lpng -lz -lm -lstdc++
+LIBS = -lpspgum -lpspgu -lpspge -lpspfpu -lpspdisplay -lpspctrl -lpsppower -lpspaudio -lpspmp3 -lpsputility -lpng -lz -lm -lstdc++
 
 EXTRA_TARGETS = EBOOT.PBP
+
 PSP_EBOOT_TITLE = Minecraft Pocket-Edition
 
 PRESENT = presentation
@@ -221,6 +222,7 @@ BUILD_PRX = 1
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
 
+
 # The header dependencies -MMD generated. After build.mak, so its own rules are
 # already in place; '-include' because they don't exist on the first build.
 -include $(OBJS:.o=.d)
@@ -240,5 +242,6 @@ dist: EBOOT.PBP
 	@cp EBOOT.PBP build/
 	@cp -r data/. build/data/
 	@rm -rf build/data/sound/aac
+	@rm -rf build/data/sound/cave build/data/sound/extra   # WAV sources: packed into *.bin, never read at runtime
 	@printf 'MCPSP - Minecraft PSP (test build)\n\n=== Run on a real PSP ===\n1. On the memory stick make a folder:  PSP/GAME/MCPSP\n2. Put EBOOT.PBP and the data/ folder inside it, so you have:\n     PSP/GAME/MCPSP/EBOOT.PBP\n     PSP/GAME/MCPSP/data/\n3. Launch it from the PSP Game menu.\n\n=== PPSSPP ===\nJust open EBOOT.PBP.\n\nKeep EBOOT.PBP and data/ together - textures load from data/ next to\nthe EBOOT, and worlds save into a saves/ folder created beside it.\n' > build/README.txt
 	@echo "Packaged -> build/  (copy its contents into ms0:/PSP/GAME/MCPSP/)"

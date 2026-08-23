@@ -210,8 +210,4 @@ void renderAllTileEntities(Level* level, float a) {
         else                                    renderChestTile((ChestTileEntity*)te, a);
     }
 
-    for (size_t i = 0; i < list.size(); ) {
-        if (list[i]->removed) { delete list[i]; list[i] = list.back(); list.pop_back(); }
-        else i++;
-    }
 }

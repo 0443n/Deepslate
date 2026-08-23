@@ -213,7 +213,7 @@ static void updateDayColors(float alpha) {
             g_skyColorNow = scaleABGR(g_skyColorNow, yy, yy, yy);
 
             g_skyDomeColorNow = scaleABGR(g_skyDomeColorNow, yy, yy, yy);
-            g_cloudColorNow   = scaleABGR(g_cloudColorNow, yy, yy, yy);
+
         }
     }
 }
@@ -557,6 +557,9 @@ static float g_lastCloudPz = -999999.0f;
 static float g_lastCloudSnappedOffset = -999999.0f;
 static bool  g_lastWasInClouds = false;
 
+#define CLOUD_TINT_KEY(c) ((c) & 0x00F8F8F8u)
+static unsigned int g_lastCloudColor = 0xFFFFFFFFu;
+
 static void renderCloudsFancy(float alpha, float px, float py, float pz) {
     if (!g_haveClouds || !g_clouds.data) return;
     if (!g_cloudVertices) {
@@ -588,9 +591,11 @@ static void renderCloudsFancy(float alpha, float px, float py, float pz) {
     float slideOffset   = cloudOffset - snappedOffset;
 
     if (gridPx != g_lastCloudPx || gridPz != g_lastCloudPz ||
-        snappedOffset != g_lastCloudSnappedOffset || inClouds != g_lastWasInClouds) {
+        snappedOffset != g_lastCloudSnappedOffset || inClouds != g_lastWasInClouds ||
+        CLOUD_TINT_KEY(g_cloudColorNow) != g_lastCloudColor) {
         g_lastCloudPx = gridPx; g_lastCloudPz = gridPz;
         g_lastCloudSnappedOffset = snappedOffset; g_lastWasInClouds = inClouds;
+        g_lastCloudColor = CLOUD_TINT_KEY(g_cloudColorNow);
 
         const unsigned short* px16 = (const unsigned short*)g_clouds.data;
 
@@ -638,10 +643,13 @@ static void renderCloudsFancy(float alpha, float px, float py, float pz) {
                 float sx = qS / sub, sy = CLOUD_THICKNESS / vsub;
 
                 for (int i = 0; i < sub; i++) {
-                    float ax0 = x0 + i * sx, ax1 = x0 + (i + 1) * sx;
+
+                    float ax0 = (i == 0)       ? x0 : x0 + i * sx;
+                    float ax1 = (i == sub - 1) ? x1 : x0 + (i + 1) * sx;
                     float au0 = u0 + (u1 - u0) * i / sub, au1 = u0 + (u1 - u0) * (i + 1) / sub;
                     for (int j = 0; j < sub; j++) {
-                        float az0 = z0 + j * sx, az1 = z0 + (j + 1) * sx;
+                        float az0 = (j == 0)       ? z0 : z0 + j * sx;
+                        float az1 = (j == sub - 1) ? z1 : z0 + (j + 1) * sx;
                         float av0 = v0 + (v1 - v0) * j / sub, av1 = v0 + (v1 - v0) * (j + 1) / sub;
 
                         CLOUD_QUAD(au0, av0, au1, av1, colorBottom,

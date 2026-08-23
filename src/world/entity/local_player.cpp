@@ -16,6 +16,8 @@
 extern World g_world;
 
 int   g_autoJump = 1;
+
+int g_fineAim = 1;
 float g_sensitivity = 1.0f;
 
 float g_analogDeadzone = 0.20f;
@@ -73,9 +75,23 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
         }
     }
 
-    if (btn & PSP_CTRL_SQUARE)   yRot -= LOOK;
-    if (btn & PSP_CTRL_CIRCLE)   yRot += LOOK;
-    const float PITCH = g_invertY ? -LOOK : LOOK;
+    static const float LOOK_TAP_FRAC  = 0.30f;
+    static const int   LOOK_RAMP_TICKS = 6;
+    const unsigned int lookBtn = btn & (PSP_CTRL_SQUARE | PSP_CTRL_CIRCLE |
+                                        PSP_CTRL_TRIANGLE | PSP_CTRL_CROSS);
+    static unsigned int s_lastLookBtn = 0;
+    static int          s_lookHeld    = 0;
+    if (lookBtn != s_lastLookBtn) { s_lastLookBtn = lookBtn; s_lookHeld = 0; }
+    else if (lookBtn && s_lookHeld < LOOK_RAMP_TICKS) s_lookHeld++;
+
+    const float lookRamp = (lookBtn && g_fineAim)
+        ? LOOK_TAP_FRAC + (1.0f - LOOK_TAP_FRAC) * (float)s_lookHeld / LOOK_RAMP_TICKS
+        : 1.0f;
+    const float LOOK_NOW = LOOK * lookRamp;
+
+    if (btn & PSP_CTRL_SQUARE)   yRot -= LOOK_NOW;
+    if (btn & PSP_CTRL_CIRCLE)   yRot += LOOK_NOW;
+    const float PITCH = g_invertY ? -LOOK_NOW : LOOK_NOW;
     if (btn & PSP_CTRL_TRIANGLE) xRot += PITCH;
     if (btn & PSP_CTRL_CROSS)    xRot -= PITCH;
     if (xRot >  89.0f) xRot =  89.0f;

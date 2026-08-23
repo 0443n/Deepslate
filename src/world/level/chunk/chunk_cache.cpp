@@ -205,8 +205,8 @@ void worldGenWorkerStop() {
     if (s_workerThid < 0) return;
     g_workerQuit = true;
 
-    for (int i = 0; i < 2000 && g_jobPending; i++) sceKernelDelayThread(1000);
-    sceKernelTerminateDeleteThread(s_workerThid);
+    sceKernelWaitThreadEnd(s_workerThid, 0);
+    sceKernelDeleteThread(s_workerThid);
     s_workerThid = -1;
 
     g_jobPending = false; g_jobDone = false; s_pend = false;

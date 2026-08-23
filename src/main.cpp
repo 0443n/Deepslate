@@ -311,6 +311,8 @@ int main(int argc, char* argv[]) {
 
         scePowerTick(0);
 
+        soundMusicUpdate();
+
         SceCtrlData pad;
         sceCtrlReadBufferPositive(&pad, 1);
 
