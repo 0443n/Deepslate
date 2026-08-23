@@ -228,22 +228,25 @@ bool Mob::canSee(Entity* e) {
     return true;
 }
 
+void Mob::checkDespawn() {
+    if (!level->player) return;
+    float pdx = level->player->x - x;
+    float pdy = level->player->y - y;
+    float pdz = level->player->z - z;
+    float sd = pdx * pdx + pdy * pdy + pdz * pdz;
+    bool removeIfFar = removeWhenFarAway();
+    if (removeIfFar && sd > 96.0f * 96.0f) { remove(); return; }
+    if (noActionTime > 30 * 20 && sharedRandom.nextInt(800) == 0 &&
+        removeIfFar && sd > 32.0f * 32.0f)
+        remove();
+    else
+        noActionTime = 0;
+}
+
 void Mob::updateAi() {
     noActionTime++;
-
-    if (level->player) {
-        float pdx = level->player->x - x;
-        float pdy = level->player->y - y;
-        float pdz = level->player->z - z;
-        float sd = pdx * pdx + pdy * pdy + pdz * pdz;
-        bool removeIfFar = removeWhenFarAway();
-        if (removeIfFar && sd > 96.0f * 96.0f) { remove(); return; }
-        if (noActionTime > 30 * 20 && sharedRandom.nextInt(800) == 0 &&
-            removeIfFar && sd > 32.0f * 32.0f)
-            remove();
-        else
-            noActionTime = 0;
-    }
+    checkDespawn();
+    if (removed) return;
     xxa = 0; yya = 0;
 
     if (lookTime <= 0 && level->player && sharedRandom.nextFloat() < 0.02f) {
@@ -283,6 +286,8 @@ void Mob::aiStep() {
     }
 
     if (isImmobile() || farAway) {
+
+        if (farAway) { checkDespawn(); if (removed) return; }
         jumping = false; xxa = 0; yya = 0; yRotA = 0;
 
         applySwimUrge();

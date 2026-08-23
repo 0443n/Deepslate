@@ -231,6 +231,8 @@ static void musicReleaseResource(void);
 
 void soundInit(void) {
 
+    srand(sceKernelGetSystemTimeLow());
+
     extern int g_lowMemPsp;
     const char* want  = g_lowMemPsp ? "data/sound/sounds_lo.bin" : "data/sound/sounds.bin";
     const char* other = g_lowMemPsp ? "data/sound/sounds.bin"    : "data/sound/sounds_lo.bin";
@@ -402,19 +404,25 @@ static bool loadMusicIndex(const char* path) {
     return true;
 }
 
-static int musicPickTrack(void) {
-    bool all = true;
-    for (int i = 0; i < g_musCount; i++)
-        if (!g_musHeard[i]) { all = false; break; }
-    if (all)
-        for (int i = 0; i < g_musCount; i++) g_musHeard[i] = false;
+static int g_musLast = -1;
 
-    int pick = 0;
-    for (int i = 0; i <= g_musCount / 2; i++) {
-        pick = rand() % g_musCount;
-        if (!g_musHeard[pick]) { g_musHeard[pick] = true; break; }
+static int musicPickTrack(void) {
+    int unheard = 0;
+    for (int i = 0; i < g_musCount; i++) if (!g_musHeard[i]) unheard++;
+    if (unheard == 0) {
+        for (int i = 0; i < g_musCount; i++) g_musHeard[i] = false;
+        unheard = g_musCount;
     }
-    return pick;
+
+    const bool skipLast = (g_musCount > 1 && g_musLast >= 0 && !g_musHeard[g_musLast]);
+    int avail = unheard - (skipLast ? 1 : 0);
+    int k = rand() % avail;
+    for (int i = 0; i < g_musCount; i++) {
+        if (g_musHeard[i]) continue;
+        if (skipLast && i == g_musLast) continue;
+        if (k-- == 0) { g_musHeard[i] = true; g_musLast = i; return i; }
+    }
+    return 0;
 }
 
 static void musicFeed(void) {
@@ -619,11 +627,12 @@ int categoryOf(const char* name) {
     return SND_CAT_BLOCK;
 }
 
-void soundPlay(const char* name, float volume, float pitch) {
+void soundPlay(const char* name, float volume, float pitch, int catOverride) {
     if (g_channel < 0 || !name || !name[0] || g_master <= 0.0f) return;
     if (volume <= 0.0f) return;
 
-    const int cat = categoryOf(name);
+    const int cat = (catOverride >= 0 && catOverride < SND_CAT_COUNT) ? catOverride
+                                                                       : categoryOf(name);
     volume *= g_catVol[cat];
     if (volume <= 0.0f) return;
 

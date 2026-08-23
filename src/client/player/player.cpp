@@ -297,7 +297,7 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
             if (pressed & PSP_CTRL_CROSS) {
 
                 inv->pickToHotbar(g_invCursor);
-                soundPlay("random.pop2", 1.0f, 0.3f);
+                soundPlay("random.pop2", 1.0f, 0.3f, SND_CAT_UI);
                 g_flashSlotStartTime = gameSeconds();
                 g_invFlashCursor = g_invCursor;
                 g_invFlashTicks = 7;

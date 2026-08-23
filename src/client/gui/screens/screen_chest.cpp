@@ -61,7 +61,7 @@ static void moveAcross(int n) {
     if (n <= 0) return;
     src->count -= n;
     if (src->count <= 0) paneClear(s_pane, slot);
-    soundPlay("random.pop", 0.3f, 1.4f);
+    soundPlay("random.pop", 0.3f, 1.4f, SND_CAT_UI);
 }
 
 static int s_cx, s_cy, s_cz;

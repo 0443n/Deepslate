@@ -878,7 +878,7 @@ void hotbarDraw(MenuState& s) {
     const bool screenUp = g_invOpen || g_chestOpen || g_furnaceOpen ||
                           g_craftOpen || g_armorOpen || g_paused;
 
-    const bool statusHidden = g_barOnTop && sleeping;
+    const bool statusHidden = g_barOnTop ? sleeping : screenUp;
     extern int g_cloudTicks;
     if (!statusHidden && !g_level.player->inventory->isCreative() && s.haveGui && g_level.player) {
         int hp = g_level.player->health; if (hp < 0) hp = 0;

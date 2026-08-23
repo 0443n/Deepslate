@@ -76,7 +76,7 @@ static void spawnCreatures(Level* level) {
 
     int mobCount = level->countInstanceOfBaseType(MobCategory::creature.baseType);
     for (int attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
-        if (mobCount >= MobCategory::creature.maxPerLevel) return;
+        if (mobCount > MobCategory::creature.maxPerLevel) return;
 
         int cx = s_rng.nextInt(WORLD_W / 16);
         int cz = s_rng.nextInt(WORLD_D / 16);
@@ -109,7 +109,7 @@ static void spawnCreatures(Level* level) {
     }
 }
 
-static const int SURFACE_PROBE_ODDS = 2;
+static const int SURFACE_PROBE_ODDS = 4;
 static const int PROBE_SNAP = 8;
 
 static int probeStandableY(Level* L, int x, int z) {
@@ -133,7 +133,8 @@ static void spawnMonsters(Level* level) {
 
     int pcx = (int)floorf(p->x / 16.0f);
     int pcz = (int)floorf(p->z / 16.0f);
-    const int R = 128 / 16;
+
+    const int R = 96 / 16;
 
     int mobCount = level->countInstanceOfBaseType(MobCategory::monster.baseType);
     if (mobCount > MobCategory::monster.maxPerLevel) return;

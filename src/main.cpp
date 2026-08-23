@@ -319,6 +319,21 @@ int main(int argc, char* argv[]) {
         unsigned int currentBtn = pad.Buttons & ~(PSP_CTRL_HOME | PSP_CTRL_HOLD |
                                                   PSP_CTRL_NOTE | PSP_CTRL_SCREEN |
                                                   PSP_CTRL_VOLUP | PSP_CTRL_VOLDOWN);
+
+        extern bool g_invOpen, g_chestOpen, g_furnaceOpen, g_craftOpen, g_armorOpen;
+        extern bool g_paused, g_optionsOpen;
+        bool inGameMenu = g_invOpen || g_chestOpen || g_furnaceOpen || g_craftOpen ||
+                          g_armorOpen || g_paused || g_optionsOpen;
+
+        if (menuScreen(s.screen) || inGameMenu) {
+
+            const int DZ = 48;
+            if (pad.Lx < 128 - DZ) currentBtn |= PSP_CTRL_LEFT;
+            if (pad.Lx > 128 + DZ) currentBtn |= PSP_CTRL_RIGHT;
+            if (pad.Ly < 128 - DZ) currentBtn |= PSP_CTRL_UP;
+            if (pad.Ly > 128 + DZ) currentBtn |= PSP_CTRL_DOWN;
+        }
+
         unsigned int pressed = currentBtn & ~lastBtn;
 
         g_heldButtons = currentBtn;
@@ -371,10 +386,6 @@ int main(int argc, char* argv[]) {
         unsigned int sigBefore = menuSelectionSig(s);
         AppScreen screenBefore = s.screen;
 
-        extern bool g_invOpen, g_chestOpen, g_furnaceOpen, g_craftOpen, g_armorOpen;
-        extern bool g_paused, g_optionsOpen;
-        bool inGameMenu = g_invOpen || g_chestOpen || g_furnaceOpen || g_craftOpen ||
-                          g_armorOpen || g_paused || g_optionsOpen;
         unsigned int pMenu = pressed | repeat;
         if (Screen* cur = menuScreen(s.screen)) {
             cur->handleInput(s, pMenu, pad.Buttons);

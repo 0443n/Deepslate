@@ -58,6 +58,8 @@ public:
     virtual void updateAi();
 
     void applySwimUrge();
+
+    void checkDespawn();
     void updateWalkAnim();
     virtual void jumpFromGround();
     virtual float getWalkingSpeedModifier() { return 1.0f; }

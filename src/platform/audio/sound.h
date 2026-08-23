@@ -6,7 +6,7 @@ void soundInit(void);
 
 void soundShutdown(void);
 
-void soundPlay(const char* name, float volume, float pitch);
+void soundPlay(const char* name, float volume, float pitch, int catOverride = -1);
 
 void soundStopAll(void);
 

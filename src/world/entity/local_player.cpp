@@ -77,20 +77,24 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
 
     static const float LOOK_TAP_FRAC  = 0.30f;
     static const int   LOOK_RAMP_TICKS = 6;
-    const unsigned int lookBtn = btn & (PSP_CTRL_SQUARE | PSP_CTRL_CIRCLE |
-                                        PSP_CTRL_TRIANGLE | PSP_CTRL_CROSS);
-    static unsigned int s_lastLookBtn = 0;
-    static int          s_lookHeld    = 0;
-    if (lookBtn != s_lastLookBtn) { s_lastLookBtn = lookBtn; s_lookHeld = 0; }
-    else if (lookBtn && s_lookHeld < LOOK_RAMP_TICKS) s_lookHeld++;
+    const unsigned int yawBtn   = btn & (PSP_CTRL_SQUARE | PSP_CTRL_CIRCLE);
+    const unsigned int pitchBtn = btn & (PSP_CTRL_TRIANGLE | PSP_CTRL_CROSS);
+    static unsigned int s_lastLookBtn[2] = {0, 0};
+    static int          s_lookHeld[2]    = {0, 0};
+    float lookRamp[2];
+    const unsigned int axisBtn[2] = { yawBtn, pitchBtn };
+    for (int a = 0; a < 2; a++) {
+        if (axisBtn[a] != s_lastLookBtn[a]) { s_lastLookBtn[a] = axisBtn[a]; s_lookHeld[a] = 0; }
+        else if (axisBtn[a] && s_lookHeld[a] < LOOK_RAMP_TICKS) s_lookHeld[a]++;
+        lookRamp[a] = (axisBtn[a] && g_fineAim)
+            ? LOOK_TAP_FRAC + (1.0f - LOOK_TAP_FRAC) * (float)s_lookHeld[a] / LOOK_RAMP_TICKS
+            : 1.0f;
+    }
+    const float YAW_NOW  = LOOK * lookRamp[0];
+    const float LOOK_NOW = LOOK * lookRamp[1];
 
-    const float lookRamp = (lookBtn && g_fineAim)
-        ? LOOK_TAP_FRAC + (1.0f - LOOK_TAP_FRAC) * (float)s_lookHeld / LOOK_RAMP_TICKS
-        : 1.0f;
-    const float LOOK_NOW = LOOK * lookRamp;
-
-    if (btn & PSP_CTRL_SQUARE)   yRot -= LOOK_NOW;
-    if (btn & PSP_CTRL_CIRCLE)   yRot += LOOK_NOW;
+    if (btn & PSP_CTRL_SQUARE)   yRot -= YAW_NOW;
+    if (btn & PSP_CTRL_CIRCLE)   yRot += YAW_NOW;
     const float PITCH = g_invertY ? -LOOK_NOW : LOOK_NOW;
     if (btn & PSP_CTRL_TRIANGLE) xRot += PITCH;
     if (btn & PSP_CTRL_CROSS)    xRot -= PITCH;

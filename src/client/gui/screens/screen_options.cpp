@@ -40,6 +40,9 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { 0,      "Autosave",     {"Off", "15 min", "20 min", "30 min"}, 4, 1 },
         { "Interface", "Bar On Top", {"Off", "On", 0, 0}, 2, 0 },
         { 0,           "Show FPS",   {"Off", "On", 0, 0}, 2, 0 },
+
+        { 0,           "Show Coordinates", {"Off", "On", 0, 0}, 2, 0 },
+        { 0,           "Block Outline",    {"Off", "On", 0, 0}, 2, 1 },
     },
     {
 
@@ -48,8 +51,6 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { 0,       "Dead Zone",     {0, 0, 0, 0}, 11, 4, true, 0, 5 },
         { 0,       "Invert Y-axis", {"Off", "On", 0, 0}, 2, 0 },
         { 0,       "Auto Jump",     {"Off", "On", 0, 0}, 2, 1 },
-        { 0,       "Block Outline", {"Off", "On", 0, 0}, 2, 1 },
-        { 0,       "Show Coordinates", {"Off", "On", 0, 0}, 2, 0 },
 
         { 0,       "Fine Aim",      {"Off", "On", 0, 0}, 2, 1 },
     },
@@ -75,7 +76,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
     {
 
-        { "Audio", "Sound Volume",  {0, 0, 0, 0}, 11, 10, true, 0, 10 },
+        { "Audio", "Master",        {0, 0, 0, 0}, 11, 10, true, 0, 10 },
         { 0,       "Music",         {0, 0, 0, 0}, 11, 10, true, 0, 10 },
         { 0,       "Blocks",        {0, 0, 0, 0}, 11, 10, true, 0, 10 },
         { 0,       "Hostile Mobs",  {0, 0, 0, 0}, 11, 10, true, 0, 10 },
@@ -86,7 +87,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
 };
 
-static const int g_optionRowCount[OPT_CATEGORIES] = { 5, 7, 11, 8 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 7, 5, 11, 8 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
@@ -141,9 +142,7 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 #define ROW_DEADZONE     1
 #define ROW_INVERTY      2
 #define ROW_AUTOJUMP     3
-#define ROW_BLOCKOUTLINE 4
-#define ROW_SHOWCOORDS   5
-#define ROW_FINEAIM      6
+#define ROW_FINEAIM      4
 
 #define CAT_GAME        0
 #define ROW_DIFFICULTY  0
@@ -151,6 +150,8 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 #define ROW_AUTOSAVE    2
 #define ROW_BARONTOP    3
 #define ROW_SHOWFPS     4
+#define ROW_SHOWCOORDS  5
+#define ROW_BLOCKOUTLINE 6
 
 #define CAT_AUDIO       3
 #define ROW_SOUNDVOL    0
@@ -180,12 +181,12 @@ static void optionsApply() {
     g_viewDist    = kRenderDist[rd];
     g_noMipmap    = (g_optionValueIdx[CAT_GRAPHICS][ROW_MIPMAP] == 1) ? 0 : 1;
     g_showFps     = g_optionValueIdx[CAT_GAME][ROW_SHOWFPS];
-    g_showCoords  = g_optionValueIdx[CAT_CONTROLS][ROW_SHOWCOORDS];
+    g_showCoords  = g_optionValueIdx[CAT_GAME][ROW_SHOWCOORDS];
     g_barOnTop    = g_optionValueIdx[CAT_GAME][ROW_BARONTOP];
     int ai = g_optionValueIdx[CAT_GAME][ROW_AUTOSAVE];
     if (ai < 0) ai = 0; else if (ai > 3) ai = 3;
     g_autosave    = kAutosaveTicks[ai];
-    g_blockOutline = g_optionValueIdx[CAT_CONTROLS][ROW_BLOCKOUTLINE];
+    g_blockOutline = g_optionValueIdx[CAT_GAME][ROW_BLOCKOUTLINE];
     g_autoJump     = g_optionValueIdx[CAT_CONTROLS][ROW_AUTOJUMP];
     g_dither       = g_optionValueIdx[CAT_GRAPHICS][ROW_DITHER];
     g_difficulty  = g_optionValueIdx[CAT_GAME][ROW_DIFFICULTY];
@@ -255,6 +256,7 @@ void optionsLoad() {
             if (!eq) continue;
             *eq = '\0';
             int val = atoi(eq + 1);
+            if (strcmp(line, "Sound Volume") == 0) strcpy(line, "Master");
             for (int c = 0; c < OPT_CATEGORIES; c++)
                 for (int r = 0; r < g_optionRowCount[c]; r++)
                     if (strcmp(line, g_optionRows[c][r].label) == 0) {
