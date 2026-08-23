@@ -1102,6 +1102,10 @@ void gameHintsDraw(MenuState& s) {
         return;
     }
 
+    extern int g_hideGui;
+    if (g_hideGui && !g_furnaceOpen && !g_chestOpen && !g_armorOpen && !g_craftOpen)
+        return;
+
     if (g_furnaceOpen) {
         if (furnaceFocusIsSlots()) {
             h[n++] = (ButtonHint){ BTN_ICON_CROSS,    PSP_CTRL_CROSS,    "Take" };

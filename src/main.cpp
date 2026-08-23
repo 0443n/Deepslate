@@ -418,8 +418,10 @@ int main(int argc, char* argv[]) {
               if (gameProgressScreenUp() && !g_photoPending) { guEndFrame(); continue; } }
             extern bool g_invOpen;
             extern int g_showFps, g_showCoords;
+            extern int g_hideGui;
             extern bool g_photoPending;
-            if (!g_invOpen && !g_photoPending) {
+
+            if (!g_invOpen && !g_photoPending && !g_hideGui) {
 
                 float ty = 10.0f;
                 if (g_showFps) {
@@ -535,7 +537,8 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (Screen* over = overlayScreen()) { over->render(s); }
+            if (!g_photoPending)
+                if (Screen* over = overlayScreen()) { over->render(s); }
 
             gameHintsDraw(s);
 
