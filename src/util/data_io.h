@@ -31,6 +31,8 @@ public:
     virtual int       readInt()       = 0;
     virtual long long readLongLong()  = 0;
     virtual void      readBytes(void* data, int bytes) = 0;
+
+    virtual bool      failed() const { return false; }
 };
 
 class BytesDataOutput : public IDataOutput {
@@ -79,6 +81,7 @@ public:
         memcpy(data, &_buf[_pos], bytes);
         _pos += bytes;
     }
+    virtual bool failed() const { return fail; }
     bool fail;
 private:
     const unsigned char* _buf;

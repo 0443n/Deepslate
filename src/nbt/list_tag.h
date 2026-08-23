@@ -22,19 +22,22 @@ public:
     void load(IDataInput* dis) {
         type = dis->readByte();
         int size = dis->readInt();
-        list.clear();
+
+        deleteChildren();
         if (size < 0) size = 0;
         for (int i = 0; i < size; i++) {
             Tag* tag = Tag::newTag(type, NullString);
             if (!tag) break;
             tag->load(dis);
+
+            if (dis->failed()) { delete tag; break; }
             list.push_back(tag);
         }
     }
 
     char getId() const { return TAG_List; }
 
-    void add(Tag* tag) { type = tag->getId(); list.push_back(tag); }
+    void add(Tag* tag) { if (!tag) return; type = tag->getId(); list.push_back(tag); }
 
     Tag* get(int index) const {
         if (index < 0 || index >= (int)list.size()) {

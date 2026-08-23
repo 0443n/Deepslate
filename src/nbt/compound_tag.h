@@ -29,14 +29,19 @@ public:
     void load(IDataInput* dis) {
         deleteChildren();
         Tag* tag = NULL;
-        while ((tag = Tag::readNamedTag(dis)) && tag->getId() != TAG_End)
-            tags[tag->getName()] = tag;
-        delete tag;
+
+        while ((tag = Tag::readNamedTag(dis)) && tag->getId() != TAG_End) {
+
+            if (dis->failed()) break;
+            replace(tag->getName(), tag);
+        }
+
+        if (tag) { tag->deleteChildren(); delete tag; }
     }
 
     char getId() const { return TAG_Compound; }
 
-    void put(const std::string& n, Tag* tag)          { replace(n, tag->setName(n)); }
+    void put(const std::string& n, Tag* tag)          { if (tag) replace(n, tag->setName(n)); }
     void putByte(const std::string& n, char v)        { replace(n, new ByteTag(n, v)); }
     void putShort(const std::string& n, short v)      { replace(n, new ShortTag(n, v)); }
     void putInt(const std::string& n, int v)          { replace(n, new IntTag(n, v)); }
@@ -45,7 +50,7 @@ public:
     void putDouble(const std::string& n, double v)    { replace(n, new DoubleTag(n, v)); }
     void putString(const std::string& n, const std::string& v) { replace(n, new StringTag(n, v)); }
     void putBoolean(const std::string& n, bool v)     { putByte(n, v ? 1 : 0); }
-    void putCompound(const std::string& n, CompoundTag* v) { replace(n, v->setName(n)); }
+    void putCompound(const std::string& n, CompoundTag* v) { if (v) replace(n, v->setName(n)); }
 
     bool contains(const std::string& n) const { return tags.find(n) != tags.end(); }
     bool contains(const std::string& n, int type) const {
