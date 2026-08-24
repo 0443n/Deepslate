@@ -66,11 +66,20 @@ bool ItemModelRenderer::buildShared(short id, unsigned char data, unsigned int b
     if (s_sharedFrame != guFrameId()) { s_sharedFrame = guFrameId(); s_sharedN = 0; }
 
     m_sharedSlot = -1;
-    for (int i = 0; i < s_sharedN; i++)
-        if (s_shared[i].id == id && s_shared[i].data == data && s_shared[i].col == brCol) {
+    int loose = -1;
+    for (int i = 0; i < s_sharedN; i++) {
+        if (s_shared[i].id != id || s_shared[i].data != data) continue;
+        if (s_shared[i].col == brCol) {
             m_sharedSlot = i;
             return s_shared[i].count > 0;
         }
+        if (loose < 0) loose = i;
+    }
+
+    if (loose >= 0 && s_sharedN >= SHARED_SLOTS / 2) {
+        m_sharedSlot = loose;
+        return s_shared[loose].count > 0;
+    }
 
     if (s_sharedN >= SHARED_SLOTS) {
         m_sharedSlot = -2;

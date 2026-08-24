@@ -326,6 +326,8 @@ void worldRebuildAroundNow(World* w, int x, int y, int z);
 
 void lightOnBlockChanged(World* w, int x, int y, int z);
 
+void worldRelightBox(World* w, int x0, int y0, int z0, int x1, int y1, int z1);
+
 static inline int lightPlaneIdx(const World* w, int layer, int x, int y, int z) {
     return (((worldSlotIndex(w, x >> 4, z >> 4) << 7) | y) << 1) | layer;
 }

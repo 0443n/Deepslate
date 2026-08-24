@@ -36,13 +36,21 @@ unsigned int g_deferStalls = 0;
 
 void guDeferFree(void* p) {
     if (!p) return;
-    if (g_deferN[g_deferCur] >= GU_DEFER_MAX) {
-        sceGuSync(0, 0);
-        free(p);
+    if (g_deferN[g_deferCur] < GU_DEFER_MAX) {
+        g_deferBuf[g_deferCur][g_deferN[g_deferCur]++] = p;
+        return;
+    }
+
+    const int other = g_deferCur ^ 1;
+    if (g_deferN[other] < GU_DEFER_MAX) {
+        g_deferBuf[other][g_deferN[other]++] = p;
         g_deferStalls++;
         return;
     }
-    g_deferBuf[g_deferCur][g_deferN[g_deferCur]++] = p;
+
+    sceGuSync(0, 0);
+    free(p);
+    g_deferStalls++;
 }
 
 static void guFlushDeferredFrees(void) {
@@ -71,6 +79,7 @@ static unsigned int g_frameScratch = 0;
 static unsigned int g_frameId = 0;
 
 unsigned int g_frameAllocFails = 0;
+unsigned int g_frameAllocListFails = 0;
 
 unsigned int g_listPeakBytes = 0;
 unsigned int g_listOverruns  = 0;
@@ -95,8 +104,10 @@ static unsigned int g_listUsed = 0;
 #define GU_LIST_MARGIN (64 * 1024)
 
 static inline void guTraceFail(int bytes, unsigned gate) {
-    (void)bytes; (void)gate;
+    (void)bytes;
     g_frameAllocFails++;
+
+    if (gate != 1) g_frameAllocListFails++;
 }
 
 static void* frameAllocUpTo(int bytes, unsigned int limit) {
@@ -104,7 +115,10 @@ static void* frameAllocUpTo(int bytes, unsigned int limit) {
     if (g_frameScratch + (unsigned int)bytes > limit) { guTraceFail(bytes, 1); return 0; }
 
     const unsigned int cost = (((unsigned int)bytes + 3u) & ~3u) + 8u;
-    if (g_listUsed + cost + GU_LIST_MARGIN > GU_LIST_BYTES) { guTraceFail(bytes, 2); return 0; }
+
+    const unsigned int margin = (limit == GU_SCRATCH_BUDGET) ? (GU_LIST_MARGIN / 4)
+                                                             : GU_LIST_MARGIN;
+    if (g_listUsed + cost + margin > GU_LIST_BYTES) { guTraceFail(bytes, 2); return 0; }
 
     void* p = sceGuGetMemory(bytes);
     if (!p) return 0;

@@ -25,3 +25,4 @@ int  itemFlatIcon(short id, unsigned char data);
 void drawFlatIcon(int icon, float x, float y, float sizePx, unsigned int tint);
 
 void hudChatMessage(const char* msg);
+void hudChatClear(void);

@@ -20,26 +20,36 @@ struct MeshSink {
 
 #if MESH_RESERVE_CHECK
 extern int g_sinkReserved[4];
+extern int g_sinkStart[4];
 extern unsigned int g_sinkOverruns;
 #endif
 
-static inline bool sinkReserve(MeshSink* sk, int layer, int need) {
+static inline void sinkCheckPrev(MeshSink* sk, int layer) {
 #if MESH_RESERVE_CHECK
-    g_sinkReserved[layer] = need;
+    if (g_sinkReserved[layer] >= 0 && sk->n[layer] - g_sinkStart[layer] > g_sinkReserved[layer])
+        g_sinkOverruns++;
+    g_sinkReserved[layer] = -1;
+#else
+    (void)sk; (void)layer;
 #endif
-    if (sk->n[layer] + need <= sk->cap[layer]) return true;
-    if (!sk->flush) return false;
-    if (!sk->flush(sk, layer)) return false;
-
-    return need <= sk->cap[layer];
 }
 
-static inline void sinkCommit(MeshSink* sk, int layer, int nd) {
+static inline bool sinkReserve(MeshSink* sk, int layer, int need) {
+    sinkCheckPrev(sk, layer);
+    if (sk->n[layer] + need <= sk->cap[layer]) {
 #if MESH_RESERVE_CHECK
-    if (nd - sk->n[layer] > g_sinkReserved[layer]) g_sinkOverruns++;
-#else
-    (void)sk; (void)layer; (void)nd;
+
+        g_sinkReserved[layer] = need; g_sinkStart[layer] = sk->n[layer];
 #endif
+        return true;
+    }
+    if (!sk->flush) return false;
+    if (!sk->flush(sk, layer)) return false;
+#if MESH_RESERVE_CHECK
+    g_sinkReserved[layer] = need; g_sinkStart[layer] = sk->n[layer];
+#endif
+
+    return need <= sk->cap[layer];
 }
 
 static inline int sinkCount(const MeshSink* sk, int layer) {

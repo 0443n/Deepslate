@@ -81,12 +81,30 @@ static float drawFaultCounters(MenuState& s, float ty) {
         ty += 12.0f;
     }
 
-    extern unsigned int g_frameAllocFails;
-    if (g_frameAllocFails) {
-        std::snprintf(buf, sizeof(buf), "GU-SCRATCH FULL %u", g_frameAllocFails);
+    extern unsigned int g_musGaps;
+    if (g_musGaps) {
+        std::snprintf(buf, sizeof(buf), "MUSIC GAPS %u", g_musGaps);
         fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
         ty += 12.0f;
     }
+
+    extern unsigned int g_frameAllocFails, g_frameAllocListFails;
+    if (g_frameAllocFails) {
+
+        std::snprintf(buf, sizeof(buf), "GU-SCRATCH FULL %u LIST %u",
+                      g_frameAllocFails, g_frameAllocListFails);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
+        ty += 12.0f;
+    }
+
+#if MESH_RESERVE_CHECK
+    extern unsigned int g_sinkOverruns;
+    if (g_sinkOverruns) {
+        std::snprintf(buf, sizeof(buf), "MESH RESERVE %u", g_sinkOverruns);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF0000FFu, 1.0f);
+        ty += 12.0f;
+    }
+#endif
 
     extern unsigned int g_deferStalls;
     if (g_deferStalls) {

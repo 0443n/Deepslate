@@ -1698,6 +1698,8 @@ void gameRender(MenuState& s) {
 
     profBegin(PROF_HUD);
 
+    guListSync();
+
     guOrtho();
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);

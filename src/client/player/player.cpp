@@ -86,6 +86,7 @@ void releaseWorldAndPlayer() {
     worldFree(&g_world);
     g_level.removeAllEntities();
     g_level.removeAllTileEntities();
+    hudChatClear();
     delete g_level.player; g_level.player = 0;
     gameModeShutdown();
     g_worldBuilt = false;

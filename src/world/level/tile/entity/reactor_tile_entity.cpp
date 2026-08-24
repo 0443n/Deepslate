@@ -185,7 +185,7 @@ void ReactorTileEntity::spawnItem() {
 }
 
 ItemInstance ReactorTileEntity::getSpawnItem() {
-    switch (rng().nextInt(8)) {
+    switch (rng().nextInt(9)) {
         case 0: return ItemInstance(ITEM_GLOWSTONE_DUST, 3, 0);
         case 1: return ItemInstance(ITEM_SEEDS_MELON, 1, 0);
         case 2: return ItemInstance(BLOCK_MUSHROOM_BROWN, 1, 0);
@@ -193,20 +193,18 @@ ItemInstance ReactorTileEntity::getSpawnItem() {
         case 4: return ItemInstance(ITEM_REEDS, 1, 0);
         case 5: return ItemInstance(BLOCK_CACTUS, 1, 0);
         case 6: return ItemInstance(ITEM_NETHER_QUARTZ, 4, 0);
+        case 7: return ItemInstance(ITEM_CLAY, 1, 0);
         default: return GetLowOddsSpawnItem();
     }
 }
 
 ItemInstance ReactorTileEntity::GetLowOddsSpawnItem() {
-    if (rng().nextInt(10) <= 9) {
-        static const short items[] = {
-            ITEM_ARROW, ITEM_BED_ITEM, ITEM_BONE, ITEM_BOOK, ITEM_BOW,
-            ITEM_BOWL, ITEM_FEATHER, ITEM_PAINTING, ITEM_DOOR_WOOD_ITEM
-        };
-        int n = (int)(sizeof(items) / sizeof(items[0]));
-        return ItemInstance(items[rng().nextInt(n)], 1, 0);
-    }
-    return ItemInstance(BLOCK_BOOKSHELF, 1, 0);
+    static const short items[] = {
+        ITEM_ARROW, ITEM_BED_ITEM, ITEM_BONE, ITEM_BOW,
+        ITEM_BOWL, ITEM_FEATHER, ITEM_PAINTING, ITEM_DOOR_WOOD_ITEM
+    };
+    int n = (int)(sizeof(items) / sizeof(items[0]));
+    return ItemInstance(items[rng().nextInt(n)], 1, 0);
 }
 
 bool ReactorTileEntity::checkLevelChange(int progress) {
@@ -272,7 +270,20 @@ void ReactorTileEntity::turnGlowingObsidianLayerToObsidian(int layer) {
                 level->setTile(x + cx, y - 1 + layer, z + cz, BLOCK_OBSIDIAN);
 }
 
+#define DOME_R    8
+#define DOME_Y0(y) ((y) - 3)
+#define DOME_Y1(y) ((y) + 30)
+
 void ReactorTileEntity::buildDome(int x, int y, int z) {
+    const bool wasReady = level->w->lightReady;
+    level->w->lightReady = false;
+    buildDomeVolumes(x, y, z);
+    level->w->lightReady = wasReady;
+    worldRelightBox(level->w, x - DOME_R, DOME_Y0(y), z - DOME_R,
+                              x + DOME_R, DOME_Y1(y), z + DOME_R);
+}
+
+void ReactorTileEntity::buildDomeVolumes(int x, int y, int z) {
     buildFloorVolume(x, y - 3, z, 8, 2, BLOCK_NETHERRACK);
     buildHollowedVolume(x, y - 1, z, 8, 4, BLOCK_NETHERRACK, 0);
     buildFloorVolume(x, y - 1 + 4, z, 8, 1, BLOCK_NETHERRACK);
@@ -316,6 +327,15 @@ bool ReactorTileEntity::isEdge(int curX, int expandWidth, int curZ) {
 }
 
 void ReactorTileEntity::deterioateDome(int x, int y, int z) {
+    const bool wasReady = level->w->lightReady;
+    level->w->lightReady = false;
+    deterioateDomeVolumes(x, y, z);
+    level->w->lightReady = wasReady;
+    worldRelightBox(level->w, x - DOME_R, DOME_Y0(y), z - DOME_R,
+                              x + DOME_R, DOME_Y1(y), z + DOME_R);
+}
+
+void ReactorTileEntity::deterioateDomeVolumes(int x, int y, int z) {
     deterioateHollowedVolume(x, y - 1, z, 8, 5, 0);
     deterioateCrockedRoofVolume(false, x, y - 1 + 5, z, 8, 1, 0);
     deterioateCrockedRoofVolume(true,  x, y - 1 + 6, z, 5, 8, 0);

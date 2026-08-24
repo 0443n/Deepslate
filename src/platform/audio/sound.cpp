@@ -86,6 +86,11 @@ static unsigned char*     g_musInBuf;
 static unsigned char*     g_musPcmBuf;
 static short*             g_musPcmPtr;
 static int                g_musPcmLeft;
+
+#define MUS_FADE 256
+static unsigned int       musFade = MUS_FADE;
+
+unsigned int              g_musGaps = 0;
 static int                g_thid    = -1;
 static volatile int       g_mixerQuit = 0;
 
@@ -175,7 +180,9 @@ void soundMixBlock(short* out) {
         int vol = (int)(g_catVol[SND_CAT_MUSIC] * 4096.0f);
         unsigned int pos = g_musPos, halfN = MUSIC_HALF_SAMPLES;
         int half = g_musHalf;
-        for (int i = 0; i < SAMPLE_COUNT; i++) {
+        int last = 0;
+        int i = 0;
+        for (; i < SAMPLE_COUNT; i++) {
             if (!g_musReady[half]) {
                 if (g_musEnded) g_musPlaying = 0;
                 break;
@@ -183,7 +190,10 @@ void soundMixBlock(short* out) {
             const short* h = g_musBuf + half * halfN;
             int s1 = h[pos];
 
-            mix[i] += ((s1 * vol) >> 12);
+            last = (s1 * vol) >> 12;
+
+            if (musFade < MUS_FADE) { last = last * (int)musFade / MUS_FADE; musFade++; }
+            mix[i] += last;
             if (++pos >= halfN) {
                 pos = 0;
                 g_musReady[half] = 0;
@@ -191,6 +201,16 @@ void soundMixBlock(short* out) {
             }
         }
         g_musPos = pos; g_musHalf = half;
+
+        if (i < SAMPLE_COUNT) {
+            g_musGaps++;
+            int n = SAMPLE_COUNT - i;
+            if (n > MUS_FADE) n = MUS_FADE;
+            for (int k = 0; k < n; k++) mix[i + k] += last * (MUS_FADE - k) / MUS_FADE;
+            musFade = 0;
+        }
+    } else {
+        musFade = 0;
     }
 
     for (int i = 0; i < SAMPLE_COUNT; i++) {
@@ -443,7 +463,7 @@ static void musicFeed(void) {
 static int          g_musFillHalf = -1;
 static unsigned int g_musFillPos  = 0;
 
-static bool musicFillStep(int half) {
+static bool musicFillStep(int half, int chunkBudget) {
     if (g_musFillHalf != half) { g_musFillHalf = half; g_musFillPos = 0; }
 
     short* out = g_musBuf + half * MUSIC_HALF_SAMPLES;
@@ -451,7 +471,7 @@ static bool musicFillStep(int half) {
 
     while (g_musFillPos < MUSIC_HALF_SAMPLES) {
         if (g_musPcmLeft <= 0) {
-            if (chunks >= MUSIC_CHUNKS_PER_CALL) return false;
+            if (chunkBudget && chunks >= chunkBudget) return false;
             musicFeed();
             SceShort16* pcm = 0;
             SceInt32 bytes = sceMp3Decode(g_musHandle, &pcm);
@@ -473,8 +493,14 @@ static bool musicFillStep(int half) {
         g_musFillPos += take;
     }
 
-    if (g_musFillPos < MUSIC_HALF_SAMPLES)
+    if (g_musFillPos < MUSIC_HALF_SAMPLES) {
+
+        unsigned int ramp = g_musFillPos < 512 ? g_musFillPos : 512;
+        short* tail = out + g_musFillPos - ramp;
+        for (unsigned int i = 0; i < ramp; i++)
+            tail[i] = (short)((int)tail[i] * (int)(ramp - i) / (int)ramp);
         memset(out + g_musFillPos, 0, (MUSIC_HALF_SAMPLES - g_musFillPos) * sizeof(short));
+    }
     g_musFilled      = g_musFillPos;
     g_musReady[half] = 1;
     g_musFillHalf    = -1;
@@ -546,8 +572,8 @@ static void musicStart(void) {
     g_musReady[0] = 0; g_musReady[1] = 0;
     g_musFillHalf = -1; g_musFillPos = 0;
 
-    while (!musicFillStep(0)) {}
-    while (!musicFillStep(1)) {}
+    while (!musicFillStep(0, 0)) {}
+    while (!musicFillStep(1, 0)) {}
     if (g_musEnded && !g_musFilled) { musicRelease(); return; }
     g_musPlaying = 1;
 }
@@ -573,9 +599,12 @@ void soundMusicUpdate(void) {
 
     if (g_musPlaying) {
 
-        if (g_musFillHalf >= 0) { musicFillStep(g_musFillHalf); return; }
+        bool starving = !g_musReady[g_musHalf] ||
+                        (MUSIC_HALF_SAMPLES - g_musPos) < MUSIC_HALF_SAMPLES / 4;
+        int budget = starving ? 0 : MUSIC_CHUNKS_PER_CALL;
+        if (g_musFillHalf >= 0) { musicFillStep(g_musFillHalf, budget); return; }
         for (int h = 0; h < 2; h++)
-            if (!g_musReady[h] && !g_musEnded) { musicFillStep(h); break; }
+            if (!g_musReady[h] && !g_musEnded) { musicFillStep(h, budget); break; }
         return;
     }
 

@@ -323,6 +323,32 @@ void worldRemoveBlockLight(World* w, int x, int y, int z) {
     lightFlood(w, 1);
 }
 
+void worldRelightBox(World* w, int x0, int y0, int z0, int x1, int y1, int z1) {
+    if (!w->lightReady) return;
+    if (y0 > y1) { int t = y0; y0 = y1; y1 = t; }
+    if (y0 < 0) y0 = 0;
+    if (y1 >= WORLD_H) y1 = WORLD_H - 1;
+
+    for (int x = x0; x <= x1; x++)
+        for (int z = z0; z <= z1; z++) {
+            if (!worldReady(w, x, z)) continue;
+            const int col  = worldColumn(w, x, z);
+            const int oldH = w->heightmap[col];
+            int newH = 0;
+            for (int y = WORLD_H - 1; y >= 0; y--)
+                if (lightOpacity(worldBlock(w, x, y, z)) > 0) { newH = y + 1; break; }
+            w->heightmap[col] = (unsigned char)newH;
+
+            const int lo = oldH < newH ? oldH : newH;
+            const int hi = oldH < newH ? newH : oldH;
+            for (int y = lo; y < hi; y++) lightEnqueue(w, 0, x, y, z);
+
+            for (int y = y0; y <= y1; y++) lightEnqueue(w, 1, x, y, z);
+        }
+
+    lightDrain(w, 150000);
+}
+
 void lightOnBlockChanged(World* w, int x, int y, int z) {
 
     int oldH = w->heightmap[worldColumn(w, x, z)];

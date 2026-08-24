@@ -28,6 +28,10 @@ static float s_chatTime[CHAT_LINES];
 
 static const Font* s_chatFont = 0;
 
+void hudChatClear(void) {
+    for (int i = 0; i < CHAT_LINES; i++) { s_chat[i][0] = '\0'; s_chatTime[i] = 0.0f; }
+}
+
 static void chatPush(const char* line) {
     for (int i = 0; i < CHAT_LINES - 1; i++) {
         strcpy(s_chat[i], s_chat[i + 1]);

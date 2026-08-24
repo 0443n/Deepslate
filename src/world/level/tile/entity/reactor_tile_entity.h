@@ -45,11 +45,13 @@ private:
     void turnGlowingObsidianLayerToObsidian(int layer);
 
     void buildDome(int x, int y, int z);
+    void buildDomeVolumes(int x, int y, int z);
     void buildHollowedVolume(int x, int y, int z, int expandWidth, int height, int wallTileId, int clearTileId);
     void buildFloorVolume(int x, int y, int z, int expandWidth, int height, int tileId);
     void buildCrockedRoofVolume(bool inverted, int x, int y, int z, int expandWidth, int height, int tileId);
     static bool isEdge(int curX, int expandWidth, int curZ);
     void deterioateDome(int x, int y, int z);
+    void deterioateDomeVolumes(int x, int y, int z);
     void deterioateCrockedRoofVolume(bool inverted, int x, int y, int z, int expandWidth, int height, int tileId);
     void deterioateHollowedVolume(int x, int y, int z, int expandWidth, int height, int tileId);
 
