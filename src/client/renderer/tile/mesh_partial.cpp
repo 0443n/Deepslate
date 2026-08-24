@@ -77,7 +77,9 @@ int emitPartialBox(const World* w, int gx, int y, int gz, unsigned char id, unsi
                 sy = y  + kFaceNeighbor[f][1];
                 sz = gz + kFaceNeighbor[f][2];
 
-                if (!g_smoothLighting && f != F_DOWN && !(boundaryMask & (1 << f))) {
+                if (!(boundaryMask & (1 << f)) &&
+                    (isOpaque(worldBlock(w, sx, sy, sz)) ||
+                     (!g_smoothLighting && f != F_DOWN))) {
                     sx = gx; sy = y; sz = gz;
                 }
                 shade = kFaceShade[f];
