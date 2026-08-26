@@ -15,6 +15,8 @@ public:
     float xxa, yya, yRotA;
     bool  jumping;
     float walkingSpeed, flyingSpeed;
+
+    float flySlowdown;
     float defaultLookAngle;
 
     int   health, lastHealth, lastHurt;

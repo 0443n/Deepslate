@@ -23,6 +23,7 @@ public:
     virtual bool useOn(ItemInstance* item, Player* player, World* world, int x, int y, int z, int face,
                        float clickX, float clickY, float clickZ);
     virtual bool placesTile() const { return true; }
+    virtual short placedTileId() const { return tileId; }
 };
 
 class SlabItem : public TileItem {
@@ -43,6 +44,7 @@ public:
     virtual bool useOn(ItemInstance* item, Player* player, World* world, int x, int y, int z, int face,
                        float clickX, float clickY, float clickZ);
     virtual bool placesTile() const { return true; }
+    virtual short placedTileId() const { return tileId; }
 };
 
 class BedItem : public Item {
@@ -55,6 +57,7 @@ public:
     virtual bool useOn(ItemInstance* item, Player* player, World* world, int x, int y, int z, int face,
                        float clickX, float clickY, float clickZ);
     virtual bool placesTile() const { return true; }
+    virtual short placedTileId() const { return tileId; }
 };
 
 class FlintAndSteelItem : public Item {

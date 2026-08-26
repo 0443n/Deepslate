@@ -54,6 +54,8 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { 0,       "Dead Zone",     {0, 0, 0, 0}, 11, 4, true, 0, 5 },
         { 0,       "Auto Jump",     {"Off", "On", 0, 0}, 2, 1 },
 
+        { 0,       "Japanese Layout", {"Off", "On", 0, 0}, 2, 0 },
+
         { 0,       "Control Scheme", {"Layout 1", "Layout 2", "Layout 3", "Layout 4"}, 4, 0,
           false, 0, 0, true },
     },
@@ -90,7 +92,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
 };
 
-static const int g_optionRowCount[OPT_CATEGORIES] = { 7, 4, 11, 8 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 7, 5, 11, 8 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
@@ -145,7 +147,8 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 #define ROW_SENS         0
 #define ROW_DEADZONE     1
 #define ROW_AUTOJUMP     2
-#define ROW_SCHEME       3
+#define ROW_JPLAYOUT     3
+#define ROW_SCHEME       4
 
 #define CAT_GAME        0
 #define ROW_DIFFICULTY  0
@@ -202,6 +205,7 @@ static void optionsApply() {
     g_autosave    = kAutosaveTicks[ai];
     g_blockOutline = g_optionValueIdx[CAT_GAME][ROW_BLOCKOUTLINE];
     g_autoJump     = g_optionValueIdx[CAT_CONTROLS][ROW_AUTOJUMP];
+    g_japaneseLayout = g_optionValueIdx[CAT_CONTROLS][ROW_JPLAYOUT];
     g_dither       = g_optionValueIdx[CAT_GRAPHICS][ROW_DITHER];
     g_difficulty  = g_optionValueIdx[CAT_GAME][ROW_DIFFICULTY];
     soundSetVolume(g_optionValueIdx[CAT_AUDIO][ROW_SOUNDVOL] / 10.0f);

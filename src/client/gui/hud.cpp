@@ -1154,7 +1154,7 @@ void gameHintsDraw(MenuState& s) {
 
     if (g_furnaceOpen) {
         if (furnaceFocusIsSlots()) {
-            h[n++] = (ButtonHint){ BTN_ICON_CROSS,    PSP_CTRL_CROSS,    "Take" };
+            h[n++] = menuFaceHint(true, "Take");
             h[n++] = (ButtonHint){ BTN_ICON_TRIANGLE, PSP_CTRL_TRIANGLE, "Quick Move" };
             h[n++] = (ButtonHint){ BTN_ICON_SQUARE,   PSP_CTRL_SQUARE,   "Take Half" };
         } else {
@@ -1162,38 +1162,35 @@ void gameHintsDraw(MenuState& s) {
             int slot = furnaceTargetSlotForCursor();
             bool fuel = (slot == FurnaceTileEntity::SLOT_FUEL);
             if (slot >= 0) {
-                h[n++] = (ButtonHint){ BTN_ICON_CROSS, PSP_CTRL_CROSS,
-                                       fuel ? "Add Fuel" : "Add Ingredient" };
+                h[n++] = menuFaceHint(true, fuel ? "Add Fuel" : "Add Ingredient");
                 h[n++] = (ButtonHint){ BTN_ICON_TRIANGLE, PSP_CTRL_TRIANGLE,
                                        fuel ? "Move Fuel" : "Move Ingredient" };
                 h[n++] = (ButtonHint){ BTN_ICON_SQUARE, PSP_CTRL_SQUARE, "Move Half" };
             }
         }
-        h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Exit" };
+        h[n++] = menuFaceHint(false, "Exit");
     } else if (g_chestOpen) {
 
         bool take = chestCursorOnChest();
         if (!g_level.player->inventory->isCreative())
-            h[n++] = (ButtonHint){ BTN_ICON_CROSS, PSP_CTRL_CROSS, take ? "Take" : "Move" };
+            h[n++] = menuFaceHint(true, take ? "Take" : "Move");
         h[n++] = (ButtonHint){ BTN_ICON_TRIANGLE, PSP_CTRL_TRIANGLE, "Quick Move" };
         h[n++] = (ButtonHint){ BTN_ICON_SQUARE,   PSP_CTRL_SQUARE,
                                take ? "Take Half" : "Move Half" };
-        h[n++] = (ButtonHint){ BTN_ICON_CIRCLE,   PSP_CTRL_CIRCLE, "Exit" };
+        h[n++] = menuFaceHint(false, "Exit");
     } else if (g_armorOpen) {
-        h[n++] = (ButtonHint){ BTN_ICON_CROSS, PSP_CTRL_CROSS,
-                               armorFocusIsWornSlot() ? "Take Off" : "Put On" };
-        h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Exit" };
+        h[n++] = menuFaceHint(true, armorFocusIsWornSlot() ? "Take Off" : "Put On");
+        h[n++] = menuFaceHint(false, "Exit");
     } else if (g_craftOpen) {
-        h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Create" };
-        h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Exit" };
+        h[n++] = menuFaceHint(true, "Create");
+        h[n++] = menuFaceHint(false, "Exit");
         if (craftHasCategories()) {
             h[n++] = (ButtonHint){ menuShoulderIcon(false), PSP_CTRL_LTRIGGER, "" };
             h[n++] = (ButtonHint){ menuShoulderIcon(true),  PSP_CTRL_RTRIGGER, "Change Group" };
         }
     } else if (g_invOpen) {
-        h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,
-                               g_invHeaderSel >= 0 ? "Press" : "Take" };
-        h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Exit" };
+        h[n++] = menuFaceHint(true, g_invHeaderSel >= 0 ? "Press" : "Take");
+        h[n++] = menuFaceHint(false, "Exit");
 
         if (!g_level.player->inventory->isCreative()) {
             h[n++] = (ButtonHint){ BTN_ICON_SQUARE,   PSP_CTRL_SQUARE,   "Crafting" };
@@ -1212,8 +1209,7 @@ void gameHintsDraw(MenuState& s) {
             n += hudHint(&h[n], PSP_CTRL_UP,
                          g_thirdPerson ? "First Person" : "Third Person");
 
-        const bool slotOpensInv = controlSchemeButtonFor(ACT_INVENTORY) == 0;
-        if (slotOpensInv && g_level.player->inventory->selected == HOTBAR_SLOTS)
+        if (g_level.player->inventory->selected == HOTBAR_SLOTS)
             n += hudHint(&h[n], PSP_CTRL_LTRIGGER, "Inventory");
         else if (t.useLabel) n += hudHint(&h[n], PSP_CTRL_LTRIGGER, t.useLabel);
         if (t.breakLabel)    n += hudHint(&h[n], PSP_CTRL_RTRIGGER, t.breakLabel);

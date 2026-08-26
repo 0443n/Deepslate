@@ -61,6 +61,8 @@ public:
 
     virtual void causeFallDamage(float dist);
 
+    virtual void travel(float xs, float yf);
+
 protected:
     virtual void addAdditonalSaveData(CompoundTag* tag);
     virtual void readAdditionalSaveData(CompoundTag* tag);

@@ -33,6 +33,16 @@ bool Player::hurt(Entity* source, int dmg) {
     return Mob::hurt(source, dmg);
 }
 
+void Player::travel(float xs, float yf) {
+    if (!flying) { Mob::travel(xs, yf); return; }
+
+    const float yd0 = yd, fly0 = flyingSpeed;
+    flyingSpeed = 0.05f;
+    Mob::travel(xs, yf);
+    yd = yd0 * 0.6f;
+    flyingSpeed = fly0;
+}
+
 void Player::causeFallDamage(float dist) {
     int dmg = (int)ceilf(dist - 3.0f);
     if (dmg <= 0) return;

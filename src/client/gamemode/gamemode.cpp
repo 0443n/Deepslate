@@ -686,6 +686,25 @@ static bool isUsableBlockId(unsigned char id) {
     }
 }
 
+static bool placementWouldWork(const ItemInstance* sel, const BlockHit& hit) {
+    if (!sel) return false;
+    Item* it = sel->getItem();
+    if (!it) return false;
+    if (sel->id == ITEM_SEEDS_WHEAT || sel->id == ITEM_SEEDS_MELON)
+        return hit.face == F_TOP &&
+               worldBlock(&g_world, hit.x, hit.y, hit.z) == BLOCK_FARMLAND &&
+               worldBlock(&g_world, hit.x, hit.y + 1, hit.z) == BLOCK_AIR;
+    const short tile = it->placedTileId();
+    if (!tile) return true;
+    int nx = hit.x, ny = hit.y, nz = hit.z;
+    if (!isReplaceable(worldBlock(&g_world, nx, ny, nz))) {
+        nx += kFaceNeighbor[hit.face][0];
+        ny += kFaceNeighbor[hit.face][1];
+        nz += kFaceNeighbor[hit.face][2];
+    }
+    return tileMayPlace(&g_world, (unsigned char)tile, nx, ny, nz, hit.face);
+}
+
 CrosshairTarget gameModeCrosshairTarget() {
     CrosshairTarget t = { 0, 0 };
     if (!g_worldBuilt || !g_level.player) return t;
@@ -796,11 +815,12 @@ CrosshairTarget gameModeCrosshairTarget() {
                          sel->id == BLOCK_ROSE || sel->id == BLOCK_MUSHROOM_BROWN ||
                          sel->id == BLOCK_MUSHROOM_RED || sel->id == BLOCK_TALLGRASS ||
                          sel->id == BLOCK_CACTUS || sel->id == ITEM_REEDS ||
-                         sel->id == ITEM_SEEDS_WHEAT || sel->id == ITEM_SEEDS_MELON))
-                                                                       t.useLabel = "Plant";
+                         sel->id == ITEM_SEEDS_WHEAT || sel->id == ITEM_SEEDS_MELON) &&
+                 placementWouldWork(sel, hit))                         t.useLabel = "Plant";
 
         else if (sel && ((sel->getItem() && sel->getItem()->placesTile()) ||
-                         sel->id == ITEM_SPAWN_EGG))                   t.useLabel = "Place";
+                         sel->id == ITEM_SPAWN_EGG) &&
+                 placementWouldWork(sel, hit))                         t.useLabel = "Place";
     }
     return t;
 }

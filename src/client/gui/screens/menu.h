@@ -143,6 +143,8 @@ struct ButtonHint { ButtonIcon icon; unsigned int btn; const char* label; };
 #define UI_HINTS_Y  (272.0f - 15.0f * UI_HINT_S - UI_HINT_GAP)
 
 ButtonIcon menuShoulderIcon(bool right);
+
+ButtonHint menuFaceHint(bool confirm, const char* label);
 void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y = UI_HINTS_Y,
                      float scale = UI_HINT_S);
 void menuHintsDraw(MenuState& s);

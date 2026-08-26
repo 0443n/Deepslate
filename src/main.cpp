@@ -431,8 +431,8 @@ int main(int argc, char* argv[]) {
         unsigned int pMenu = pressed | repeat;
         if (Screen* cur = menuScreen(s.screen)) {
 
-            cur->handleInput(s, controlSchemeMenuAlias(pMenu),
-                             controlSchemeMenuAlias(pad.Buttons));
+            cur->handleInput(s, menuFaceSwap(controlSchemeMenuAlias(pMenu)),
+                             menuFaceSwap(controlSchemeMenuAlias(pad.Buttons)));
         } else {
 
             gameUpdate(s, inGameMenu ? pMenu

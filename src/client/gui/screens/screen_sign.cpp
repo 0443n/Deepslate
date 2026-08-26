@@ -77,8 +77,8 @@ void SignScreen::renderContent(MenuState& s) {
 
     ButtonHint h[4];
     int n = 0;
-    h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Write" };
-    h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Exit" };
+    h[n++] = menuFaceHint(true, "Write");
+    h[n++] = menuFaceHint(false, "Exit");
     int sel = ste->selectedLine;
     bool canUp   = sel > 0;
     bool canDown = sel >= 0 && sel < SignTileEntity::NUM_LINES - 1;

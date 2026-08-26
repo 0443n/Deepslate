@@ -192,9 +192,8 @@ void PauseScreen::renderContent(MenuState& s) {
     {
         ButtonHint h[2];
         int n = 0;
-        h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Select" };
-        h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE,
-                               g_quitConfirm ? "Cancel" : "Back to game" };
+        h[n++] = menuFaceHint(true, "Select");
+        h[n++] = menuFaceHint(false, g_quitConfirm ? "Cancel" : "Back to game");
         buttonHintsDraw(s, h, n);
     }
 

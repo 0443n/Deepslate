@@ -145,6 +145,8 @@ public:
 
     virtual bool placesTile() const { return false; }
 
+    virtual short placedTileId() const { return 0; }
+
     virtual bool isHoe() const { return false; }
     virtual bool mineBlock(ItemInstance* item, World* world, int blockId, int x, int y, int z, Player* player) {
         return false;

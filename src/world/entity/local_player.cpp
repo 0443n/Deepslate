@@ -141,13 +141,21 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly,
     if (inWater && yf > 0.0f) jumping = true;
 
     const bool inLiquid = inWater || isInLava();
+
+    flySlowdown = 1.0f;
     if (flying) {
-        if (jumping)              yd += 0.05f;
-        if (btn & PSP_CTRL_DOWN)  yd -= 0.05f;
-    } else if (inLiquid) {
-        if (jumping) yd += 0.04f;
-    } else if (jumping && onGround) {
-        yd = 0.42f;
+
+        float ax = xs < 0.0f ? -xs : xs, af = yf < 0.0f ? -yf : yf;
+        if (ax > af) af = ax;
+        if (af < 0.01f) flySlowdown = 0.75f;
+
+        if (btn & PSP_CTRL_START) yd += 0.15f;
+        if (btn & PSP_CTRL_DOWN)  yd -= 0.15f;
+    }
+
+    if (jumping) {
+        if (inLiquid)      yd += 0.04f;
+        else if (onGround) yd = 0.42f;
     }
 
     xs *= 0.98f; yf *= 0.98f;

@@ -26,7 +26,7 @@ Mob::Mob(Level* level)
     xxa(0), yya(0), yRotA(0), jumping(false),
     walkingSpeed(0.1f),
 
-    flyingSpeed(0.02f), defaultLookAngle(0.0f),
+    flyingSpeed(0.02f), flySlowdown(1.0f), defaultLookAngle(0.0f),
     health(10), lastHealth(0), lastHurt(0),
     hurtTime(0), hurtDuration(0), deathTime(0), attackTime(0),
     invulnerableDuration(20), dmgSpill(0), hurtDir(0), noActionTime(0),
@@ -78,11 +78,7 @@ bool Mob::onLadder() {
 void Mob::travel(float xs, float yf) {
 
     bool inWater = isInWater(), inLava = inWater ? false : isInLava();
-    if (flying) {
-        moveRelative(xs, yf, 0.05f);
-        move(xd, yd, zd);
-        xd *= 0.91f; yd *= 0.91f; zd *= 0.91f;
-    } else if (inWater) {
+    if (inWater) {
         float yo = y;
         moveRelative(xs, yf, 0.02f);
         move(xd, yd, zd);
@@ -125,8 +121,10 @@ void Mob::travel(float xs, float yf) {
 
         yd -= 0.08f;
         yd *= 0.98f;
-        xd *= friction;
-        zd *= friction;
+
+        const float hdrag = friction * flySlowdown;
+        xd *= hdrag;
+        zd *= hdrag;
     }
 }
 

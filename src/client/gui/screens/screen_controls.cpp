@@ -94,10 +94,7 @@ int     s_artKey  = -1;
 #define ART_KEY_GO  1
 #define ART_KEY_DS3 2
 
-int s_artForce = -1;
-
 int artKey(int layout) {
-    if (s_artForce >= 0) return s_artForce;
     if (layout == CONTROL_SCHEMES - 1) return ART_KEY_DS3;
     return g_pspIsGo ? ART_KEY_GO : ART_KEY_PSP;
 }
@@ -510,7 +507,6 @@ int s_sel = SEL_LAYOUT;
 
 void controlsPageOpen() {
     s_open = true;
-    s_artForce = -1;
     artEnsure(g_controlScheme);
 }
 
@@ -550,6 +546,17 @@ unsigned int controlSchemeMenuAlias(unsigned int buttons) {
 
 bool controlSchemeAvailable(int scheme) {
     return scheme != CONTROL_SCHEMES - 1 || s_haveController;
+}
+
+int g_japaneseLayout = 0;
+
+unsigned int menuFaceSwap(unsigned int buttons) {
+    if (!g_japaneseLayout) return buttons;
+    const unsigned int x = buttons & PSP_CTRL_CROSS, o = buttons & PSP_CTRL_CIRCLE;
+    buttons &= ~(PSP_CTRL_CROSS | PSP_CTRL_CIRCLE);
+    if (x) buttons |= PSP_CTRL_CIRCLE;
+    if (o) buttons |= PSP_CTRL_CROSS;
+    return buttons;
 }
 
 void controlsPageRender(MenuState& s) {
@@ -680,13 +687,6 @@ void controlsPageInput(MenuState& s, unsigned int pressed) {
 
     if (pressed & (PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER)) {
         cycleScheme((pressed & PSP_CTRL_RTRIGGER) ? 1 : -1);
-        return;
-    }
-
-    if (pressed & PSP_CTRL_SELECT) {
-        s_artForce = (s_artForce >= 2) ? -1 : s_artForce + 1;
-        artFree();
-        artEnsure(g_controlScheme);
         return;
     }
 

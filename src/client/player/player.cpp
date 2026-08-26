@@ -187,8 +187,8 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
     s_uiOwned = true;
     SceCtrlData pad = padIn;
 
-    const unsigned int uiPressed = controlSchemeMenuAlias(pressed);
-    const unsigned int uiHeld    = controlSchemeMenuAlias(pad.Buttons);
+    const unsigned int uiPressed = menuFaceSwap(controlSchemeMenuAlias(pressed));
+    const unsigned int uiHeld    = menuFaceSwap(controlSchemeMenuAlias(pad.Buttons));
 
     g_gameFrozen = true;
 
@@ -261,10 +261,10 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
         Inventory* inv = g_level.player->inventory;
 
         int mvx = 0, mvy = 0;
-        if (pressed & PSP_CTRL_LEFT)  mvx = -1;
-        if (pressed & PSP_CTRL_RIGHT) mvx =  1;
-        if (pressed & PSP_CTRL_UP)    mvy = -1;
-        if (pressed & PSP_CTRL_DOWN)  mvy =  1;
+        if (uiPressed & PSP_CTRL_LEFT)  mvx = -1;
+        if (uiPressed & PSP_CTRL_RIGHT) mvx =  1;
+        if (uiPressed & PSP_CTRL_UP)    mvy = -1;
+        if (uiPressed & PSP_CTRL_DOWN)  mvy =  1;
         {
 
             int adx = (int)pad.Lx - 128, ady = (int)pad.Ly - 128;
@@ -291,7 +291,7 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
                 for (int i = g_invHeaderSel + mvx; i >= 0 && i < INV_BTN_COUNT; i += mvx)
                     if (invHeaderButton(s, i)) { g_invHeaderSel = i; break; }
             if (mvy > 0) g_invHeaderSel = -1;
-            if (pressed & PSP_CTRL_CROSS) act = g_invHeaderSel;
+            if (uiPressed & PSP_CTRL_CROSS) act = g_invHeaderSel;
         } else {
             if (mvx < 0 && g_invCursor > 0) g_invCursor--;
             if (mvx > 0 && g_invCursor < inv->gridSize() - 1) g_invCursor++;
@@ -300,7 +300,7 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
                 else g_invHeaderSel = INV_BTN_BACK;
             }
             if (mvy > 0 && g_invCursor + INV_COLS < inv->gridSize()) g_invCursor += INV_COLS;
-            if (pressed & PSP_CTRL_CROSS) {
+            if (uiPressed & PSP_CTRL_CROSS) {
 
                 inv->pickToHotbar(g_invCursor);
                 soundPlay("random.pop2", 1.0f, 0.3f, SND_CAT_UI);
@@ -310,9 +310,9 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
             }
         }
 
-        if (pressed & PSP_CTRL_SQUARE)   act = INV_BTN_CRAFT;
-        if (pressed & PSP_CTRL_TRIANGLE) act = INV_BTN_ARMOR;
-        if (pressed & PSP_CTRL_CIRCLE)   act = INV_BTN_BACK;
+        if (uiPressed & PSP_CTRL_SQUARE)   act = INV_BTN_CRAFT;
+        if (uiPressed & PSP_CTRL_TRIANGLE) act = INV_BTN_ARMOR;
+        if (uiPressed & PSP_CTRL_CIRCLE)   act = INV_BTN_BACK;
         if (act >= 0 && invHeaderButton(s, act)) {
             g_invOpen = false;
 

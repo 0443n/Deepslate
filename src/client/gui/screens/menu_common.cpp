@@ -405,6 +405,13 @@ bool optionsScreenUp(const MenuState& s) {
     return s.screen == SCREEN_OPTIONS || g_optionsOpen;
 }
 
+ButtonHint menuFaceHint(bool confirm, const char* label) {
+
+    const bool circle = confirm ? (g_japaneseLayout != 0) : (g_japaneseLayout == 0);
+    return (ButtonHint){ circle ? BTN_ICON_CIRCLE : BTN_ICON_CROSS,
+                         circle ? PSP_CTRL_CIRCLE : PSP_CTRL_CROSS, label };
+}
+
 ButtonIcon menuShoulderIcon(bool right) {
     if (controlSchemeIsPadLayout()) return right ? BTN_ICON_R1 : BTN_ICON_L1;
     return right ? BTN_ICON_R : BTN_ICON_L;
@@ -420,7 +427,7 @@ void menuHintsDraw(MenuState& s) {
             hints[n++] = (ButtonHint){ BTN_ICON_DOWN,  PSP_CTRL_DOWN,     "Place" };
             hints[n++] = (ButtonHint){ menuShoulderIcon(false), PSP_CTRL_LTRIGGER, "" };
             hints[n++] = (ButtonHint){ menuShoulderIcon(true),  PSP_CTRL_RTRIGGER, "Anchor" };
-            hints[n++] = (ButtonHint){ BTN_ICON_CROSS, PSP_CTRL_CROSS,    "Step" };
+            hints[n++] = menuFaceHint(true, "Step");
             buttonHintsDraw(s, hints, n);
             return;
         }
@@ -430,17 +437,16 @@ void menuHintsDraw(MenuState& s) {
         hints[n++] = (ButtonHint){ menuShoulderIcon(true),  PSP_CTRL_RTRIGGER, "Layout" };
         hints[n++] = (ButtonHint){ BTN_ICON_LEFT,   PSP_CTRL_LEFT,   "" };
         hints[n++] = (ButtonHint){ BTN_ICON_RIGHT,  PSP_CTRL_RIGHT,  "Change" };
-        hints[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Select" };
-        hints[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Back" };
+        hints[n++] = menuFaceHint(true, "Select");
+        hints[n++] = menuFaceHint(false, "Back");
         buttonHintsDraw(s, hints, n);
         return;
     }
     const bool onOptions = optionsScreenUp(s);
 
-    hints[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,
-                               onOptions ? "Toggle" : "Select" };
+    hints[n++] = menuFaceHint(true, onOptions ? "Toggle" : "Select");
     if (s.screen != SCREEN_TITLE)
-        hints[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Back" };
+        hints[n++] = menuFaceHint(false, "Back");
 
     if (s.screen == SCREEN_CREATE)
         hints[n++] = (ButtonHint){ BTN_ICON_TRIANGLE, PSP_CTRL_TRIANGLE, "Advanced" };

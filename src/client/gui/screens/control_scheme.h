@@ -20,6 +20,9 @@ bool controlSchemeIsPadLayout();
 
 unsigned int controlSchemeMenuAlias(unsigned int buttons);
 
+extern int g_japaneseLayout;
+unsigned int menuFaceSwap(unsigned int buttons);
+
 unsigned int controlSchemeRemap(unsigned int buttons);
 
 unsigned int controlSchemeButtonFor(unsigned int logical);
