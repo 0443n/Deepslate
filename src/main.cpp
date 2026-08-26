@@ -1,6 +1,7 @@
 
 #include <pspkernel.h>
 #include <pspsysmem.h>
+#include <pspiofilemgr.h>
 #include <pspctrl.h>
 #include <psppower.h>
 #include <pspfpu.h>
@@ -23,6 +24,7 @@
 #include "world/level/chunk/chunk_cache.h"
 #include "world/level/tile/tile.h"
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/control_scheme.h"
 #include "client/gui/screens/screen.h"
 #include "client/gui/screens/panorama.h"
 #include "client/gui/screens/world_icons.h"
@@ -48,6 +50,12 @@ PSP_MODULE_INFO("MinecraftPSP", 0, 0, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 PSP_HEAP_SIZE_KB(-1024);
+
+int g_pspIsGo = 0;
+static void detectPspGo(void) {
+    SceUID d = sceIoDopen("ef0:/");
+    if (d >= 0) { sceIoDclose(d); g_pspIsGo = 1; }
+}
 
 int g_lowMemPsp  = 0;
 int g_lowMemHeap = 0;
@@ -75,15 +83,29 @@ static float drawFaultCounters(MenuState& s, float ty) {
         ty += 12.0f;
     }
 
+    extern unsigned int g_callCanaryBroken;
+    if (g_callCanaryBroken) {
+        std::snprintf(buf, sizeof(buf), "GU-STATE LIST OVERRAN +%u", g_callCanaryBroken - 1);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF0000FFu, 1.0f);
+        ty += 12.0f;
+    }
+    extern unsigned int g_listBadFinish;
+    if (g_listBadFinish) {
+        std::snprintf(buf, sizeof(buf), "GE-LIST BAD FINISH %u", g_listBadFinish);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF5050FFu, 1.0f);
+        ty += 12.0f;
+    }
     if (g_listOverruns) {
         std::snprintf(buf, sizeof(buf), "GE-LIST %uK/512K OVERRUN", g_listPeakBytes / 1024);
         fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF5050FFu, 1.0f);
         ty += 12.0f;
     }
 
-    extern unsigned int g_musGaps;
-    if (g_musGaps) {
-        std::snprintf(buf, sizeof(buf), "MUSIC GAPS %u", g_musGaps);
+    extern unsigned int g_vcSameRefresh, g_vcDrops;
+    extern int g_vcLast, g_vcMin, g_vcMax;
+    if (g_vcSameRefresh) {
+        std::snprintf(buf, sizeof(buf), "PRESENT x2/REFRESH %u  d=%d %d..%d  drop %u",
+                      g_vcSameRefresh, g_vcLast, g_vcMin, g_vcMax, g_vcDrops);
         fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF50FFFFu, 1.0f);
         ty += 12.0f;
     }
@@ -234,6 +256,7 @@ int main(int argc, char* argv[]) {
     pathInit(argc > 0 ? argv[0] : 0);
 
     detectLowMemPsp();
+    detectPspGo();
     soundInit();
     optionsLoad();
 
@@ -278,6 +301,8 @@ int main(int argc, char* argv[]) {
     s.haveFont         = loadFnt(&s.font, "data/images/font/default8.png");
 
     s.haveGui          = loadTexVram(&s.guiAtlas, "data/images/gui/gui_game.png", GU_PSM_4444);
+
+    g_btnIconsHave     = loadTexVram(&g_btnIcons, "data/images/gui/tooltips.png", GU_PSM_5551);
 
     extern bool g_haveGuiBlocks;
     extern Texture g_guiBlocks;
@@ -329,10 +354,10 @@ int main(int argc, char* argv[]) {
 
         scePowerTick(0);
 
-        soundMusicUpdate();
-
         SceCtrlData pad;
         sceCtrlReadBufferPositive(&pad, 1);
+
+        controlSchemeNotePad(pad.Buttons, pad.Rx, pad.Ry);
 
         unsigned int currentBtn = pad.Buttons & ~(PSP_CTRL_HOME | PSP_CTRL_HOLD |
                                                   PSP_CTRL_NOTE | PSP_CTRL_SCREEN |
@@ -386,9 +411,8 @@ int main(int argc, char* argv[]) {
                     std::snprintf(s.statusMsg, sizeof(s.statusMsg), "Loading: %s", s.worlds.names[s.worldSelected]);
                     s.screen = SCREEN_GAME;
                 }
-            } else if (s.screen != SCREEN_GAME) {
-                break;
             }
+
         }
 
         if (pressed & PSP_CTRL_SELECT) {
@@ -406,7 +430,9 @@ int main(int argc, char* argv[]) {
 
         unsigned int pMenu = pressed | repeat;
         if (Screen* cur = menuScreen(s.screen)) {
-            cur->handleInput(s, pMenu, pad.Buttons);
+
+            cur->handleInput(s, controlSchemeMenuAlias(pMenu),
+                             controlSchemeMenuAlias(pad.Buttons));
         } else {
 
             gameUpdate(s, inGameMenu ? pMenu
@@ -473,7 +499,19 @@ int main(int argc, char* argv[]) {
                     {
                         extern unsigned int g_listPeakBytes, g_listOverruns;
 
-                        if (g_listOverruns) {
+    extern unsigned int g_callCanaryBroken;
+    if (g_callCanaryBroken) {
+        std::snprintf(buf, sizeof(buf), "GU-STATE LIST OVERRAN +%u", g_callCanaryBroken - 1);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF0000FFu, 1.0f);
+        ty += 12.0f;
+    }
+    extern unsigned int g_listBadFinish;
+    if (g_listBadFinish) {
+        std::snprintf(buf, sizeof(buf), "GE-LIST BAD FINISH %u", g_listBadFinish);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF5050FFu, 1.0f);
+        ty += 12.0f;
+    }
+    if (g_listOverruns) {
                             char lbBuf[64];
                             std::snprintf(lbBuf, sizeof(lbBuf), "GE-LIST %uK/512K OVERRUN",
                                           g_listPeakBytes / 1024);
@@ -628,6 +666,7 @@ int main(int argc, char* argv[]) {
 
     if (s.haveFont)  fontFree(&s.font);
     if (s.haveGui)   textureFree(&s.guiAtlas);
+    if (g_btnIconsHave) textureFree(&g_btnIcons);
     if (s.haveLogo)  textureFree(&s.logo);
     if (s.haveBg) textureFree(&s.dirtBg);
     if (s.haveTouch) textureFree(&s.touchGui);

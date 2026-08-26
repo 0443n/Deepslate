@@ -91,8 +91,16 @@ static int                g_musPcmLeft;
 static unsigned int       musFade = MUS_FADE;
 
 unsigned int              g_musGaps = 0;
+static int                g_musPrimed = 0;
 static int                g_thid    = -1;
 static volatile int       g_mixerQuit = 0;
+
+static int                g_musThid = -1;
+static volatile int       g_musQuit = 0;
+
+static SceUID             g_musSema = -1;
+static inline void musicLock(void)   { if (g_musSema >= 0) sceKernelWaitSema(g_musSema, 1, 0); }
+static inline void musicUnlock(void) { if (g_musSema >= 0) sceKernelSignalSema(g_musSema, 1); }
 
 static bool loadPack(const char* path) {
     FILE* f = fopen(path, "rb");
@@ -201,9 +209,12 @@ void soundMixBlock(short* out) {
             }
         }
         g_musPos = pos; g_musHalf = half;
+        if (i >= SAMPLE_COUNT) g_musPrimed = 1;
 
         if (i < SAMPLE_COUNT) {
-            g_musGaps++;
+
+            if (!g_musEnded && g_musPrimed) g_musGaps++;
+            g_musPrimed = 0;
             int n = SAMPLE_COUNT - i;
             if (n > MUS_FADE) n = MUS_FADE;
             for (int k = 0; k < n; k++) mix[i + k] += last * (MUS_FADE - k) / MUS_FADE;
@@ -248,6 +259,7 @@ static int mixerThread(SceSize , void* ) {
 static bool loadCaveIndex(const char* path);
 static bool loadMusicIndex(const char* path);
 static void musicReleaseResource(void);
+static int  musicThread(SceSize, void*);
 
 void soundInit(void) {
 
@@ -275,9 +287,25 @@ void soundInit(void) {
                                    PSP_THREAD_ATTR_USER, 0);
     if (g_thid < 0) return;
     sceKernelStartThread(g_thid, 0, 0);
+
+    g_musSema = sceKernelCreateSema("music_lock", 0, 1, 1, 0);
+    g_musQuit = 0;
+    g_musThid = sceKernelCreateThread("music_thread", musicThread, 0x21, 0x8000,
+                                      PSP_THREAD_ATTR_USER, 0);
+    if (g_musThid >= 0) sceKernelStartThread(g_musThid, 0, 0);
 }
 
 void soundShutdown(void) {
+
+    if (g_musThid >= 0) {
+        g_musQuit = 1;
+        SceUInt musTimeout = 1000 * 1000;
+        sceKernelWaitThreadEnd(g_musThid, &musTimeout);
+        sceKernelDeleteThread(g_musThid);
+        g_musThid = -1;
+    }
+    if (g_musSema >= 0) { sceKernelDeleteSema(g_musSema); g_musSema = -1; }
+
     if (g_thid >= 0) {
         g_mixerQuit = 1;
 
@@ -312,9 +340,11 @@ void soundSetCategoryVolume(int cat, float volume) {
     g_catVol[cat] = volume < 0.0f ? 0.0f : (volume > 1.0f ? 1.0f : volume);
 
     if (cat == SND_CAT_MUSIC && g_catVol[cat] <= 0.0f) {
+        musicLock();
         g_musPlaying = 0;
         g_musReady[0] = 0; g_musReady[1] = 0;
         musicReleaseResource();
+        musicUnlock();
     }
 }
 
@@ -584,11 +614,13 @@ static void musicArmGap(void) {
 }
 
 void soundMusicStop(void) {
+    musicLock();
     g_musPlaying = 0;
     g_musReady[0] = 0; g_musReady[1] = 0;
     g_musEnded = 1;
     musicRelease();
     musicArmGap();
+    musicUnlock();
 }
 
 void soundMusicUpdate(void) {
@@ -618,6 +650,16 @@ void soundMusicUpdate(void) {
         return;
     g_musNextAt = 0;
     musicStart();
+}
+
+static int musicThread(SceSize, void*) {
+    while (!g_musQuit) {
+        musicLock();
+        soundMusicUpdate();
+        musicUnlock();
+        sceKernelDelayThread(10 * 1000);
+    }
+    return 0;
 }
 
 static const struct { const char* prefix; unsigned char cat; } kCatPrefix[] = {

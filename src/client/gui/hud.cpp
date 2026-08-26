@@ -10,6 +10,7 @@
 #include "gpu/texture.h"
 #include "gpu/sprite.h"
 #include "gpu/button_icons.h"
+#include "client/gui/screens/control_scheme.h"
 #include <pspgu.h>
 #include <pspkernel.h>
 #include "platform/time.h"
@@ -48,6 +49,8 @@ extern Texture g_guiBlocks;
 extern bool    g_haveGuiBlocks;
 
 #define HUD_S   2.0f
+
+#define HUD_NAME_S 1.0f
 #define HUD_N   (HOTBAR_SLOTS + 1)
 
 void hudChatMessage(const char* msg) {
@@ -97,14 +100,15 @@ void hudChatMessage(const char* msg) {
     }
 }
 
-#define HB_S       2.0f
+#define HB_S       1.0f
 
-#define HB_BOTTOM  18.0f
+#define HB_BOTTOM  24.0f
 #define HUD_HOTBAR_TOP (272.0f - 22.0f * HB_S - HB_BOTTOM)
 
 #define HUD_HINT_S  UI_HINT_S
 
-#define HUD_ST_S    2.0f
+#define HUD_ST_S     2.0f
+#define HUD_ST_BAR_S 1.0f
 #define HUD_HINTS_Y UI_HINTS_Y
 
 int g_barOnTop = 0;
@@ -778,7 +782,8 @@ const char* getBlockDescription(short id, unsigned char data) {
 void drawStackCount(Font& font, int count, float slotX, float slotY, float size) {
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", count);
-    float scale = HUD_S;
+
+    float scale = (size >= 32.0f) ? 2.0f : 1.0f;
     int tw = fontTextWidth(&font, buf);
     fontDrawTextShadow(&font, slotX + size - tw * scale, slotY + size - 8.0f * scale,
                        buf, 0xFFFFFFFFu, scale);
@@ -893,15 +898,16 @@ void hotbarDraw(MenuState& s) {
         float containerU = flash ? 25.0f : 16.0f;
 
         int oldHp = g_level.player->lastHealth;
-        const float hs = 9.0f * HUD_ST_S, step = 8.0f * HUD_ST_S;
+        const float sts = g_barOnTop ? HUD_ST_BAR_S : HUD_ST_S;
+        const float hs = 9.0f * sts, step = 8.0f * sts;
 
         const float armorW = 9.0f * step + hs;
         int armorVal = g_level.player->getArmorValue();
         float hx0, hy, armorX, armorY, airX, airY;
         if (!g_barOnTop) {
-            hx0    = 2.0f * HUD_ST_S;                          hy     = 2.0f * HUD_ST_S;
-            armorX = 480.0f - 2.0f * HUD_ST_S - armorW;        armorY = hy;
-            airX   = armorX;                                   airY   = hy + 10.0f * HUD_ST_S;
+            hx0    = 2.0f * sts;                               hy     = 2.0f * sts;
+            armorX = 480.0f - 2.0f * sts - armorW;             armorY = hy;
+            airX   = armorX;                                   airY   = hy + 10.0f * sts;
 
             if (armorVal <= 0) airY = armorY;
         } else {
@@ -911,7 +917,7 @@ void hotbarDraw(MenuState& s) {
             float row1 = HUD_HOTBAR_TOP - hs - gap;
             float row2 = row1 - hs - gap;
 
-            const float POKE = 8.0f;
+            const float POKE = 0.0f;
 
             const float rightX = barX + barW - armorW + POKE;
             hx0    = barX - POKE;                              hy     = row1;
@@ -924,7 +930,7 @@ void hotbarDraw(MenuState& s) {
             float hx = hx0 + i * step;
 
             float jit = 0.0f;
-            if (hp <= 4) jit = (float)((((i * 3 + g_cloudTicks) * 1103515245) >> 16 & 1) - 1) * HUD_ST_S;
+            if (hp <= 4) jit = (float)((((i * 3 + g_cloudTicks) * 1103515245) >> 16 & 1) - 1) * sts;
             float hyj = hy + jit;
             int ip2 = i + i + 1;
             spriteDraw(&s.guiAtlas, hx, hyj, hs, hs, GA_ICONS_X + containerU, 0 + GA_ICONS_Y, 9, 9, HUD_WHITE);
@@ -1017,7 +1023,8 @@ void hotbarDraw(MenuState& s) {
             nameDisplayStartTime = -1.0f;
         } else {
             const char* name = getBlockName(curId, curData);
-            float scale = HUD_S;
+
+            float scale = HUD_NAME_S;
             int tw = fontTextWidth(&s.font, name);
             float textX = 240.0f - (tw * scale) * 0.5f;
             float textY = barY - 18.0f * scale;
@@ -1076,6 +1083,39 @@ void guiFillGradient(float x, float y, float w, float h,
     sceGuEnable(GU_TEXTURE_2D);
 }
 
+static int hudHint(ButtonHint* out, unsigned int logical, const char* label) {
+    static const struct { unsigned int m; ButtonIcon i; } kIcons[] = {
+        { PSP_CTRL_LTRIGGER, BTN_ICON_L },        { PSP_CTRL_RTRIGGER, BTN_ICON_R },
+        { PSP_CTRL_UP,       BTN_ICON_UP },       { PSP_CTRL_DOWN,     BTN_ICON_DOWN },
+        { PSP_CTRL_LEFT,     BTN_ICON_LEFT },     { PSP_CTRL_RIGHT,    BTN_ICON_RIGHT },
+        { PSP_CTRL_TRIANGLE, BTN_ICON_TRIANGLE }, { PSP_CTRL_CIRCLE,   BTN_ICON_CIRCLE },
+        { PSP_CTRL_SQUARE,   BTN_ICON_SQUARE },   { PSP_CTRL_CROSS,    BTN_ICON_CROSS },
+        { PSP_CTRL_START,    BTN_ICON_START },     { PSP_CTRL_SELECT,   BTN_ICON_SELECT },
+        { PSP_CTRL_L1,       BTN_ICON_L1 },        { PSP_CTRL_R1,       BTN_ICON_R1 },
+        { PSP_CTRL_L3,       BTN_ICON_L3 },        { PSP_CTRL_R3,       BTN_ICON_R3 },
+    };
+
+    const unsigned int phys = controlSchemeButtonFor(logical);
+
+    if (controlSchemeIsPadLayout()) {
+        static const struct { unsigned int m; ButtonIcon i; } kPad[] = {
+            { PSP_CTRL_LTRIGGER, BTN_ICON_L2 },      { PSP_CTRL_RTRIGGER, BTN_ICON_R2 },
+            { PSP_CTRL_START,    BTN_ICON_PS_START },{ PSP_CTRL_SELECT,   BTN_ICON_PS_SELECT },
+        };
+        for (unsigned i = 0; i < sizeof(kPad) / sizeof(kPad[0]); i++)
+            if (kPad[i].m == phys) {
+                out->icon = kPad[i].i; out->btn = phys; out->label = label;
+                return 1;
+            }
+    }
+    for (unsigned i = 0; i < sizeof(kIcons) / sizeof(kIcons[0]); i++)
+        if (kIcons[i].m == phys) {
+            out->icon = kIcons[i].i; out->btn = phys; out->label = label;
+            return 1;
+        }
+    return 0;
+}
+
 #include "client/gamemode/gamemode.h"
 #include "world/level/tile/entity/furnace_tile_entity.h"
 #include "gpu/gui_atlas.h"
@@ -1095,13 +1135,13 @@ void gameHintsDraw(MenuState& s) {
 
     if (g_optionsOpen) { menuHintsDraw(s); return; }
 
-    ButtonHint h[4];
+    ButtonHint h[8];
     int n = 0;
 
     float hintsY = HUD_HINTS_Y;
 
     if (g_level.player && g_level.player->isSleeping()) {
-        h[n++] = (ButtonHint){ BTN_ICON_L, PSP_CTRL_LTRIGGER, "Wake Up" };
+        n += hudHint(&h[n], PSP_CTRL_LTRIGGER, "Wake Up");
         buttonHintsDraw(s, h, n, hintsY, HUD_HINT_S);
         return;
     }
@@ -1145,8 +1185,8 @@ void gameHintsDraw(MenuState& s) {
         h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Create" };
         h[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Exit" };
         if (craftHasCategories()) {
-            h[n++] = (ButtonHint){ BTN_ICON_L, PSP_CTRL_LTRIGGER, "" };
-            h[n++] = (ButtonHint){ BTN_ICON_R, PSP_CTRL_RTRIGGER, "Change Group" };
+            h[n++] = (ButtonHint){ menuShoulderIcon(false), PSP_CTRL_LTRIGGER, "" };
+            h[n++] = (ButtonHint){ menuShoulderIcon(true),  PSP_CTRL_RTRIGGER, "Change Group" };
         }
     } else if (g_invOpen) {
         h[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,
@@ -1160,16 +1200,21 @@ void gameHintsDraw(MenuState& s) {
     } else {
 
         CrosshairTarget t = gameModeCrosshairTarget();
-        if (g_level.player->inventory->selected == HOTBAR_SLOTS) {
-            h[n++] = (ButtonHint){ BTN_ICON_L, PSP_CTRL_LTRIGGER, "Inventory" };
+        if (g_level.player->isInWater()) n += hudHint(&h[n], PSP_CTRL_START, "Swim Up");
+        if (!g_level.player->inventory->isCreative())
+            n += hudHint(&h[n], ACT_CRAFT, "Crafting");
+        n += hudHint(&h[n], ACT_INVENTORY, "Inventory");
+
+        const bool slotOpensInv = controlSchemeButtonFor(ACT_INVENTORY) == 0;
+        if (slotOpensInv && g_level.player->inventory->selected == HOTBAR_SLOTS) {
+            n += hudHint(&h[n], PSP_CTRL_LTRIGGER, "Inventory");
 
             extern bool g_thirdPerson;
-            h[n++] = (ButtonHint){ BTN_ICON_UP, PSP_CTRL_UP,
-                                   g_thirdPerson ? "First Person" : "Third Person" };
+            n += hudHint(&h[n], PSP_CTRL_UP,
+                         g_thirdPerson ? "First Person" : "Third Person");
         }
-        else if (t.useLabel)
-            h[n++] = (ButtonHint){ BTN_ICON_L, PSP_CTRL_LTRIGGER, t.useLabel };
-        if (t.breakLabel) h[n++] = (ButtonHint){ BTN_ICON_R, PSP_CTRL_RTRIGGER, t.breakLabel };
+        else if (t.useLabel) n += hudHint(&h[n], PSP_CTRL_LTRIGGER, t.useLabel);
+        if (t.breakLabel)    n += hudHint(&h[n], PSP_CTRL_RTRIGGER, t.breakLabel);
     }
 
     if (n) buttonHintsDraw(s, h, n, hintsY, HUD_HINT_S);

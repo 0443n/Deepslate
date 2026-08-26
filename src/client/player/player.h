@@ -11,7 +11,7 @@ void playerSpawnAt(float eyeY);
 
 void playerSpawnEnsure();
 
-#define HOTBAR_SLOTS 7
+#define HOTBAR_SLOTS 8
 #define INV_COLS     6
 #include "world/item/item.h"
 #include "world/inventory/inventory.h"

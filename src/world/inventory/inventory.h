@@ -5,7 +5,7 @@
 
 class Inventory : public FillingContainer {
 public:
-    static const int HOTBAR   = 7;
+    static const int HOTBAR   = 8;
 
     static const int MAX_SLOTS = 256;
     static const int SURVIVAL_SLOTS = 36;

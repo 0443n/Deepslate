@@ -1,4 +1,5 @@
 #include "gpu/gu.h"
+#include "gpu/gu_list_size.h"
 #include <stdlib.h>
 #include "platform/canary.h"
 #include "platform/dcache.h"
@@ -24,7 +25,10 @@ static void*    g_listUncached[GU_LIST_COUNT] = { 0, 0 };
 static int      g_listIdx = 0;
 
 #define GU_CALL_LIST_WORDS 256
-static unsigned int __attribute__((aligned(16))) g_callList[GU_CALL_LIST_WORDS];
+
+static unsigned int __attribute__((aligned(16)))
+    g_callList[GU_CALL_LIST_WORDS + CANARY_WORDS];
+unsigned int g_callCanaryBroken = 0;
 
 static void* g_callListUncached = 0;
 
@@ -83,6 +87,16 @@ unsigned int g_frameAllocListFails = 0;
 
 unsigned int g_listPeakBytes = 0;
 unsigned int g_listOverruns  = 0;
+unsigned int g_listBadFinish = 0;
+
+static unsigned guFinishBytes(void) {
+    const int ret = sceGuFinish();
+    if (!guListSizeIsSane(ret, GU_LIST_BYTES)) {
+        g_listBadFinish++;
+        return 0;
+    }
+    return (unsigned)ret;
+}
 
 unsigned int g_canaryBroken = 0;
 unsigned int guFrameId(void) { return g_frameId; }
@@ -164,6 +178,11 @@ static inline void* guFbAddr(int idx) {
 }
 
 static int s_postedIdx     = -1;
+
+unsigned int g_vcSameRefresh = 0;
+unsigned int g_vcDrops       = 0;
+int g_vcLast = 0, g_vcMin = 9999, g_vcMax = 0;
+static int s_vcPrev = -1;
 unsigned int g_drawLiveHits = 0;
 unsigned int g_drawLiveOurs = 0;
 
@@ -280,6 +299,7 @@ void guInit(void) {
         g_listUncached[i] = (void*)((unsigned int)g_list[i] | 0x40000000u);
 
         canaryArm(guListCanary(i));
+    canaryArm((volatile unsigned int*)&g_callList[GU_CALL_LIST_WORDS]);
     }
 
     g_callListUncached = (void*)((unsigned int)g_callList | 0x40000000u);
@@ -384,7 +404,7 @@ void guFinishFrame(void) {
 
     profBegin(PROF_GESYNC);
 
-    unsigned listBytes = (unsigned)sceGuFinish();
+    unsigned listBytes = guFinishBytes();
     profListBytes(listBytes);
 
     if (listBytes > g_listPeakBytes) g_listPeakBytes = listBytes;
@@ -429,6 +449,19 @@ void guFinishFrame(void) {
 
 void guPresent(void) {
 
+    {
+        const int vc = (int)sceDisplayGetVcount();
+        if (s_vcPrev >= 0) {
+            const int d = vc - s_vcPrev;
+            g_vcLast = d;
+            if (d < g_vcMin) g_vcMin = d;
+            if (d > g_vcMax) g_vcMax = d;
+            if (d == 0)      g_vcSameRefresh++;
+            else if (d >= 2) g_vcDrops++;
+        }
+        s_vcPrev = vc;
+    }
+
     const int shown = g_drawIdx;
     sceDisplaySetFrameBuf(guFbAddr(shown), GU_BUF_WIDTH,
                           PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
@@ -458,10 +491,17 @@ void guResumeFromDialog(void) {
 
     sceGuStart(GU_DIRECT, g_callListUncached);
     guApplyPersistentState();
-    unsigned int used = (unsigned int)sceGuFinish();
-    sceGuSync(0, 0);
 
+    const int callRet = sceGuFinish();
+    const unsigned used = guListSizeIsSane(callRet, GU_CALL_LIST_WORDS * 4u)
+                        ? (unsigned)callRet : (g_listBadFinish++, 0u);
+    sceGuSync(0, 0);
     if (used >= GU_CALL_LIST_WORDS * 4) g_listOverruns++;
+
+    {
+        const int c = canaryCheck((const volatile unsigned int*)&g_callList[GU_CALL_LIST_WORDS]);
+        if (c) g_callCanaryBroken = (unsigned)c;
+    }
 
     s_dialogUp = false;
 
@@ -483,7 +523,7 @@ void guDialogBegin(unsigned int clearColor) {
 
 void guDialogEnd(void) {
 
-    unsigned listBytes = (unsigned)sceGuFinish();
+    unsigned listBytes = guFinishBytes();
     profListBytes(listBytes);
     if (listBytes > g_listPeakBytes) g_listPeakBytes = listBytes;
     if (listBytes >= GU_LIST_BYTES) g_listOverruns++;

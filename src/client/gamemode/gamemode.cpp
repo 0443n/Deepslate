@@ -363,13 +363,18 @@ static bool continueMining(const BlockHit& hit) {
     return done;
 }
 
+static bool sneakBlocksUse(ItemInstance* sel) {
+    return g_level.player && g_level.player->isSneaking() && sel && !sel->isNull();
+}
+
 bool GameMode::useItemOn(ItemInstance* item, const BlockHit& hit, bool* usedItem) {
     if (usedItem) *usedItem = false;
     unsigned char t = worldBlock(&g_world, hit.x, hit.y, hit.z);
 
     if (t == BLOCK_INVISIBLE_BEDROCK) return true;
 
-    if (t > 0 && Tile::tiles[t]->use(&g_world, hit.x, hit.y, hit.z, g_level.player)) return true;
+    if (t > 0 && !sneakBlocksUse(item) &&
+        Tile::tiles[t]->use(&g_world, hit.x, hit.y, hit.z, g_level.player)) return true;
     if (!item || item->isNull()) return false;
     if (!item->getItem()) return false;
 
@@ -767,9 +772,10 @@ CrosshairTarget gameModeCrosshairTarget() {
                                         hit.y + kFaceNeighbor[hit.face][1],
                                         hit.z + kFaceNeighbor[hit.face][2]))
                                                                        t.useLabel = "Ignite";
-        else if (id == BLOCK_BED)                                      t.useLabel = "Sleep";
-        else if (id == BLOCK_NETHER_REACTOR)                           t.useLabel = "Activate";
-        else if (isUsableBlockId(id))                                  t.useLabel = "Use";
+
+        else if (id == BLOCK_BED && !sneakBlocksUse(sel))               t.useLabel = "Sleep";
+        else if (id == BLOCK_NETHER_REACTOR && !sneakBlocksUse(sel))    t.useLabel = "Activate";
+        else if (isUsableBlockId(id) && !sneakBlocksUse(sel))           t.useLabel = "Use";
 
         else if (sel && sel->id == ITEM_BUCKET && sel->data != BUCKET_MILK) {
             const int px = hit.x + kFaceNeighbor[hit.face][0];

@@ -85,7 +85,7 @@ void SignScreen::renderContent(MenuState& s) {
     if (canUp)   h[n++] = (ButtonHint){ BTN_ICON_UP,   PSP_CTRL_UP,   canDown ? "" : "Move row" };
     if (canDown) h[n++] = (ButtonHint){ BTN_ICON_DOWN, PSP_CTRL_DOWN, "Move row" };
 
-    buttonHintsDraw(s, h, n, 272.0f - 17.0f - 1.0f);
+    buttonHintsDraw(s, h, n, UI_HINTS_Y);
 
     sceGuEnable(GU_DEPTH_TEST);
 }

@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "client/gui/screens/menu.h"
+#include "client/gui/screens/control_scheme.h"
 #include "client/gui/screens/panorama.h"
 #include "client/gui/hud.h"
 #include "gpu/gu.h"
@@ -372,21 +373,24 @@ bool menuOskUpdate(MenuState& s) {
     return true;
 }
 
-void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y, float scale) {
-    if (!s.haveGui || !s.haveFont) return;
+Texture g_btnIcons;
+bool    g_btnIconsHave = false;
 
-    const float BASE_H = 13.0f, TALL_DROP = 1.0f;
+void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y, float scale) {
+    if (!g_btnIconsHave || !s.haveFont) return;
+
+    const float BASE_H = 15.0f;
     float x = 6.0f;
     for (int i = 0; i < n; i++) {
-        const ButtonIconRect& r = buttonIconRect(hints[i].icon);
-        bool held = (g_heldButtons & hints[i].btn) != 0;
-        float iy = y + (BASE_H - r.h) * scale + (r.h > BASE_H ? TALL_DROP : 0.0f);
-        buttonIconDraw(&s.guiAtlas, hints[i].icon, x, iy, scale,
-                       held ? 0xC8C0C0C0u : 0xC8FFFFFFu);
+
+        const bool held = (g_heldButtons & hints[i].btn) != 0;
+        const ButtonIconRect r = buttonIconRect(hints[i].icon, held);
+        buttonIconDraw(hints[i].icon, x, y + (BASE_H - r.h) * scale, held, scale,
+                       0xC8FFFFFFu);
         x += r.w * scale + 3.0f * scale;
         if (hints[i].label[0]) {
-            fontDrawTextShadow(&s.font, x, y + (BASE_H - 8.0f) * scale * 0.5f, hints[i].label,
-                               0xFFE0E0E0u, scale);
+            fontDrawTextShadow(&s.font, x, y + floorf((BASE_H - 8.0f) * scale * 0.5f),
+                               hints[i].label, 0xFFE0E0E0u, scale);
             x += fontTextWidth(&s.font, hints[i].label) * scale + 10.0f * scale;
         }
     }
@@ -397,9 +401,33 @@ bool optionsScreenUp(const MenuState& s) {
     return s.screen == SCREEN_OPTIONS || g_optionsOpen;
 }
 
+ButtonIcon menuShoulderIcon(bool right) {
+    if (controlSchemeIsPadLayout()) return right ? BTN_ICON_R1 : BTN_ICON_L1;
+    return right ? BTN_ICON_R : BTN_ICON_L;
+}
+
 void menuHintsDraw(MenuState& s) {
     ButtonHint hints[6];
     int n = 0;
+
+    if (controlsPageIsOpen()) {
+        if (controlsPageEditing()) {
+            hints[n++] = (ButtonHint){ BTN_ICON_UP,    PSP_CTRL_UP,       "" };
+            hints[n++] = (ButtonHint){ BTN_ICON_DOWN,  PSP_CTRL_DOWN,     "Place" };
+            hints[n++] = (ButtonHint){ menuShoulderIcon(false), PSP_CTRL_LTRIGGER, "" };
+            hints[n++] = (ButtonHint){ menuShoulderIcon(true),  PSP_CTRL_RTRIGGER, "Anchor" };
+            hints[n++] = (ButtonHint){ BTN_ICON_CROSS, PSP_CTRL_CROSS,    "Step" };
+            buttonHintsDraw(s, hints, n);
+            return;
+        }
+        hints[n++] = (ButtonHint){ BTN_ICON_UP,     PSP_CTRL_UP,     "" };
+        hints[n++] = (ButtonHint){ BTN_ICON_DOWN,   PSP_CTRL_DOWN,   "Move" };
+        hints[n++] = (ButtonHint){ BTN_ICON_LEFT,   PSP_CTRL_LEFT,   "" };
+        hints[n++] = (ButtonHint){ BTN_ICON_RIGHT,  PSP_CTRL_RIGHT,  "Change" };
+        hints[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Back" };
+        buttonHintsDraw(s, hints, n);
+        return;
+    }
     const bool onOptions = optionsScreenUp(s);
 
     hints[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,
@@ -412,8 +440,8 @@ void menuHintsDraw(MenuState& s) {
     if (onOptions) {
         hints[n++] = (ButtonHint){ BTN_ICON_LEFT,  PSP_CTRL_LEFT,  "" };
         hints[n++] = (ButtonHint){ BTN_ICON_RIGHT, PSP_CTRL_RIGHT, "Change" };
-        hints[n++] = (ButtonHint){ BTN_ICON_L, PSP_CTRL_LTRIGGER, "" };
-        hints[n++] = (ButtonHint){ BTN_ICON_R, PSP_CTRL_RTRIGGER, "Group" };
+        hints[n++] = (ButtonHint){ menuShoulderIcon(false), PSP_CTRL_LTRIGGER, "" };
+        hints[n++] = (ButtonHint){ menuShoulderIcon(true),  PSP_CTRL_RTRIGGER, "Group" };
     }
     buttonHintsDraw(s, hints, n);
 }

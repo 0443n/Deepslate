@@ -134,10 +134,15 @@ void startOsk(int target, const char* desc, const char* intext, int maxLen = 64)
 bool menuOskUpdate(MenuState& s);
 
 #include "gpu/button_icons.h"
+#include "gpu/gui_atlas.h"
 struct ButtonHint { ButtonIcon icon; unsigned int btn; const char* label; };
 
 #define UI_HINT_S   1.0f
-#define UI_HINTS_Y  (272.0f - 15.0f * UI_HINT_S)
+
+#define UI_HINT_GAP 2.0f
+#define UI_HINTS_Y  (272.0f - 15.0f * UI_HINT_S - UI_HINT_GAP)
+
+ButtonIcon menuShoulderIcon(bool right);
 void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y = UI_HINTS_Y,
                      float scale = UI_HINT_S);
 void menuHintsDraw(MenuState& s);
@@ -149,6 +154,12 @@ extern unsigned int g_heldButtons;
 void optionsInitDefaults();
 void optionsLoad();
 void optionsSave();
+
+void optionsSetControlScheme(int scheme);
+
+void optionsSetInvertLook(int on);
+void optionsSetSouthpaw(int on);
+void optionsSetFineAim(int on);
 
 void optionsToggleThirdPerson();
 

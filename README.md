@@ -154,9 +154,13 @@ model; that is worth more than a warning nobody reads.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
 - [**Stann**](https://www.youtube.com/channel/UCT_snDyWXMIDKiCPs606mzg) — drew
-  the delete-world **X** button (both states, in `touchgui.png`), and spotted the
-  uneven border widths on the world-type pills that turned out to be a fractional
-  nine-patch corner.
+  the delete-world **X** button (both states, in `touchgui.png`), the controller
+  drawings the Controls page labels (`data/images/gui/controls/psp.png`,
+  `go.png`), and the whole button-icon sheet the in-game hint row is built from
+  (`data/images/gui/tooltips.png`) — every button in a pressed and a released
+  state, the DualShock's shoulders, sticks and PlayStation Start/Select
+  included. Also spotted the uneven border widths on the world-type pills that
+  turned out to be a fractional nine-patch corner.
 
 ### PSP engines this port learned from
 

@@ -28,6 +28,7 @@ OBJS = \
 	src/client/gui/screens/screen_join.o \
 	src/client/gui/screens/screen_addserver.o \
 	src/client/gui/screens/screen_options.o \
+	src/client/gui/screens/screen_controls.o \
 	src/client/gui/screens/screen_pause.o \
 	src/client/gui/screens/screen_dead.o \
 	src/client/gui/screens/screen_inbed.o \

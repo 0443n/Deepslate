@@ -1,6 +1,7 @@
 
 #include "client/player/player.h"
 #include "client/gui/screens/screen.h"
+#include "client/gui/screens/control_scheme.h"
 #include "client/renderer/render.h"
 
 #include "world/level/world.h"
@@ -116,7 +117,8 @@ void quitToMenuNoSave(MenuState& s) {
     s.screen = SCREEN_WORLDS;
 }
 
-static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned char ly) {
+static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned char ly,
+                     unsigned char rx = 128, unsigned char ry = 128) {
 
     float now = nowSeconds();
 
@@ -137,7 +139,7 @@ static void runTicks(MenuState& s, unsigned int btn, unsigned char lx, unsigned 
     profBegin(PROF_TICK);
     for (int i = 0; i < ticks; i++) {
         profBegin(PROF_TPLAYER);
-        if (g_level.player) g_level.player->aiStep(btn, lx, ly);
+        if (g_level.player) g_level.player->aiStep(btn, lx, ly, rx, ry);
         profEnd(PROF_TPLAYER);
 
         g_world.simTick = true;
@@ -185,10 +187,13 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
     s_uiOwned = true;
     SceCtrlData pad = padIn;
 
+    const unsigned int uiPressed = controlSchemeMenuAlias(pressed);
+    const unsigned int uiHeld    = controlSchemeMenuAlias(pad.Buttons);
+
     g_gameFrozen = true;
 
     if (g_signEditing) {
-        signScreen().handleInput(s, pressed, pad.Buttons);
+        signScreen().handleInput(s, uiPressed, uiHeld);
         float now = nowSeconds();
         g_timerLast = now; g_timerPassed = 0.0f; g_timerAlpha = 0.0f;
         return;
@@ -203,7 +208,7 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
     if (g_worldBuilt && g_level.player && g_level.player->health <= 0 && !g_deadScreen)
         deadScreenOpen();
     if (g_deadScreen) {
-        deadScreen().handleInput(s, pressed, pad.Buttons);
+        deadScreen().handleInput(s, uiPressed, uiHeld);
 
         runTicks(s, 0, 128, 128);
         return;
@@ -211,42 +216,42 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
     if (g_paused) {
 
         soundStopWorld();
-        pauseScreen().handleInput(s, pressed, pad.Buttons);
+        pauseScreen().handleInput(s, uiPressed, uiHeld);
         float now = nowSeconds();
         g_timerLast = now; g_timerPassed = 0.0f; g_timerAlpha = 0.0f;
         return;
     }
 
     if (g_optionsOpen) {
-        optionsScreen().handleInput(s, pressed, pad.Buttons);
+        optionsScreen().handleInput(s, uiPressed, uiHeld);
         float now = nowSeconds();
         g_timerLast = now; g_timerPassed = 0.0f; g_timerAlpha = 0.0f;
         return;
     }
 
     if (g_worldBuilt && g_level.player && g_level.player->isSleeping()) {
-        inBedScreen().handleInput(s, pressed, pad.Buttons);
+        inBedScreen().handleInput(s, uiPressed, uiHeld);
         runTicks(s, 0, 128, 128);
         return;
     }
 
     if (g_craftOpen) {
-        craftScreen().handleInput(s, pressed, pad.Buttons);
+        craftScreen().handleInput(s, uiPressed, uiHeld);
         runTicks(s, 0, 128, 128);
         return;
     }
     if (g_armorOpen) {
-        armorScreen().handleInput(s, pressed, pad.Buttons);
+        armorScreen().handleInput(s, uiPressed, uiHeld);
         runTicks(s, 0, 128, 128);
         return;
     }
     if (g_furnaceOpen) {
-        furnaceScreen().handleInput(s, pressed, pad.Buttons);
+        furnaceScreen().handleInput(s, uiPressed, uiHeld);
         runTicks(s, 0, 128, 128);
         return;
     }
     if (g_chestOpen) {
-        chestScreen().handleInput(s, pressed, pad.Buttons);
+        chestScreen().handleInput(s, uiPressed, uiHeld);
         runTicks(s, 0, 128, 128);
         return;
     }
@@ -335,6 +340,11 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
     pressed     &= ~s_swallow;
     pad.Buttons &= ~s_swallow;
 
+    pressed     = controlSchemeRemap(pressed);
+    pad.Buttons = controlSchemeRemap(pad.Buttons);
+
+    controlSchemeCombos(pressed, pad.Buttons);
+
     if ((pressed & PSP_CTRL_START) && g_level.player && g_level.player->inventory->isCreative()) {
         static float lastJumpPress = -1.0f;
         float nowP = nowSeconds();
@@ -350,7 +360,8 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
     if (pressed & PSP_CTRL_LEFT)  { if (g_level.player->inventory->selected > 0) g_level.player->inventory->selected--; else g_level.player->inventory->selected = HOTBAR_SLOTS; }
     if (pressed & PSP_CTRL_RIGHT) { if (g_level.player->inventory->selected < HOTBAR_SLOTS) g_level.player->inventory->selected++; else g_level.player->inventory->selected = 0; }
 
-    if ((pressed & PSP_CTRL_UP) && g_level.player->inventory->selected == HOTBAR_SLOTS) {
+    if (((pressed & PSP_CTRL_UP) && g_level.player->inventory->selected == HOTBAR_SLOTS)
+        || (pressed & ACT_THIRDPERSON)) {
         optionsToggleThirdPerson();
         soundPlay("random.click", 1.0f, 1.0f);
     }
@@ -361,8 +372,10 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
         static float dropStart = -1.0f;
         static bool  dropFired = false;
 
-        bool up = (pad.Buttons & PSP_CTRL_UP) != 0 && !g_level.player->inventory->isCreative()
-                  && g_level.player->inventory->selected < HOTBAR_SLOTS;
+        bool up = !g_level.player->inventory->isCreative() &&
+                  (((pad.Buttons & PSP_CTRL_UP) &&
+                    g_level.player->inventory->selected < HOTBAR_SLOTS)
+                   || (pad.Buttons & ACT_DROP) != 0);
         float nowD = nowSeconds();
         if (up) {
             if (dropStart < 0.0f) { dropStart = nowD; dropFired = false; }
@@ -384,7 +397,8 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
             g_dropCharge = -1.0f;
         }
     }
-    if ((pressed & PSP_CTRL_LTRIGGER) && g_level.player->inventory->selected == HOTBAR_SLOTS) {
+    if (((pressed & PSP_CTRL_LTRIGGER) && g_level.player->inventory->selected == HOTBAR_SLOTS)
+        || (pressed & ACT_INVENTORY)) {
         g_invOpen = true;
         soundPlay("random.click", 1.0f, 1.0f);
         g_invHeaderSel = -1;
@@ -398,9 +412,14 @@ void gameUpdate(MenuState& s, unsigned int pressed, const SceCtrlData& padIn) {
         return;
     }
 
+    if ((pressed & ACT_CRAFT) && !g_level.player->inventory->isCreative()) {
+        craftOpen(Recipe::SIZE_2X2, CRAFT_WORKBENCH);
+        return;
+    }
+
     gameModeHandleInput(pressed, pad.Buttons);
 
-    runTicks(s, pad.Buttons, pad.Lx, pad.Ly);
+    runTicks(s, pad.Buttons, pad.Lx, pad.Ly, pad.Rx, pad.Ry);
 }
 
 void playerSpawnEnsure() {

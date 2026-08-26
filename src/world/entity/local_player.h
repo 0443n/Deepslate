@@ -9,7 +9,9 @@ public:
     LocalPlayer(Level* level);
 
     using Mob::aiStep;
-    void aiStep(unsigned int btn, unsigned char lx, unsigned char ly);
+
+    void aiStep(unsigned int btn, unsigned char lx, unsigned char ly,
+                unsigned char rx = 128, unsigned char ry = 128);
 
     bool prevSneakBtn = false;
 

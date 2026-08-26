@@ -21,6 +21,7 @@ int g_fineAim = 1;
 float g_sensitivity = 1.0f;
 
 float g_analogDeadzone = 0.20f;
+int   g_southpaw = 0;
 int   g_invertY = 0;
 
 LocalPlayer::LocalPlayer(Level* level) : Player(level) {
@@ -29,7 +30,8 @@ LocalPlayer::LocalPlayer(Level* level) : Player(level) {
     entityRendererId = ER_DEFAULT_RENDERER;
 }
 
-void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
+void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly,
+                         unsigned char rx, unsigned char ry) {
     const float LOOK = 7.5f * g_sensitivity;
 
     sleepTick();
@@ -75,7 +77,12 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
         }
     }
 
-    static const float LOOK_TAP_FRAC  = 0.30f;
+    const float dz = g_analogDeadzone;
+    float aH = ((int)lx - 128) / 127.0f, aV = (128 - (int)ly) / 127.0f;
+    if (aH > -dz && aH < dz) aH = 0.0f;
+    if (aV > -dz && aV < dz) aV = 0.0f;
+
+    static const float LOOK_TAP_FRAC   = 0.30f;
     static const int   LOOK_RAMP_TICKS = 6;
     const unsigned int yawBtn   = btn & (PSP_CTRL_SQUARE | PSP_CTRL_CIRCLE);
     const unsigned int pitchBtn = btn & (PSP_CTRL_TRIANGLE | PSP_CTRL_CROSS);
@@ -90,22 +97,43 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly) {
             ? LOOK_TAP_FRAC + (1.0f - LOOK_TAP_FRAC) * (float)s_lookHeld[a] / LOOK_RAMP_TICKS
             : 1.0f;
     }
-    const float YAW_NOW  = LOOK * lookRamp[0];
-    const float LOOK_NOW = LOOK * lookRamp[1];
 
-    if (btn & PSP_CTRL_SQUARE)   yRot -= YAW_NOW;
-    if (btn & PSP_CTRL_CIRCLE)   yRot += YAW_NOW;
-    const float PITCH = g_invertY ? -LOOK_NOW : LOOK_NOW;
-    if (btn & PSP_CTRL_TRIANGLE) xRot += PITCH;
-    if (btn & PSP_CTRL_CROSS)    xRot -= PITCH;
+    float bBtnH = 0.0f, bBtnV = 0.0f;
+    if (btn & PSP_CTRL_CIRCLE)   bBtnH += 1.0f;
+    if (btn & PSP_CTRL_SQUARE)   bBtnH -= 1.0f;
+    if (btn & PSP_CTRL_TRIANGLE) bBtnV += 1.0f;
+    if (btn & PSP_CTRL_CROSS)    bBtnV -= 1.0f;
+
+    float bStkH = 0.0f, bStkV = 0.0f;
+    if (rx || ry) {
+        bStkH = ((int)rx - 128) / 127.0f;
+        bStkV = (128 - (int)ry) / 127.0f;
+        if (bStkH > -dz && bStkH < dz) bStkH = 0.0f;
+        if (bStkV > -dz && bStkV < dz) bStkV = 0.0f;
+    }
+
+    float lookH, lookV, moveH, moveV;
+    if (g_southpaw) {
+        lookH = aH;
+        lookV = aV;
+        moveH = bBtnH + bStkH;
+        moveV = bBtnV + bStkV;
+    } else {
+        lookH = bBtnH * lookRamp[0] + bStkH;
+        lookV = bBtnV * lookRamp[1] + bStkV;
+        moveH = aH;
+        moveV = aV;
+    }
+    if (moveH >  1.0f) moveH =  1.0f; else if (moveH < -1.0f) moveH = -1.0f;
+    if (moveV >  1.0f) moveV =  1.0f; else if (moveV < -1.0f) moveV = -1.0f;
+
+    yRot += LOOK * lookH;
+    xRot += (g_invertY ? -LOOK : LOOK) * lookV;
     if (xRot >  89.0f) xRot =  89.0f;
     if (xRot < -89.0f) xRot = -89.0f;
 
-    float xs = (128 - lx) / 127.0f;
-    float yf = (128 - ly) / 127.0f;
-    const float dz = g_analogDeadzone;
-    if (xs > -dz && xs < dz) xs = 0.0f;
-    if (yf > -dz && yf < dz) yf = 0.0f;
+    float xs = -moveH;
+    float yf =  moveV;
 
     bool jumping = (btn & PSP_CTRL_START) != 0 || autoJumpTime > 0;
 

@@ -91,7 +91,7 @@ static_assert((sizeof(kPaletteData) / sizeof(kPaletteData[0])) == (sizeof(kPalet
 
 static const short kStarter[Inventory::HOTBAR] = {
     BLOCK_STONE, BLOCK_COBBLESTONE, BLOCK_BRICKS, BLOCK_TORCH, BLOCK_DIRT, BLOCK_PLANKS,
-    BLOCK_STAIRS_BRICK,
+    BLOCK_STAIRS_BRICK, BLOCK_LOG,
 };
 static_assert((sizeof(kStarter) / sizeof(kStarter[0])) == Inventory::HOTBAR,
               "starter set must fill the hotbar");

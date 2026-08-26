@@ -15,6 +15,7 @@
 #include "gpu/gui_atlas.h"
 #include "world/level/world.h"
 #include "client/renderer/particle.h"
+#include "client/gui/screens/control_scheme.h"
 
 struct OptionRowDef {
 
@@ -26,6 +27,8 @@ struct OptionRowDef {
     bool percent;
     int percentMin;
     int percentStep;
+
+    bool button;
 };
 
 #define OPT_CATEGORIES 4
@@ -49,10 +52,10 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
         { "Input", "Sensitivity",  {0, 0, 0, 0}, 21, 10, true, 0, 10 },
 
         { 0,       "Dead Zone",     {0, 0, 0, 0}, 11, 4, true, 0, 5 },
-        { 0,       "Invert Y-axis", {"Off", "On", 0, 0}, 2, 0 },
         { 0,       "Auto Jump",     {"Off", "On", 0, 0}, 2, 1 },
 
-        { 0,       "Fine Aim",      {"Off", "On", 0, 0}, 2, 1 },
+        { 0,       "Control Scheme", {"Layout 1", "Layout 2", "Layout 3", "Layout 4"}, 4, 0,
+          false, 0, 0, true },
     },
     {
 
@@ -87,7 +90,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
 };
 
-static const int g_optionRowCount[OPT_CATEGORIES] = { 7, 5, 11, 8 };
+static const int g_optionRowCount[OPT_CATEGORIES] = { 7, 4, 11, 8 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
@@ -109,6 +112,7 @@ extern float g_sensitivity;
 extern int   g_fineAim;
 extern bool  g_thirdPerson;
 extern int   g_invertY;
+extern int   g_southpaw;
 extern int   g_beautifulSkies;
 extern int   g_animateTextures;
 extern int   g_hideGui;
@@ -140,9 +144,8 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 #define CAT_CONTROLS     1
 #define ROW_SENS         0
 #define ROW_DEADZONE     1
-#define ROW_INVERTY      2
-#define ROW_AUTOJUMP     3
-#define ROW_FINEAIM      4
+#define ROW_AUTOJUMP     2
+#define ROW_SCHEME       3
 
 #define CAT_GAME        0
 #define ROW_DIFFICULTY  0
@@ -157,6 +160,17 @@ static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
 #define ROW_SOUNDVOL    0
 #define ROW_CATVOL0     1
 static const int kAutosaveTicks[4] = { 0, 18000, 24000, 36000 };
+
+static const struct { const char* label; int* value; int def; } kPageSettings[] = {
+    { "Invert Look", &g_invertY,  0 },
+    { "Southpaw",    &g_southpaw, 0 },
+    { "Fine Aim",    &g_fineAim,  1 },
+};
+#define PAGE_SETTINGS (int)(sizeof(kPageSettings) / sizeof(kPageSettings[0]))
+
+void optionsSetInvertLook(int on) { g_invertY  = on ? 1 : 0; }
+void optionsSetSouthpaw(int on)   { g_southpaw = on ? 1 : 0; }
+void optionsSetFineAim(int on)    { g_fineAim  = on ? 1 : 0; }
 
 unsigned int optionsValueSig() {
     unsigned int h = 2166136261u;
@@ -195,11 +209,10 @@ static void optionsApply() {
         soundSetCategoryVolume(c, g_optionValueIdx[CAT_AUDIO][ROW_CATVOL0 + c] / 10.0f);
 
     g_sensitivity = g_optionValueIdx[CAT_CONTROLS][ROW_SENS] / 10.0f;
-    g_fineAim     = g_optionValueIdx[CAT_CONTROLS][ROW_FINEAIM];
+    g_controlScheme = g_optionValueIdx[CAT_CONTROLS][ROW_SCHEME];
 
     g_analogDeadzone = g_optionValueIdx[CAT_CONTROLS][ROW_DEADZONE] * 0.05f;
     g_thirdPerson = g_optionValueIdx[CAT_GAME][ROW_THIRDPERSON] != 0;
-    g_invertY        = g_optionValueIdx[CAT_CONTROLS][ROW_INVERTY];
     g_beautifulSkies = g_optionValueIdx[CAT_GRAPHICS][ROW_SKIES];
     g_animateTextures= g_optionValueIdx[CAT_GRAPHICS][ROW_ANIMTEX];
     g_hideGui        = g_optionValueIdx[CAT_GRAPHICS][ROW_HIDEGUI];
@@ -219,6 +232,8 @@ static void optionsSetDefaults() {
     for (int c = 0; c < OPT_CATEGORIES; c++)
         for (int r = 0; r < g_optionRowCount[c]; r++)
             g_optionValueIdx[c][r] = g_optionRows[c][r].def;
+    for (int i = 0; i < PAGE_SETTINGS; i++)
+        *kPageSettings[i].value = kPageSettings[i].def;
 
     if (g_lowMemPsp) {
         g_optionValueIdx[CAT_GRAPHICS][ROW_SKIES]       = 0;
@@ -237,12 +252,21 @@ void optionsToggleThirdPerson() {
     optionsApply();
 }
 
+void optionsSetControlScheme(int scheme) {
+    if (scheme < 0 || scheme >= CONTROL_SCHEMES) return;
+    g_optionValueIdx[CAT_CONTROLS][ROW_SCHEME] = scheme;
+    optionsApply();
+}
+
 void optionsSave() {
     FILE* f = fopen(assetPath("options.txt"), "w");
     if (!f) return;
     for (int c = 0; c < OPT_CATEGORIES; c++)
         for (int r = 0; r < g_optionRowCount[c]; r++)
             fprintf(f, "%s=%d\n", g_optionRows[c][r].label, g_optionValueIdx[c][r]);
+
+    for (int i = 0; i < PAGE_SETTINGS; i++)
+        fprintf(f, "%s=%d\n", kPageSettings[i].label, *kPageSettings[i].value);
     fclose(f);
 }
 
@@ -257,6 +281,16 @@ void optionsLoad() {
             *eq = '\0';
             int val = atoi(eq + 1);
             if (strcmp(line, "Sound Volume") == 0) strcpy(line, "Master");
+
+            {
+                bool claimed = false;
+                for (int i = 0; i < PAGE_SETTINGS && !claimed; i++)
+                    if (strcmp(line, kPageSettings[i].label) == 0) {
+                        *kPageSettings[i].value = val ? 1 : 0;
+                        claimed = true;
+                    }
+                if (claimed) continue;
+            }
             for (int c = 0; c < OPT_CATEGORIES; c++)
                 for (int r = 0; r < g_optionRowCount[c]; r++)
                     if (strcmp(line, g_optionRows[c][r].label) == 0) {
@@ -329,6 +363,9 @@ struct OptionsScreen : Screen {
 };
 
 void OptionsScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int ) {
+
+    if (controlsPageIsOpen()) { controlsPageInput(s, pressed); return; }
+
     int& optFocus = s.optFocus;
     int& optCategory = s.optCategory;
     int& optTabHighlight = s.optTabHighlight;
@@ -370,6 +407,7 @@ void OptionsScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int
             g_optionValueIdx[optCategory][optItemHighlight] = idx + 1;
             optionsApply();
         }
+        if ((pressed & PSP_CTRL_CROSS) && row.button) controlsPageOpen();
 
         if ((pressed & PSP_CTRL_CROSS) && optionRowIsBoolean(row)) {
             g_optionValueIdx[optCategory][optItemHighlight] ^= 1;
@@ -379,6 +417,8 @@ void OptionsScreen::handleInput(MenuState& s, unsigned int pressed, unsigned int
 }
 
 void OptionsScreen::renderContent(MenuState& s) {
+    if (controlsPageIsOpen()) { controlsPageRender(s); return; }
+
     Font& font = s.font; bool haveFont = s.haveFont;
 
     bool haveArt = s.haveGui;
@@ -501,7 +541,9 @@ void OptionsScreen::renderContent(MenuState& s) {
 
             char valBuf[16];
             const char* valTxt = 0;
-            if (!isBool) {
+            if (row.button) {
+                valTxt = (valIdx >= 0 && valIdx < 4) ? row.values[valIdx] : 0;
+            } else if (!isBool) {
                 if (row.percent) {
                     snprintf(valBuf, sizeof(valBuf), "%d%%", row.percentMin + valIdx * row.percentStep);
                     valTxt = valBuf;
@@ -509,7 +551,9 @@ void OptionsScreen::renderContent(MenuState& s) {
                     valTxt = row.values[valIdx];
                 }
             }
-            float widgetX  = itemsX + itemsW - (isBool ? togW : sliderW) - kWidgetMargin;
+
+            const float btnW = row.button ? fontTextWidth(&font, "Open") + 10.0f : 0.0f;
+            float widgetX  = itemsX + itemsW - (row.button ? btnW : isBool ? togW : sliderW) - kWidgetMargin;
             float valW     = valTxt ? fontTextWidth(&font, valTxt) : 0.0f;
             float labelMax = (widgetX - itemsX) - (valTxt ? valW + 8.0f : 4.0f);
             if (labelMax < 8.0f) labelMax = 8.0f;
@@ -517,7 +561,17 @@ void OptionsScreen::renderContent(MenuState& s) {
             fontDrawTextClipped(&font, itemsX * UI_SCALE, (rY + (rowH - 8.0f) / 2.0f) * UI_SCALE,
                                 row.label, labelCol, UI_SCALE, labelMax);
 
-            if (isBool) {
+            if (row.button) {
+
+                const float bh = kOptRowH - 2.0f;
+                const float by = rY + 1.0f;
+                guiTButton(s, widgetX, by, btnW, bh, rowHovered, MENU_BEVEL);
+                guiTButtonLabel(s, widgetX, by, btnW, bh, "Open", rowHovered, !rowDisabled);
+                if (valTxt)
+                    fontDrawTextShadow(&font, (widgetX - 4.0f) * UI_SCALE - valW * UI_SCALE,
+                                       (rY + (rowH - 8.0f) / 2.0f) * UI_SCALE, valTxt,
+                                       rowHovered ? 0xFFFFFFFFu : 0xFFBBBBBBu, UI_SCALE);
+            } else if (isBool) {
 
                 guiOptionSwitch(s, widgetX, rY + (rowH - togH) / 2.0f, togW, togH,
                                 valIdx == 1, rowHovered, togTint, 2.0f);
