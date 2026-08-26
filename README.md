@@ -88,6 +88,30 @@ next to the EBOOT.
 Keep `EBOOT.PBP` and `data/` together; textures and sounds load from `data/`
 next to the EBOOT.
 
+## DualShock 3
+
+Options > Controls > Control Scheme > **Layout 4** puts the camera on the right
+stick and gives every action its own button — place and break on L2/R2, the
+hotbar on L1/R1, crafting and inventory on Square/Triangle, third person and
+sneak on the stick clicks. It needs a DualShock 3 paired to the PSP, and it
+needs a plugin:
+
+**[VanillaDS3Remapper](https://github.com/rereprep/VanillaDS3Remapper)** —
+Total_Noob's DS3Remapper. Not shipped with this port: grab `DS3Remapper.prx`
+from there, drop it in `seplugins/` on the memory stick and enable it
+(`ms0:/seplugins/game.txt`, line `ms0:/seplugins/DS3Remapper.prx 1`).
+
+Without it the extra inputs do not exist as far as any game is concerned. Read
+through plain `sceCtrlReadBufferPositive` a DualShock is aliased onto a PSP pad:
+L1 and L2 both return `0x100`, and the stick clicks and the right stick are
+simply gone. The extra buttons live in ctrl.prx's EXTENDED report, which that
+call never asks for; the plugin hooks the service and asks for it.
+
+The port does not require the plugin and never refuses to run without one: with
+no controller in sight Layout 4 is greyed in the Controls page and quietly plays
+as Layout 1, and it starts working by itself the moment the pad turns up. A
+saved Layout 4 survives a boot on a plain PSP.
+
 ## Hardware
 
 Every PSP model runs it, but the 32 MB machines (PSP-1000, the original "Phat")
@@ -153,14 +177,18 @@ model; that is worth more than a warning nobody reads.
   lock.
 - [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
   not rendering with the 4444 texture format.
-- [**Stann**](https://www.youtube.com/channel/UCT_snDyWXMIDKiCPs606mzg) — drew
-  the delete-world **X** button (both states, in `touchgui.png`), the controller
-  drawings the Controls page labels (`data/images/gui/controls/psp.png`,
-  `go.png`), and the whole button-icon sheet the in-game hint row is built from
-  (`data/images/gui/tooltips.png`) — every button in a pressed and a released
-  state, the DualShock's shoulders, sticks and PlayStation Start/Select
-  included. Also spotted the uneven border widths on the world-type pills that
-  turned out to be a fractional nine-patch corner.
+- [**Stann**](https://github.com/ThatStann) — drew the delete-world **X** button
+  (both states, in `touchgui.png`), the controller drawings the Controls page
+  labels (`data/images/gui/controls/psp.png`, `go.png`), and the button-icon
+  sheet the in-game hint row is built from (`data/images/gui/tooltips.png`) —
+  every button in a pressed and a released state, the DualShock's shoulders,
+  sticks and PlayStation Start/Select included. Also spotted the uneven border
+  widths on the world-type pills that turned out to be a fractional nine-patch
+  corner.
+- **Total_Noob** — **DS3Remapper**, the plugin that makes a DualShock's extra
+  buttons and its right stick reach a game at all. Not bundled here; it lives at
+  [rereprep/VanillaDS3Remapper](https://github.com/rereprep/VanillaDS3Remapper)
+  under its own GPLv3, and Layout 4 needs it (see [DualShock 3](#dualshock-3)).
 
 ### PSP engines this port learned from
 
