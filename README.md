@@ -116,18 +116,20 @@ saved Layout 4 survives a boot on a plain PSP.
 
 Every PSP model runs it, but the 32 MB machines (PSP-1000, the original "Phat")
 have half the memory of everything later, and the world plus its meshes still
-take most of the heap. So the port detects the model at boot and makes two
-things smaller there:
+take most of the heap. The port measures the machine's user memory at boot —
+heap plus what the kernel still holds, so a fragmented heap cannot make a 3000
+look like a 1000 — and on the smaller one it starts smaller:
 
-- **Render distance** — Tiny and Short, no Normal, and it starts on Tiny. Short
-  is fine on most worlds; heavy caves and lava run the heap to the edge, where
-  distant sections simply stop building until you get closer.
+- **View distance** — Tiny and Short only, out of Tiny / Short / Normal / Far,
+  and it starts on Tiny. Short is fine on most worlds; heavy caves and lava run
+  the heap to the edge, where distant sections simply stop building until you
+  get closer.
 - **Sound** — a half-rate pack (11 kHz instead of 22 kHz). It is audibly
   grainier through the speaker and saves 0.8 MB.
 
-Nothing else differs: same world size, same generation, same gameplay, same
-save files. A PSP-2000 or later uses the full-size sound pack and all three
-render distances.
+Same world size, same generation, same gameplay, same save files either way. A
+PSP-2000 or later (and an emulator) gets the full-size sound pack and all four
+view distances.
 
 ## Compatibility
 
