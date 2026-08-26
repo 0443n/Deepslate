@@ -380,16 +380,20 @@ void buttonHintsDraw(MenuState& s, const ButtonHint* hints, int n, float y, floa
     if (!g_btnIconsHave || !s.haveFont) return;
 
     const float BASE_H = 15.0f;
+    const float MID    = (BASE_H - 1.0f) * 0.5f;
+
+    const float TEXT_TOP = floorf(MID - 3.0f + 0.5f);
     float x = 6.0f;
     for (int i = 0; i < n; i++) {
 
         const bool held = (g_heldButtons & hints[i].btn) != 0;
         const ButtonIconRect r = buttonIconRect(hints[i].icon, held);
-        buttonIconDraw(hints[i].icon, x, y + (BASE_H - r.h) * scale, held, scale,
+        const float iconTop = floorf(MID - (r.h - 1.0f) * 0.5f + 0.5f);
+        buttonIconDraw(hints[i].icon, x, y + iconTop * scale, held, scale,
                        0xC8FFFFFFu);
         x += r.w * scale + 3.0f * scale;
         if (hints[i].label[0]) {
-            fontDrawTextShadow(&s.font, x, y + floorf((BASE_H - 8.0f) * scale * 0.5f),
+            fontDrawTextShadow(&s.font, x, y + TEXT_TOP * scale,
                                hints[i].label, 0xFFE0E0E0u, scale);
             x += fontTextWidth(&s.font, hints[i].label) * scale + 10.0f * scale;
         }
@@ -407,7 +411,7 @@ ButtonIcon menuShoulderIcon(bool right) {
 }
 
 void menuHintsDraw(MenuState& s) {
-    ButtonHint hints[6];
+    ButtonHint hints[8];
     int n = 0;
 
     if (controlsPageIsOpen()) {
@@ -422,8 +426,11 @@ void menuHintsDraw(MenuState& s) {
         }
         hints[n++] = (ButtonHint){ BTN_ICON_UP,     PSP_CTRL_UP,     "" };
         hints[n++] = (ButtonHint){ BTN_ICON_DOWN,   PSP_CTRL_DOWN,   "Move" };
+        hints[n++] = (ButtonHint){ menuShoulderIcon(false), PSP_CTRL_LTRIGGER, "" };
+        hints[n++] = (ButtonHint){ menuShoulderIcon(true),  PSP_CTRL_RTRIGGER, "Layout" };
         hints[n++] = (ButtonHint){ BTN_ICON_LEFT,   PSP_CTRL_LEFT,   "" };
         hints[n++] = (ButtonHint){ BTN_ICON_RIGHT,  PSP_CTRL_RIGHT,  "Change" };
+        hints[n++] = (ButtonHint){ BTN_ICON_CROSS,  PSP_CTRL_CROSS,  "Select" };
         hints[n++] = (ButtonHint){ BTN_ICON_CIRCLE, PSP_CTRL_CIRCLE, "Back" };
         buttonHintsDraw(s, hints, n);
         return;

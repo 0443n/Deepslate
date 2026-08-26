@@ -639,6 +639,14 @@ void controlsPageRender(MenuState& s) {
     }
 }
 
+static void cycleScheme(int dir) {
+    int n = g_controlScheme + dir;
+    if (n < 0) n = CONTROL_SCHEMES - 1;
+    if (n >= CONTROL_SCHEMES) n = 0;
+
+    optionsSetControlScheme(n);
+}
+
 void controlsPageInput(MenuState& s, unsigned int pressed) {
     (void)s;
 
@@ -669,6 +677,11 @@ void controlsPageInput(MenuState& s, unsigned int pressed) {
     }
 
 #endif
+
+    if (pressed & (PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER)) {
+        cycleScheme((pressed & PSP_CTRL_RTRIGGER) ? 1 : -1);
+        return;
+    }
 
     if (pressed & PSP_CTRL_SELECT) {
         s_artForce = (s_artForce >= 2) ? -1 : s_artForce + 1;
@@ -707,11 +720,7 @@ void controlsPageInput(MenuState& s, unsigned int pressed) {
 
     if (!dir && (pressed & PSP_CTRL_CROSS)) dir = 1;
     if (!dir) return;
-    int n = g_controlScheme + dir;
-    if (n < 0) n = CONTROL_SCHEMES - 1;
-    if (n >= CONTROL_SCHEMES) n = 0;
-
-    optionsSetControlScheme(n);
+    cycleScheme(dir);
 }
 
 unsigned int controlSchemeButtonFor(unsigned int logical) {

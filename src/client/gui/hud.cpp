@@ -50,7 +50,8 @@ extern bool    g_haveGuiBlocks;
 
 #define HUD_S   2.0f
 
-#define HUD_NAME_S 1.0f
+extern int g_barOnTop;
+#define HUD_NAME_S (g_barOnTop ? 1.0f : 2.0f)
 #define HUD_N   (HOTBAR_SLOTS + 1)
 
 void hudChatMessage(const char* msg) {
@@ -100,7 +101,8 @@ void hudChatMessage(const char* msg) {
     }
 }
 
-#define HB_S       1.0f
+static inline float hbS(void) { return g_barOnTop ? 1.0f : 2.0f; }
+#define HB_S       (hbS())
 
 #define HB_BOTTOM  24.0f
 #define HUD_HOTBAR_TOP (272.0f - 22.0f * HB_S - HB_BOTTOM)
@@ -1205,14 +1207,14 @@ void gameHintsDraw(MenuState& s) {
             n += hudHint(&h[n], ACT_CRAFT, "Crafting");
         n += hudHint(&h[n], ACT_INVENTORY, "Inventory");
 
-        const bool slotOpensInv = controlSchemeButtonFor(ACT_INVENTORY) == 0;
-        if (slotOpensInv && g_level.player->inventory->selected == HOTBAR_SLOTS) {
-            n += hudHint(&h[n], PSP_CTRL_LTRIGGER, "Inventory");
-
-            extern bool g_thirdPerson;
+        extern bool g_thirdPerson;
+        if (g_level.player->inventory->selected == HOTBAR_SLOTS)
             n += hudHint(&h[n], PSP_CTRL_UP,
                          g_thirdPerson ? "First Person" : "Third Person");
-        }
+
+        const bool slotOpensInv = controlSchemeButtonFor(ACT_INVENTORY) == 0;
+        if (slotOpensInv && g_level.player->inventory->selected == HOTBAR_SLOTS)
+            n += hudHint(&h[n], PSP_CTRL_LTRIGGER, "Inventory");
         else if (t.useLabel) n += hudHint(&h[n], PSP_CTRL_LTRIGGER, t.useLabel);
         if (t.breakLabel)    n += hudHint(&h[n], PSP_CTRL_RTRIGGER, t.breakLabel);
     }
