@@ -158,6 +158,8 @@ void worldInitChunkLight(World* w, int cx, int cz) {
 
     lightInitSkyChunk(w, cx, cz);
 
+    lightChunkClearBlock(w, cx, cz);
+
     g_lightBfs.clear();
     for (int lx = 0; lx < 16; lx++)
         for (int lz = 0; lz < 16; lz++) {

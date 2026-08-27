@@ -24,7 +24,8 @@ static void evict(World* w, int slotIdx) {
     LevelChunk* c = &w->slots[slotIdx];
     if (!c->resident) return;
     profBegin(PROF_SEVICT);
-    if (c->unsaved) chunkStorageSave(w, c->x, c->z);
+
+    if (c->unsaved && !worldSlotBusy(c)) chunkStorageSave(w, c->x, c->z);
     c->resident = false;
     blockSlotRecycle(w, slotIdx);
     lightSlotRelease(w, slotIdx);

@@ -81,6 +81,16 @@ void lightSlotRelease(World* w, int slotIdx) {
     }
 }
 
+void lightChunkClearBlock(World* w, int cx, int cz) {
+    int slot0 = lightPlaneSlot0(w, 1, cx, cz);
+    for (int y = 0; y < WORLD_H; y++) {
+        int slot = slot0 + y * 2;
+        unsigned int id = w->lightIdx[slot];
+        if (id < LP_SENT) lightPageFree(w, id);
+        w->lightIdx[slot] = LP_ALL0;
+    }
+}
+
 void lightInitSkyChunk(World* w, int cx, int cz) {
             int hmin = WORLD_H, hmax = 0;
             for (int lx = 0; lx < 16; lx++)

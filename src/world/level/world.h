@@ -539,6 +539,7 @@ void         lightCompactStep(World* w);
 void         lightCompactAll(World* w);
 
 void         lightSlotRelease(World* w, int slotIdx);
+void         lightChunkClearBlock(World* w, int cx, int cz);
 
 void         lightInitSkyFromHeightmap(World* w);
 

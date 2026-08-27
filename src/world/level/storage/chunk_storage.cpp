@@ -28,6 +28,34 @@ static const int OFF_UPD  = OFF_BLK  + CH_NIBBLE;
 
 static const unsigned char CH_UNPOPULATED = 0x5A;
 
+static const int OFF_CRC = OFF_UPD + 1;
+
+static unsigned int crc32(const unsigned char* p, int n) {
+    unsigned int c = 0xFFFFFFFFu;
+    for (int i = 0; i < n; i++) {
+        c ^= p[i];
+        for (int k = 0; k < 8; k++) c = (c >> 1) ^ (0xEDB88320u & (unsigned int)(-(int)(c & 1)));
+    }
+    return ~c;
+}
+
+static unsigned int payloadCrc(unsigned char* buf) {
+    unsigned char save[4];
+    memcpy(save, buf + OFF_CRC, 4);
+    memset(buf + OFF_CRC, 0, 4);
+    unsigned int c = crc32(buf, CH_PAYLOAD);
+    memcpy(buf + OFF_CRC, save, 4);
+    return c;
+}
+static void crcPut(unsigned char* buf, unsigned int c) {
+    for (int i = 0; i < 4; i++) buf[OFF_CRC + i] = (unsigned char)(c >> (i * 8));
+}
+static unsigned int crcGet(const unsigned char* buf) {
+    unsigned int c = 0;
+    for (int i = 0; i < 4; i++) c |= (unsigned int)buf[OFF_CRC + i] << (i * 8);
+    return c;
+}
+
 static inline int chunkIdx(int lx, int lz, int y) { return (lx << 11) | (lz << 7) | y; }
 static inline void nibSet(unsigned char* base, int idx, int v) {
     unsigned char& b = base[idx >> 1];
@@ -38,6 +66,8 @@ static inline int nibGet(const unsigned char* base, int idx) {
     unsigned char b = base[idx >> 1];
     return (idx & 1) ? (b >> 4) & 0x0F : b & 0x0F;
 }
+
+unsigned int g_chunkCrcFails = 0;
 
 #define REGION_CACHE 4
 
@@ -145,8 +175,17 @@ bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopu
     if (!rf->readChunk(cx & 31, cz & 31, &buf, &len)) return false;
     if (len < OFF_DATA + CH_NIBBLE) { delete[] buf; return false; }
 
-    bool chunkHasLight = (len >= OFF_UPD);
-    if (!chunkHasLight && outGotLight) *outGotLight = false;
+    if (len >= OFF_CRC + 4) {
+        unsigned int stored = crcGet(buf);
+        if (stored && stored != payloadCrc(buf)) {
+            LOGI("chunkStorage: chunk %d,%d fails its checksum -- regenerating\n", cx, cz);
+            g_chunkCrcFails++;
+            delete[] buf;
+            return false;
+        }
+    }
+
+    if (len < OFF_UPD && outGotLight) *outGotLight = false;
     if (outPopulated && len > OFF_UPD && buf[OFF_UPD] == CH_UNPOPULATED) *outPopulated = false;
 
     for (int lx = 0; lx < 16; lx++) {
@@ -164,9 +203,6 @@ bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopu
             }
         }
     }
-
-    if (chunkHasLight)
-        lightLoadChunk(w, cx, cz, buf + OFF_SKY, buf + OFF_BLK);
     delete[] buf;
     return true;
 }
@@ -204,6 +240,7 @@ bool chunkStorageSave(World* w, int cx, int cz) {
             }
         }
     }
+    crcPut(buf, payloadCrc(buf));
     if (!rf->writeChunk(cx & 31, cz & 31, buf, CH_PAYLOAD)) return false;
     worldSlot(w, cx, cz)->unsaved = false;
     return true;
