@@ -87,7 +87,7 @@ void profFrameEnd(void) {
                     "world %u (stream %u [gen %u dec %u lit %u disk %u evict %u misc %u] light %u rebuild %u [scan %u build %u (emit %u pack %u [alloc %u conv %u])] cull %u) "
                     "sky %u ent %u water %u part %u hud %u (item %u bar %u dbg %u) gesync %u vblank %u "
                     "| gstart %u gpre %u gmid %u gpost %u [out %u hand %u fire %u] other %d "
-                    "| n(part %.0f sect %.1f pend %.0f strm %.2f live %.2f fb %u vert %.0f mark %.1f drawn %.0f dvert %.0f [op %.0f nm %.0f (leaf %.0f grass %.0f) lv %.0f wt %.0f])\n",
+                    "| n(part %.0f sect %.1f pend %.0f strm %.2f live %.2f fb %u vert %.0f mark %.1f drawn %.0f dvert %.0f [op %.0f nm %.0f lv %.0f wt %.0f])\n",
                 f * 1000000.0f / (float)elapsed, frame, s_maxFrame, s_maxList, s_minList,
                 avg[PROF_TICK], avg[PROF_TPLAYER], avg[PROF_TWORLD],
                 avg[PROF_TRAND], avg[PROF_TPEND], avg[PROF_TENT],
@@ -108,7 +108,6 @@ void profFrameEnd(void) {
                 s_cnt[PROFC_PACKVERTS] / f, s_cnt[PROFC_MARKED] / f,
                 s_cnt[PROFC_DRAWNSEC] / f, s_cnt[PROFC_DRAWNVERT] / f,
                 s_cnt[PROFC_VOPAQUE] / f, s_cnt[PROFC_VNOMIP] / f,
-                s_cnt[PROFC_VNMLEAF] / f, s_cnt[PROFC_VNMGRASS] / f,
                 s_cnt[PROFC_VLEAVES] / f, s_cnt[PROFC_VWATER] / f);
         fflush(fp);
 

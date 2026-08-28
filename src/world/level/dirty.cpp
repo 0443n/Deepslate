@@ -149,15 +149,24 @@ void worldDrainPlayerEdits(World* w, int maxSections) {
     int burst = g_editBurst; g_editBurst = 0;
     int n = g_editQueueN < maxSections ? g_editQueueN : maxSections;
     if (n < burst) n = g_editQueueN < burst ? g_editQueueN : burst;
+
+    // A section build is atomic and costs milliseconds, so the placed block gets
+    // its first section unconditionally and the rest yield to the next frame.
+    // Sections left in the queue keep their order and drain from there.
+    static unsigned int s_sectionUs = TIME_BUDGET_US;
     for (int i = 0; i < n; i++) {
         int ci = g_editQueue[0][0], si = g_editQueue[0][1];
         for (int j = 1; j < g_editQueueN; j++) { g_editQueue[j-1][0] = g_editQueue[j][0]; g_editQueue[j-1][1] = g_editQueue[j][1]; }
         g_editQueueN--;
         g_inEditQueue[ci][si] = false;
         ChunkMesh* c = &w->chunks[ci];
-        if (c->sec[si].dirty) chunkBuildSection(c, w, si);
-        if (i + 1 >= burst && sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US)
-            break;
+        if (!c->sec[si].dirty) continue;
+
+        const unsigned int t0 = sceKernelGetSystemTimeLow();
+        chunkBuildSection(c, w, si);
+        const unsigned int now = sceKernelGetSystemTimeLow();
+        s_sectionUs = (s_sectionUs * 3u + (now - t0)) / 4u;
+        if (now - tStart + s_sectionUs >= TIME_BUDGET_US) break;
     }
 }
 

@@ -322,8 +322,6 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             profAdd(PROFC_DRAWNVERT, op + nm + lv + s->waterCount);
             profAdd(PROFC_VOPAQUE, op);
             profAdd(PROFC_VNOMIP,  nm);
-            profAdd(PROFC_VNMLEAF,  s->nmLeaves);
-            profAdd(PROFC_VNMGRASS, s->nmGrass);
             profAdd(PROFC_VLEAVES, lv);
             profAdd(PROFC_VWATER,  s->waterCount);
         }

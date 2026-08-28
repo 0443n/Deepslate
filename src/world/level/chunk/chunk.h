@@ -291,8 +291,6 @@ struct ChunkSection {
     DrawVertex*  noMip;
     int          noMipCount;
 
-    // Shares of noMipCount, so the dominant draw layer can be attributed to a source.
-    unsigned short nmLeaves, nmGrass;
 
     // Cumulative ends of the six outward-facing groups in mesh and noMip, all zero
     // when the layer could not be sorted. Whatever follows the last end always draws.

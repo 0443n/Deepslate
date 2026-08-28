@@ -149,7 +149,6 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
         s->noMipLavaStart = 0;
-        s->nmLeaves = s->nmGrass = 0;
         for (int b = 0; b < 6; b++) s->faceEnd[b] = s->nmFaceEnd[b] = 0;
         s->skyLit = false;
         s->dirty = false;
@@ -236,9 +235,6 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
             s->noMipCount = s->noMip ? n3 : 0;
             if (!s->noMip) for (int b = 0; b < 6; b++) s->nmFaceEnd[b] = 0;
             s->noMipLavaStart = s->noMip ? nLava : 0;
-            extern unsigned int g_nmLeafVerts, g_nmGrassVerts;
-            s->nmLeaves = (unsigned short)(s->noMip ? g_nmLeafVerts  : 0);
-            s->nmGrass  = (unsigned short)(s->noMip ? g_nmGrassVerts : 0);
             profEnd(PROF_MPACK);
             for (int L = 0; L < 4; L++)
                 if (qhi[L] >= qlo[L]) { plo[L] = chunkPackDecodeY(qlo[L], y0); phi[L] = chunkPackDecodeY(qhi[L], y0); }
@@ -253,7 +249,6 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         }
     }
     if (!fast) {
-        s->nmLeaves = s->nmGrass = 0;
         for (int b = 0; b < 6; b++) s->faceEnd[b] = s->nmFaceEnd[b] = 0;
         buildLayer(w, ox, oz, y0, y1, 0, &s->mesh,   &s->vertexCount, leavesOpaque, leavesCull, &oom, 0, plo+0, phi+0);
         buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  leavesOpaque, leavesCull, &oom, 0, plo+1, phi+1);

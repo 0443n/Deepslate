@@ -68,8 +68,6 @@ enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
        // or decoration dominates the vertex budget.
        PROFC_VOPAQUE, PROFC_VNOMIP, PROFC_VLEAVES, PROFC_VWATER,
 
-       // Shares of PROFC_VNOMIP, the layer that dominates the vertex budget.
-       PROFC_VNMLEAF, PROFC_VNMGRASS,
 
        PROFC_MARKED, PROFC_N };
 

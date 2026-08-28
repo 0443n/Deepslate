@@ -522,12 +522,10 @@ int g_sinkStart[4]    = { 0, 0, 0, 0 };
 unsigned int g_sinkOverruns = 0;
 #endif
 
-unsigned int g_nmLeafVerts = 0, g_nmGrassVerts = 0;
 
 int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
                     MeshSink* skp, int* nLava, bool leavesOpaque, bool leavesCull) {
     MeshSink& sk = *skp;
-    g_nmLeafVerts = 0; g_nmGrassVerts = 0;
 
     int& no = sk.n[0]; int& nw = sk.n[1]; int& nn = sk.n[3];
     bool sawLava = false;
@@ -660,7 +658,6 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
         int layer = leafOpaqueDst ? 2 : noMip ? 3 : 0;
 
         if (!sinkReserve(&sk, layer, 36)) return -1;
-        const int nm0 = sinkCount(&sk, 3);
         ChunkVertex* dst = sk.buf[layer];
         int nd = sk.n[layer];
         unsigned char blockData = worldData(w, gx, y, gz);
@@ -742,9 +739,6 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
             nd += 6;
         }
         sk.n[layer] = nd;
-
-        const int nmAdd = sinkCount(&sk, 3) - nm0;
-        if (leafTransparent) g_nmLeafVerts += (unsigned int)nmAdd;
     }
 
     int nLavaStart = sinkCount(&sk, 3);
