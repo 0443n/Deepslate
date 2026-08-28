@@ -60,6 +60,8 @@ static const float MIP_BLOCKS_PER_LEVEL = 16.0f;
 
 static int s_terrainMipCount = 0;
 
+#define LEAF_INTERIOR_RADIUS 32.0f
+
 float g_fogCullDist = 0.0f;
 
 bool g_eyeInLava = false;
@@ -404,9 +406,16 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         sceGuTexFilter(g_fancyGraphics ? GU_NEAREST_MIPMAP_NEAREST
                                        : GU_NEAREST_MIPMAP_LINEAR, GU_NEAREST);
     sceGuEnable(GU_ALPHA_TEST);
+
+    // In fancy mode this layer holds only the leaf faces buried inside a canopy, and
+    // those are visible through the texture holes at arm's length, not across a valley.
+    const bool interiorOnly = g_fancyGraphics && g_fancyLeaves;
+    const float interiorR2 = LEAF_INTERIOR_RADIUS * LEAF_INTERIOR_RADIUS;
+
     for (int i = 0; i < g_visN; i++) {
         const ChunkSection* s = g_visList[i].s;
         if (s->leavesCount == 0) continue;
+        if (interiorOnly && g_visList[i].d2 > interiorR2) break;
         if (distMip) {
             float lvl = (sqrtf(g_visList[i].d2) - MIP_CRISP_RADIUS) * (1.0f / MIP_BLOCKS_PER_LEVEL);
             if (lvl < 0.0f) lvl = 0.0f; else if (lvl > maxLvl) lvl = maxLvl;

@@ -716,6 +716,10 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
             if (id == BLOCK_TOPSNOW && f == F_TOP) hide = false;
             if (nb == BLOCK_TOPSNOW && f == F_TOP) hide = true;
 
+            // Interior leaf faces go to the leaves layer, unused once leaves turn
+            // transparent, so distance can drop them without touching anything else.
+            const bool leafInterior = leafTransparent && isLeaf(nb) && !leavesCull;
+
             if (hide || (isLeaf(id) && isLeaf(nb) && (leavesOpaque || leavesCull)) ||
                 (id == BLOCK_TOPSNOW && nb == BLOCK_TOPSNOW) ||
                 (id == BLOCK_CACTUS && nb == BLOCK_CACTUS) ||
@@ -750,6 +754,13 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
 
             static const int tri[6] = { 0, 1, 2, 2, 3, 0 };
 
+            ChunkVertex* fdst = dst;
+            int fbase = nd;
+            if (leafInterior) {
+                if (!sinkReserve(&sk, 2, 6)) return -1;
+                fdst = sk.buf[2]; fbase = sk.n[2];
+            }
+
             float cTE = TE, cInner = TILE_INNER;
             for (int t = 0; t < 6; t++) {
                 int k = tri[t];
@@ -761,13 +772,15 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
                 float bx = (float)(gx + c[0]) + ix + seamOff(c[0]);
                 float by = ((c[1] == 1) ? ((float)y + th) : (float)(y + c[1])) + seamOff(c[1]);
                 float bz = (float)(gz + c[2]) + iz + seamOff(c[2]);
-                dst[nd + t].u = u0 + (cTE + kFaceUV[f][k][0] * cInner);
-                dst[nd + t].v = v0 + (cTE + uv_v * cInner);
-                dst[nd + t].color = cc[c[ca1]][c[ca2]];
-                dst[nd + t].x = bx;
-                dst[nd + t].y = by;
-                dst[nd + t].z = bz;
+                fdst[fbase + t].u = u0 + (cTE + kFaceUV[f][k][0] * cInner);
+                fdst[fbase + t].v = v0 + (cTE + uv_v * cInner);
+                fdst[fbase + t].color = cc[c[ca1]][c[ca2]];
+                fdst[fbase + t].x = bx;
+                fdst[fbase + t].y = by;
+                fdst[fbase + t].z = bz;
             }
+
+            if (leafInterior) { sk.n[2] = fbase + 6; continue; }
 
             if (grassSide && f != F_TOP && f != F_DOWN) {
                 const unsigned int GRASS_TINT = 0xFF6BCB5Au;
