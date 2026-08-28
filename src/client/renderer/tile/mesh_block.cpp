@@ -416,42 +416,6 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
             continue;
         }
 
-        if (layer == 3 && id == BLOCK_GRASS && LCB(gx, y + 1, gz) != BLOCK_TOPSNOW) {
-            if (out && n + 24 > cap) return -1;
-            static const int gtri[6] = { 0, 1, 2, 2, 3, 0 };
-            const unsigned int GRASS_TINT = 0xFF6BCB5Au;
-            const float ou0 = 6 * TILE_UV, ov0 = 2 * TILE_UV;
-
-            const float TE = TILE_UV / 128.0f, TILE_INNER = TILE_UV - 2.0f * TE;
-            for (int f = 0; f < 6; f++) {
-                if (f == F_TOP || f == F_DOWN) continue;
-                int nx = gx + kFaceNeighbor[f][0];
-                int ny = y  + kFaceNeighbor[f][1];
-                int nz = gz + kFaceNeighbor[f][2];
-                if (isOpaque(LCB(nx, ny, nz))) continue;
-                if (!out) { n += 6; continue; }
-                int col, row; unsigned int tint;
-                tileForBlock(id, worldData(w, gx, y, gz), f, &col, &row, &tint);
-                unsigned int cc[2][2];
-                faceCornerColors(w, lc, llc,
-                                 ((((nx - ox + 1) * 18 + (nz - oz + 1)) * 18) + (ny - y0 + 1)),
-                                 nx, ny, nz, f, id, tint, kFaceShade[f], cc);
-                const int ca = f >> 1, ca1 = (ca + 1) % 3, ca2 = (ca + 2) % 3;
-                for (int t = 0; t < 6; t++) {
-                    int k = gtri[t];
-                    const signed char* c = kFaceCorner[f][k];
-                    out[n + t].u = ou0 + (TE + kFaceUV[f][k][0] * TILE_INNER);
-                    out[n + t].v = ov0 + (TE + kFaceUV[f][k][1] * TILE_INNER);
-                    out[n + t].color = mulColor(cc[c[ca1]][c[ca2]], GRASS_TINT);
-                    out[n + t].x = (float)(gx + c[0]);
-                    out[n + t].y = (c[1] == 1) ? ((float)y + 1.0f) : (float)(y + c[1]);
-                    out[n + t].z = (float)(gz + c[2]);
-                }
-                n += 6;
-            }
-            continue;
-        }
-
         bool noMipCube = (id == BLOCK_CACTUS) || isGlass(id);
 
         if (layer == 3 && !noMipCube) continue;
@@ -695,17 +659,10 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
         bool noMip = (id == BLOCK_CACTUS) || isGlass(id) || leafTransparent;
         int layer = leafOpaqueDst ? 2 : noMip ? 3 : 0;
 
-        bool grassSide = (id == BLOCK_GRASS) && (lc[base + 1] != BLOCK_TOPSNOW);
-
-        if (grassSide && !sinkReserve(&sk, 3, 24)) return -1;
-
         if (!sinkReserve(&sk, layer, 36)) return -1;
         const int nm0 = sinkCount(&sk, 3);
         ChunkVertex* dst = sk.buf[layer];
         int nd = sk.n[layer];
-        ChunkVertex* ovl = sk.buf[3];
-        int nOvl = sk.n[3];
-
         unsigned char blockData = worldData(w, gx, y, gz);
 
         for (int f = 0; f < 6; f++) {
@@ -782,29 +739,12 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
 
             if (leafInterior) { sk.n[2] = fbase + 6; continue; }
 
-            if (grassSide && f != F_TOP && f != F_DOWN) {
-                const unsigned int GRASS_TINT = 0xFF6BCB5Au;
-                float ou0 = 6 * TILE_UV, ov0 = 2 * TILE_UV;
-                for (int t = 0; t < 6; t++) {
-                    int k = tri[t];
-                    const signed char* c = kFaceCorner[f][k];
-                    ovl[nOvl + t].u = ou0 + (cTE + kFaceUV[f][k][0] * cInner);
-                    ovl[nOvl + t].v = ov0 + (cTE + kFaceUV[f][k][1] * cInner);
-                    ovl[nOvl + t].color = mulColor(cc[c[ca1]][c[ca2]], GRASS_TINT);
-                    ovl[nOvl + t].x = dst[nd + t].x;
-                    ovl[nOvl + t].y = dst[nd + t].y;
-                    ovl[nOvl + t].z = dst[nd + t].z;
-                }
-                nOvl += 6;
-            }
             nd += 6;
         }
         sk.n[layer] = nd;
-        if (grassSide) sk.n[3] = nOvl;
 
         const int nmAdd = sinkCount(&sk, 3) - nm0;
-        if (leafTransparent)  g_nmLeafVerts  += (unsigned int)nmAdd;
-        else if (grassSide)   g_nmGrassVerts += (unsigned int)nmAdd;
+        if (leafTransparent) g_nmLeafVerts += (unsigned int)nmAdd;
     }
 
     int nLavaStart = sinkCount(&sk, 3);

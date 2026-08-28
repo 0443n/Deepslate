@@ -304,17 +304,25 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             if (s->vertexCount == 0 && s->noMipCount == 0 &&
                 s->leavesCount == 0 && s->waterCount == 0) continue;
             float dy = (float)(si * SECTION_SY + SECTION_SY / 2) - camY;
-            g_visList[g_visN].d2 = dx * dx + dy * dy + dz * dz;
+            const float d2 = dx * dx + dy * dy + dz * dz;
+            g_visList[g_visN].d2 = d2;
             g_visList[g_visN].s = s;
             g_visN++;
             if (s->vertexCount) nOpaque++;
-            profAdd(PROFC_DRAWNVERT, s->vertexCount + s->noMipCount +
-                                     s->leavesCount + s->waterCount);
+
+            // Interior leaves are dropped by distance at draw time, so the counters
+            // have to apply the same test or they report work the GE never sees.
+            extern int g_fancyGraphics, g_fancyLeaves;
+            const int lv = (g_fancyGraphics && g_fancyLeaves &&
+                            d2 > LEAF_INTERIOR_RADIUS * LEAF_INTERIOR_RADIUS)
+                         ? 0 : s->leavesCount;
+
+            profAdd(PROFC_DRAWNVERT, s->vertexCount + s->noMipCount + lv + s->waterCount);
             profAdd(PROFC_VOPAQUE, s->vertexCount);
             profAdd(PROFC_VNOMIP,  s->noMipCount);
             profAdd(PROFC_VNMLEAF,  s->nmLeaves);
             profAdd(PROFC_VNMGRASS, s->nmGrass);
-            profAdd(PROFC_VLEAVES, s->leavesCount);
+            profAdd(PROFC_VLEAVES, lv);
             profAdd(PROFC_VWATER,  s->waterCount);
         }
     }
