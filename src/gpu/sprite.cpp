@@ -35,6 +35,29 @@ void spriteDraw(const Texture* tex,
                    2, 0, v);
 }
 
+void* spriteBatchAlloc(int quads) {
+    if (quads <= 0) return 0;
+    return guFrameAllocPriority(2 * quads * (int)sizeof(TexVertex));
+}
+
+void spriteBatchAdd(void* buf, int i,
+                    float dx, float dy, float dw, float dh,
+                    float sx, float sy, float sw, float sh,
+                    unsigned int color) {
+    TexVertex* v = (TexVertex*)buf + 2 * i;
+    v[0].u = uvLo(sx, sw); v[0].v = uvLo(sy, sh);
+    v[0].color = color; v[0].x = dx;      v[0].y = dy;      v[0].z = 0.0f;
+    v[1].u = uvHi(sx, sw); v[1].v = uvHi(sy, sh);
+    v[1].color = color; v[1].x = dx + dw; v[1].y = dy + dh; v[1].z = 0.0f;
+}
+
+void spriteBatchDraw(void* buf, int quads) {
+    if (!buf || quads <= 0) return;
+    sceGuDrawArray(GU_SPRITES,
+                   GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D,
+                   2 * quads, 0, buf);
+}
+
 void spriteDrawRot(const Texture* tex,
                    float ox, float oy, float cs, float sn,
                    float lx, float ly, float lw, float lh,

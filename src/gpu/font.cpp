@@ -79,7 +79,16 @@ static void drawGlyphs(const Font* f, float x, float y, const char* text, unsign
 
     textureBind(&f->tex);
 
+    int glyphs = 0;
+    for (const unsigned char* p = (const unsigned char*)text; *p; p++)
+        if (*p != '\n') glyphs++;
+
+    // One draw call per string, not per glyph. Every sprite here goes into the
+    // uncached list, so the per-call cost dominates the pixels.
+    void* batch = spriteBatchAlloc(glyphs);
+
     float cursorX = x, cursorY = y;
+    int at = 0;
     for (const unsigned char* p = (const unsigned char*)text; *p; p++) {
         unsigned char ch = *p;
         if (ch == '\n') {
@@ -90,12 +99,18 @@ static void drawGlyphs(const Font* f, float x, float y, const char* text, unsign
         int xt = ch % COLS;
         int yt = ch / COLS;
 
-        spriteDraw(&f->tex, floorf(cursorX + 0.5f), floorf(cursorY + 0.5f),
-                   CELL * scale, CELL * scale,
-                  (float)(xt * CELL), (float)(yt * CELL), (float)CELL, (float)CELL,
-                  color);
+        const float gx = floorf(cursorX + 0.5f), gy = floorf(cursorY + 0.5f);
+        if (batch)
+            spriteBatchAdd(batch, at++, gx, gy, CELL * scale, CELL * scale,
+                           (float)(xt * CELL), (float)(yt * CELL), (float)CELL, (float)CELL,
+                           color);
+        else
+            spriteDraw(&f->tex, gx, gy, CELL * scale, CELL * scale,
+                       (float)(xt * CELL), (float)(yt * CELL), (float)CELL, (float)CELL,
+                       color);
         cursorX += f->charWidth[ch] * scale;
     }
+    spriteBatchDraw(batch, at);
     guSetDither(ditherPrev);
 }
 

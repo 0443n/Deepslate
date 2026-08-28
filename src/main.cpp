@@ -529,16 +529,22 @@ int main(int argc, char* argv[]) {
 #if MEM_OVERLAY
 
                     if (g_worldBuilt) {
-                        struct mallinfo mi = mallinfo();
-                        char memBuf[96];
-
-                        std::snprintf(memBuf, sizeof(memBuf),
+                        // NOTE: mallinfo walks the whole free list, so it samples at 1 Hz
+                        // like the section stats below rather than once a frame.
+                        static char memBuf[96] = { 0 };
+                        static unsigned int memTick = 0;
+                        unsigned int memNow = sceKernelGetSystemTimeLow();
+                        if (!memTick || memNow - memTick > 1000000u) {
+                            struct mallinfo mi = mallinfo();
+                            std::snprintf(memBuf, sizeof(memBuf),
                                       "MEM used %.1fM  world %.1fM (blk %.2fM data %.2fM light %.2fM)",
                                       (unsigned int)mi.uordblks / 1048576.0f,
                                       worldMemBytes(&g_world) / 1048576.0f,
                                       blockBytes(&g_world) / 1048576.0f,
                                       worldDataBytes(&g_world) / 1048576.0f,
                                       lightBytes(&g_world) / 1048576.0f);
+                            memTick = memNow;
+                        }
                         fontDrawTextShadow(&s.font, 10, ty, memBuf, 0xFFE0E0E0u, 1.0f);
                         ty += 12.0f;
 
