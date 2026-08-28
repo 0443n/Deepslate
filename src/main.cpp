@@ -244,7 +244,9 @@ int g_difficulty = Difficulty::NORMAL;
 
 #include "world/item/item.h"
 
+#ifndef MEM_OVERLAY
 #define MEM_OVERLAY 0
+#endif
 
 int main(int argc, char* argv[]) {
     Item::initItems();
