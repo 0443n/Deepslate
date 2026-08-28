@@ -49,6 +49,12 @@ bool sectionVisible(const ChunkMesh* c, const ChunkSection* s) {
                          (float)(c->ox + CHUNK_SX), s->by1, (float)(c->oz + CHUNK_SZ));
 }
 
+bool sectionBoxVisible(const ChunkMesh* c, int si) {
+    return cubeInFrustum((float)c->ox, (float)(si * SECTION_SY), (float)c->oz,
+                         (float)(c->ox + CHUNK_SX), (float)((si + 1) * SECTION_SY),
+                         (float)(c->oz + CHUNK_SZ));
+}
+
 bool columnVisible(const ChunkMesh* c) {
     return cubeInFrustum((float)c->ox, 0.0f, (float)c->oz,
                          (float)(c->ox + CHUNK_SX), (float)WORLD_H, (float)(c->oz + CHUNK_SZ));

@@ -151,10 +151,13 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         s->noMipLavaStart = 0;
         s->skyLit = false;
         s->dirty = false;
+        s->visMask = VIS_ALL;
 
         s->by0 = s->by1 = s->lby0 = s->lby1 = s->wby0 = s->wby1 = (float)y0;
         return;
     }
+
+    s->visMask = sectionVisMask(w, ox, y0, oz);
 
     s->skyLit = false;
     {
@@ -299,5 +302,9 @@ void chunkInitLazy(ChunkMesh* c, int ox, int oz) {
         s->by0 = s->lby0 = s->wby0 = (float)(si * SECTION_SY);
         s->by1 = s->lby1 = s->wby1 = s->by0;
         s->dirty = true;
+
+        // Conservative until the real fill runs, so an unmeshed section can only
+        // under-cull rather than hide what is behind it.
+        s->visMask = VIS_ALL;
     }
 }

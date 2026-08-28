@@ -146,6 +146,85 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     profEnd(PROF_REBUILD);
 }
 
+int g_occlusion = 1;
+
+// Advanced Cave Culling, after tomcc 2014. Breadth-first walk outward from the
+// camera's own section. A neighbour is entered only when the visibility mask says
+// the entry face can reach the exit face, and never through a direction already
+// travelled in reverse. Frustum is the last test because it is the dearest.
+struct VisNode {
+    short         cx, cz;
+    unsigned char si, from, dirs;
+};
+
+static VisNode      s_visQ[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
+static unsigned char s_visSeen[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
+
+static const signed char kFaceDX[6] = { -1, 1,  0, 0,  0, 0 };
+static const signed char kFaceDY[6] = {  0, 0, -1, 1,  0, 0 };
+static const signed char kFaceDZ[6] = {  0, 0,  0, 0, -1, 1 };
+
+#define VIS_START 255
+
+bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2) {
+    const int ccx = (int)floorf(camX) >> 4;
+    const int ccz = (int)floorf(camZ) >> 4;
+
+    if (!worldChunkInBounds(ccx, ccz) || !worldChunkSettled(w, ccx, ccz)) return false;
+
+    int csi = (int)floorf(camY) / SECTION_SY;
+    if (csi < 0) csi = 0; else if (csi >= N_SECTIONS) csi = N_SECTIONS - 1;
+
+    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
+        for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].visible = false;
+
+    memset(s_visSeen, 0, sizeof s_visSeen);
+
+    int head = 0, tail = 0;
+    {
+        VisNode* q = &s_visQ[tail++];
+        q->cx = (short)ccx; q->cz = (short)ccz;
+        q->si = (unsigned char)csi; q->from = VIS_START; q->dirs = 0;
+        s_visSeen[worldSlotIndex(w, ccx, ccz) * N_SECTIONS + csi] = 1;
+    }
+
+    while (head < tail) {
+        const VisNode n = s_visQ[head++];
+        ChunkMesh*    c = &w->chunks[worldSlotIndex(w, n.cx, n.cz)];
+        ChunkSection* s = &c->sec[n.si];
+
+        if (sectionVisible(c, s)) s->visible = true;
+
+        for (int f = 0; f < 6; f++) {
+            if (n.dirs & (1 << (f ^ 1))) continue;
+            if (n.from != VIS_START && !visCanSee(s->visMask, n.from, f)) continue;
+
+            const int nsi = n.si + kFaceDY[f];
+            if (nsi < 0 || nsi >= N_SECTIONS) continue;
+
+            const int ncx = n.cx + kFaceDX[f], ncz = n.cz + kFaceDZ[f];
+            if (!worldChunkInBounds(ncx, ncz) || !worldChunkSettled(w, ncx, ncz)) continue;
+
+            const int nci = worldSlotIndex(w, ncx, ncz);
+            const int key = nci * N_SECTIONS + nsi;
+            if (s_visSeen[key]) continue;
+
+            ChunkMesh* nc = &w->chunks[nci];
+            const float dx = nc->cx - camX, dz = nc->cz - camZ;
+            if (dx * dx + dz * dz > maxD2) continue;
+            if (!sectionBoxVisible(nc, nsi)) continue;
+
+            s_visSeen[key] = 1;
+            VisNode* q = &s_visQ[tail++];
+            q->cx = (short)ncx; q->cz = (short)ncz;
+            q->si = (unsigned char)nsi;
+            q->from = (unsigned char)(f ^ 1);
+            q->dirs = (unsigned char)(n.dirs | (1 << f));
+        }
+    }
+    return true;
+}
+
 void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDist, const Texture* terrain) {
     World* w = (World*)cw;
 
@@ -179,6 +258,8 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
     float maxD2 = drawCull(viewDist) * drawCull(viewDist);
 
+    bool walked = g_occlusion && worldWalkVisible(w, camX, camY, camZ, maxD2);
+
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
         ChunkMesh* c = &w->chunks[i];
 
@@ -188,9 +269,11 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             continue;
         }
         float dx = c->cx - camX, dz = c->cz - camZ;
-        bool off = (dx * dx + dz * dz > maxD2 || !columnVisible(c));
-
         c->drawn = (dx * dx + dz * dz <= maxD2);
+
+        if (walked) continue;
+
+        bool off = (dx * dx + dz * dz > maxD2 || !columnVisible(c));
         for (int si = 0; si < N_SECTIONS; si++) {
             ChunkSection* s = &c->sec[si];
             s->visible = off ? false : sectionVisible(c, s);

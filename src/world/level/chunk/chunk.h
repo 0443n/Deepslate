@@ -300,6 +300,8 @@ struct ChunkSection {
     bool         dirty;
     bool         visible;
 
+    unsigned short visMask;
+
     bool         leavesOpaqueBand;
 
     bool         leavesCullBand;
@@ -332,6 +334,20 @@ void chunkBuildMesh(ChunkMesh* c, const World* w, int ox, int oz);
 void chunkInitLazy(ChunkMesh* c, int ox, int oz);
 
 bool sectionCannotEmit(const World* w, int ox, int oz, int si);
+
+// Face order is -X +X -Y +Y -Z +Z, so the opposite of f is f^1. The 15 unordered
+// face pairs pack into the low 15 bits of visMask.
+#define VIS_ALL 0x7FFFu
+
+static inline int visPairBit(int a, int b) {
+    if (a > b) { int t = a; a = b; b = t; }
+    return a * 5 - (a * (a - 1)) / 2 + (b - a - 1);
+}
+static inline bool visCanSee(unsigned short m, int a, int b) {
+    return a == b || (m & (1u << visPairBit(a, b))) != 0;
+}
+
+unsigned short sectionVisMask(const World* w, int ox, int y0, int oz);
 
 void chunkBuildSection(ChunkMesh* c, const World* w, int si);
 

@@ -65,6 +65,7 @@ OBJS = \
 	src/world/level/chunk/chunk.o \
 	src/world/level/chunk/chunk_build.o \
 	src/world/level/chunk/chunk_cache.o \
+	src/world/level/chunk/vis_graph.o \
 	src/world/level/chunk/chunk_draw.o \
 	src/world/level/tile/tile_glass.o \
 	src/world/level/tile/tile_wool.o \
