@@ -27,86 +27,28 @@ void chunkPackInto(DrawVertex* d, const ChunkVertex* s, int n,
 
 float chunkPackDecodeY(int q, int oy) { return (float)q / (float)POS_ENC + oy; }
 
-#define INDEX_SCRATCH 65536
-static unsigned short* g_idxScratch = 0;
-static bool g_idxScratchFailed = false;
-
-static unsigned short* indexScratch() {
-    if (!g_idxScratch && !g_idxScratchFailed) {
-        g_idxScratch = (unsigned short*)memalign(16, INDEX_SCRATCH * sizeof(unsigned short));
-        if (!g_idxScratch) g_idxScratchFailed = true;
-    }
-    return g_idxScratch;
-}
-
-static inline bool sameVert(const DrawVertex& a, const DrawVertex& b) {
-    return a.u == b.u && a.v == b.v && a.color == b.color &&
-           a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-// Every emitter builds a quad as six vertices over four distinct corners, so each
-// group of six collapses to four with no search beyond the group itself.
-static int dedupQuads(DrawVertex* v, int n, unsigned short* idx) {
-    int w = 0;
-    for (int g = 0; g < n; g += 6) {
-        int base = w;
-        for (int t = 0; t < 6; t++) {
-            const DrawVertex& src = v[g + t];
-            int hit = -1;
-            for (int u = base; u < w; u++)
-                if (sameVert(v[u], src)) { hit = u; break; }
-            if (hit < 0) { hit = w; v[w++] = src; }
-            idx[g + t] = (unsigned short)hit;
-        }
-    }
-    return w;
-}
-
-// Returns the vertex array, with the index array packed straight after it. Sets
-// nUnique to zero when the layer had to stay unindexed.
-static DrawVertex* packIndexed(DrawVertex* v, int n, unsigned short* nUnique) {
-    *nUnique = 0;
-    unsigned short* scratch = (n % 6 == 0 && n <= INDEX_SCRATCH) ? indexScratch() : 0;
-    if (scratch) {
-        int uq = dedupQuads(v, n, scratch);
-        if (uq <= 65535) {
-            size_t vb = (size_t)uq * sizeof(DrawVertex), ib = (size_t)n * sizeof(unsigned short);
-            profBegin(PROF_MALLOC);
-            DrawVertex* d = (DrawVertex*)memalign(64, vb + ib);
-            profEnd(PROF_MALLOC);
-            if (d) {
-                memcpy_vfpu(d, v, vb);
-                memcpy((unsigned char*)d + vb, scratch, ib);
-                dcacheFlush(d, vb + ib);
-                *nUnique = (unsigned short)uq;
-                return d;
-            }
-        }
-    }
-
+DrawVertex* chunkPackFinish(const DrawVertex* staging, int n) {
     profBegin(PROF_MALLOC);
     DrawVertex* d = (DrawVertex*)memalign(64, (size_t)n * sizeof(DrawVertex));
     profEnd(PROF_MALLOC);
     if (!d) return 0;
-    memcpy_vfpu(d, v, (size_t)n * sizeof(DrawVertex));
+
+    memcpy_vfpu(d, staging, (size_t)n * sizeof(DrawVertex));
     dcacheFlush(d, (size_t)n * sizeof(DrawVertex));
     return d;
 }
 
-DrawVertex* chunkPackFinish(DrawVertex* staging, int n, unsigned short* nUnique) {
-    return packIndexed(staging, n, nUnique);
-}
-
 DrawVertex* chunkPack(const ChunkVertex* s, int n, int ox, int oy, int oz,
-                      float* ylo, float* yhi, unsigned short* nUnique) {
-    DrawVertex* tmp = (DrawVertex*)memalign(16, (size_t)n * sizeof(DrawVertex));
-    if (!tmp) { *nUnique = 0; return 0; }
+                      float* ylo, float* yhi) {
+    profBegin(PROF_MALLOC);
+    DrawVertex* d = (DrawVertex*)memalign(64, (size_t)n * sizeof(DrawVertex));
+    profEnd(PROF_MALLOC);
+    if (!d) return 0;
     int qlo = 32767, qhi = -32768;
-    chunkPackInto(tmp, s, n, ox, oy, oz, &qlo, &qhi);
+    chunkPackInto(d, s, n, ox, oy, oz, &qlo, &qhi);
     if (ylo) *ylo = chunkPackDecodeY(qlo, oy);
     if (yhi) *yhi = chunkPackDecodeY(qhi, oy);
-    DrawVertex* d = packIndexed(tmp, n, nUnique);
-    free(tmp);
+    dcacheFlush(d, (size_t)n * sizeof(DrawVertex));
     return d;
 }
 
@@ -129,32 +71,28 @@ static inline void chunkSetModel(const ChunkSection* s, float scaleMul) {
     sceGumLoadMatrix(&m);
 }
 
-#define CHUNK_FMT (GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D)
-
-static inline void chunkDrawLayer(const DrawVertex* v, unsigned short nUnique,
-                                  int count, int first) {
-    if (!nUnique) { sceGumDrawArray(GU_TRIANGLES, CHUNK_FMT, count, 0, v + first); return; }
-    const unsigned short* idx = (const unsigned short*)(v + nUnique);
-    sceGumDrawArray(GU_TRIANGLES, CHUNK_FMT | GU_INDEX_16BIT, count, idx + first, v);
-}
-
 void chunkDrawSection(const ChunkSection* s) {
     if (s->vertexCount <= 0 || !s->mesh) return;
     chunkSetModel(s, SEAM_OVERSCALE_OPAQUE);
-    chunkDrawLayer(s->mesh, s->meshVCount, s->vertexCount, 0);
+    const unsigned int fmt = GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D;
+    sceGumDrawArray(GU_TRIANGLES, fmt, s->vertexCount, 0, s->mesh);
 }
 
 void chunkDrawWaterSection(const ChunkSection* s) {
     if (s->waterCount > 0 && s->water) {
         chunkSetModel(s, SEAM_OVERSCALE_TRANS);
-        chunkDrawLayer(s->water, s->waterVCount, s->waterCount, 0);
+        sceGumDrawArray(GU_TRIANGLES,
+                        GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D,
+                        s->waterCount, 0, s->water);
     }
 }
 
 void chunkDrawLeavesSection(const ChunkSection* s) {
     if (s->leavesCount > 0 && s->leaves) {
         chunkSetModel(s, SEAM_OVERSCALE_OPAQUE);
-        chunkDrawLayer(s->leaves, s->leavesVCount, s->leavesCount, 0);
+        sceGumDrawArray(GU_TRIANGLES,
+                        GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D,
+                        s->leavesCount, 0, s->leaves);
     }
 }
 
@@ -166,7 +104,9 @@ void chunkDrawNoMipSection(const ChunkSection* s, int part) {
     else if (part == NOMIP_LAVA) { first = s->noMipLavaStart; count = s->noMipCount - first; }
     if (count <= 0) return;
     chunkSetModel(s, SEAM_OVERSCALE_OPAQUE);
-    chunkDrawLayer(s->noMip, s->noMipVCount, count, first);
+    sceGumDrawArray(GU_TRIANGLES,
+                    GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D,
+                    count, 0, s->noMip + first);
 }
 
 void chunkFreeMesh(ChunkMesh* c) {
@@ -177,7 +117,6 @@ void chunkFreeMesh(ChunkMesh* c) {
         if (s->leaves) { guDeferFree(s->leaves); s->leaves = 0; }
         if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
-        s->meshVCount = s->waterVCount = s->leavesVCount = s->noMipVCount = 0;
         s->noMipLavaStart = 0;
     }
 }
