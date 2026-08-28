@@ -57,6 +57,9 @@ enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
        // Opaque sections actually submitted, the number occlusion culling moves.
        PROFC_DRAWNSEC,
 
+       // Vertices handed to the GE per frame, all passes.
+       PROFC_DRAWNVERT,
+
        PROFC_MARKED, PROFC_N };
 
 #if PROF
