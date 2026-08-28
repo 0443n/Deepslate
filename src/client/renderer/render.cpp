@@ -1058,6 +1058,8 @@ bool gameProgressScreenUp() { return g_saveRequested || !g_worldBuilt; }
 
 void gameRender(MenuState& s) {
 
+    profBegin(PROF_GPRE);
+
     static bool s_iconShotDone = false;
     if (g_worldBuilt && g_saveRequested && !s_iconShotDone && !g_photoPending) {
         s_iconShotDone = true;
@@ -1540,6 +1542,8 @@ void gameRender(MenuState& s) {
     g_camYawNow = iyaw; g_camPitchNow = ipitch;
     updateDayColors(a);
 
+    profEnd(PROF_GPRE);
+
     profBegin(PROF_SKY);
     if (g_beautifulSkies) {
 
@@ -1659,6 +1663,8 @@ void gameRender(MenuState& s) {
     guListSync();
     profEnd(PROF_ENTITY);
 
+    profBegin(PROF_GMID);
+
     if (g_worldBuilt && g_beautifulSkies && g_cloudMode) {
         loadWorldView(ex, ey, ez, ctrX, ctrY, ctrZ, roll, 0.0f, 0.0f, 0.0f);
         renderCloudPass(a, px0, py0, pz0);
@@ -1668,6 +1674,8 @@ void gameRender(MenuState& s) {
     if (g_haveTerrain) { if (g_noMipmap) textureBindNoMip(&g_terrain); else textureBind(&g_terrain); }
     sceGuDepthMask(GU_TRUE);
     if (isWaterId(eyeBlk)) sceGuFrontFace(GU_CW);
+
+    profEnd(PROF_GMID);
 
     profBegin(PROF_WATER);
     worldDrawWater(&g_world, px0, py0, pz0, g_viewDist);
@@ -1680,6 +1688,8 @@ void gameRender(MenuState& s) {
                         g_haveTerrain ? &g_terrain : 0, &g_particles,
                         g_haveGuiBlocks ? &g_guiBlocks : 0);
     profEnd(PROF_PART);
+
+    profBegin(PROF_GPOST);
 
     sceGuDepthMask(GU_FALSE);
 
@@ -1695,6 +1705,8 @@ void gameRender(MenuState& s) {
     }
 
     if (g_worldBuilt) fireScreenEffect();
+
+    profEnd(PROF_GPOST);
 
     profBegin(PROF_HUD);
 

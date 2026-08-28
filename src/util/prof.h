@@ -37,6 +37,12 @@ enum {
     PROF_WATER,
     PROF_PART,
     PROF_HUD,
+
+    PROF_GSTART,
+    PROF_GPRE,
+    PROF_GMID,
+    PROF_GPOST,
+
     PROF_GESYNC,
     PROF_VBLANK,
     PROF_N

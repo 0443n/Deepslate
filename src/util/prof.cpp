@@ -67,7 +67,8 @@ void profFrameEnd(void) {
     unsigned int frame = (unsigned int)(elapsed / f);
     int accounted = (int)(avg[PROF_TICK] + avg[PROF_WORLD] + avg[PROF_SKY] +
                           avg[PROF_ENTITY] + avg[PROF_WATER] + avg[PROF_PART] +
-                          avg[PROF_HUD] + avg[PROF_GESYNC] + avg[PROF_VBLANK]);
+                          avg[PROF_HUD] + avg[PROF_GESYNC] + avg[PROF_VBLANK] +
+                          avg[PROF_GSTART] + avg[PROF_GPRE] + avg[PROF_GMID] + avg[PROF_GPOST]);
 
     if (!s_fp) {
         s_fp = fopen(assetPath("prof.txt"), "w");
@@ -80,7 +81,8 @@ void profFrameEnd(void) {
         ++g_profLines;
         fprintf(fp, "fps %.1f frame %u max %u list %u lmin %u | tick %u (plr %u wtick %u [rand %u pend %u] ent %u te %u part %u) "
                     "world %u (stream %u [gen %u dec %u lit %u disk %u evict %u misc %u] light %u rebuild %u [scan %u build %u (emit %u pack %u [alloc %u conv %u])] cull %u) "
-                    "sky %u ent %u water %u part %u hud %u gesync %u vblank %u | other %d "
+                    "sky %u ent %u water %u part %u hud %u gesync %u vblank %u "
+                    "| gstart %u gpre %u gmid %u gpost %u other %d "
                     "| n(part %.0f sect %.1f pend %.0f strm %.2f live %.2f fb %u vert %.0f mark %.1f drawn %.0f)\n",
                 f * 1000000.0f / (float)elapsed, frame, s_maxFrame, s_maxList, s_minList,
                 avg[PROF_TICK], avg[PROF_TPLAYER], avg[PROF_TWORLD],
@@ -93,6 +95,7 @@ void profFrameEnd(void) {
                 avg[PROF_MALLOC], avg[PROF_MCONV], avg[PROF_CULL],
                 avg[PROF_SKY], avg[PROF_ENTITY], avg[PROF_WATER], avg[PROF_PART],
                 avg[PROF_HUD], avg[PROF_GESYNC], avg[PROF_VBLANK],
+                avg[PROF_GSTART], avg[PROF_GPRE], avg[PROF_GMID], avg[PROF_GPOST],
                 (int)frame - accounted,
                 s_cnt[PROFC_PARTICLES] / f, s_cnt[PROFC_SECTIONS] / f, s_cnt[PROFC_PENDLIST] / f,
                 s_cnt[PROFC_STREAMIN] / f, s_cnt[PROFC_DRAWLIVE] / f, g_meshFallbacks,

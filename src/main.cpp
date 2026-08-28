@@ -451,7 +451,10 @@ int main(int argc, char* argv[]) {
 
         worldIconsSetLoaded(s.screen == SCREEN_WORLDS || s.screen == SCREEN_DELETE);
 
-        if (!guStartFrame(s.screen == SCREEN_GAME ? g_skyColorNow : 0xFF000000u)) continue;
+        profBegin(PROF_GSTART);
+        const bool frameOpen = guStartFrame(s.screen == SCREEN_GAME ? g_skyColorNow : 0xFF000000u);
+        profEnd(PROF_GSTART);
+        if (!frameOpen) continue;
         fpsFrames++;
 
         if (s.screen == SCREEN_GAME) {
