@@ -65,7 +65,7 @@ struct World;
 void chunkPackInto(DrawVertex* d, const ChunkVertex* s, int n,
                    int ox, int oy, int oz, int* qlo, int* qhi);
 
-DrawVertex* chunkPackFinish(const DrawVertex* staging, int n);
+DrawVertex* chunkPackFinish(DrawVertex* staging, int n, unsigned short* nUnique);
 
 float chunkPackDecodeY(int q, int oy);
 

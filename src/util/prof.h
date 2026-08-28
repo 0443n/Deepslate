@@ -60,6 +60,10 @@ enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
        // Vertices handed to the GE per frame, all passes.
        PROFC_DRAWNVERT,
 
+       // The same total split by draw layer, so it is clear whether terrain cubes
+       // or decoration dominates the vertex budget.
+       PROFC_VOPAQUE, PROFC_VNOMIP, PROFC_VLEAVES, PROFC_VWATER,
+
        PROFC_MARKED, PROFC_N };
 
 #if PROF

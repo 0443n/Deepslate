@@ -281,6 +281,10 @@ struct DrawVertex {
 };
 
 struct ChunkSection {
+
+    // NOTE: the four counts stay index counts, so culling and the profiler are
+    // unchanged. The vCount fields hold the deduplicated vertex array length, and
+    // zero there means the layer was stored unindexed.
     DrawVertex*  mesh;
     int          vertexCount;
     DrawVertex*  water;
@@ -290,6 +294,8 @@ struct ChunkSection {
 
     DrawVertex*  noMip;
     int          noMipCount;
+
+    unsigned short meshVCount, waterVCount, leavesVCount, noMipVCount;
 
     int          noMipLavaStart;
 
@@ -327,7 +333,7 @@ int meshSection(const World* w, int ox, int oz, int y0, int y1,
                 int* nLava, bool leavesOpaque, bool leavesCull);
 
 DrawVertex* chunkPack(const ChunkVertex* src, int n, int ox, int oy, int oz,
-                      float* ylo = 0, float* yhi = 0);
+                      float* ylo, float* yhi, unsigned short* nUnique);
 
 void chunkBuildMesh(ChunkMesh* c, const World* w, int ox, int oz);
 

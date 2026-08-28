@@ -308,6 +308,10 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             if (s->vertexCount) nOpaque++;
             profAdd(PROFC_DRAWNVERT, s->vertexCount + s->noMipCount +
                                      s->leavesCount + s->waterCount);
+            profAdd(PROFC_VOPAQUE, s->vertexCount);
+            profAdd(PROFC_VNOMIP,  s->noMipCount);
+            profAdd(PROFC_VLEAVES, s->leavesCount);
+            profAdd(PROFC_VWATER,  s->waterCount);
         }
     }
     profAdd(PROFC_DRAWNSEC, nOpaque);

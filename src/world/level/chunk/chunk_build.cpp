@@ -87,8 +87,10 @@ void chunkMeshHeapProbe() { g_heapOk = meshHeapReserveProbe(); }
 static inline bool meshHeapReserveOk() { return g_heapOk; }
 
 static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer,
-                       DrawVertex** outMesh, int* outCount, bool leavesOpaque, bool leavesCull, bool* oom,
+                       DrawVertex** outMesh, int* outCount, unsigned short* outUnique,
+                       bool leavesOpaque, bool leavesCull, bool* oom,
                        int* lavaStart = 0, float* ylo = 0, float* yhi = 0) {
+    *outUnique = 0;
     if (lavaStart) *lavaStart = 0;
     if (!meshHeapReserveOk()) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     if (!g_scratch)
@@ -104,7 +106,7 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
 #endif
         if (n >= 0) {
             if (n == 0) { *outMesh = 0; *outCount = 0; return; }
-            DrawVertex* d = chunkPack(g_scratch, n, ox, y0, oz, ylo, yhi);
+            DrawVertex* d = chunkPack(g_scratch, n, ox, y0, oz, ylo, yhi, outUnique);
 #if MESH_PROFILE
             g_tPack += sceKernelGetSystemTimeLow() - t1;
 #endif
@@ -127,7 +129,7 @@ static void buildLayer(const World* w, int ox, int oz, int y0, int y1, int layer
 
     int emitted = meshPass(w, ox, oz, y0, y1, m, layer, 0x7fffffff, leavesOpaque, leavesCull, lavaStart);
     if (emitted <= 0) { free(m); *outMesh = 0; *outCount = 0; return; }
-    DrawVertex* d = chunkPack(m, emitted, ox, y0, oz, ylo, yhi);
+    DrawVertex* d = chunkPack(m, emitted, ox, y0, oz, ylo, yhi, outUnique);
     free(m);
     if (!d) { *outMesh = 0; *outCount = 0; *oom = true; return; }
     *outMesh = d; *outCount = emitted;
@@ -148,6 +150,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         if (s->leaves) { guDeferFree(s->leaves); s->leaves = 0; }
         if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
+        s->meshVCount = s->waterVCount = s->leavesVCount = s->noMipVCount = 0;
         s->noMipLavaStart = 0;
         s->skyLit = false;
         s->dirty = false;
@@ -226,10 +229,11 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
             int n0 = sinkCount(&sk, 0), n1 = sinkCount(&sk, 1);
             int n2 = sinkCount(&sk, 2), n3 = sinkCount(&sk, 3);
             profBegin(PROF_MPACK);
-            s->mesh   = n0 ? chunkPackFinish(g_stage[0], n0) : 0; s->vertexCount = s->mesh   ? n0 : 0;
-            s->water  = n1 ? chunkPackFinish(g_stage[1], n1) : 0; s->waterCount  = s->water  ? n1 : 0;
-            s->leaves = n2 ? chunkPackFinish(g_stage[2], n2) : 0; s->leavesCount = s->leaves ? n2 : 0;
-            s->noMip  = n3 ? chunkPackFinish(g_stage[3], n3) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
+            s->meshVCount = s->waterVCount = s->leavesVCount = s->noMipVCount = 0;
+            s->mesh   = n0 ? chunkPackFinish(g_stage[0], n0, &s->meshVCount)   : 0; s->vertexCount = s->mesh   ? n0 : 0;
+            s->water  = n1 ? chunkPackFinish(g_stage[1], n1, &s->waterVCount)  : 0; s->waterCount  = s->water  ? n1 : 0;
+            s->leaves = n2 ? chunkPackFinish(g_stage[2], n2, &s->leavesVCount) : 0; s->leavesCount = s->leaves ? n2 : 0;
+            s->noMip  = n3 ? chunkPackFinish(g_stage[3], n3, &s->noMipVCount)  : 0; s->noMipCount  = s->noMip  ? n3 : 0;
             s->noMipLavaStart = s->noMip ? nLava : 0;
             profEnd(PROF_MPACK);
             for (int L = 0; L < 4; L++)
@@ -245,11 +249,11 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         }
     }
     if (!fast) {
-        buildLayer(w, ox, oz, y0, y1, 0, &s->mesh,   &s->vertexCount, leavesOpaque, leavesCull, &oom, 0, plo+0, phi+0);
-        buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  leavesOpaque, leavesCull, &oom, 0, plo+1, phi+1);
-        buildLayer(w, ox, oz, y0, y1, 2, &s->leaves, &s->leavesCount, leavesOpaque, leavesCull, &oom, 0, plo+2, phi+2);
+        buildLayer(w, ox, oz, y0, y1, 0, &s->mesh,   &s->vertexCount, &s->meshVCount,   leavesOpaque, leavesCull, &oom, 0, plo+0, phi+0);
+        buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  &s->waterVCount,  leavesOpaque, leavesCull, &oom, 0, plo+1, phi+1);
+        buildLayer(w, ox, oz, y0, y1, 2, &s->leaves, &s->leavesCount, &s->leavesVCount, leavesOpaque, leavesCull, &oom, 0, plo+2, phi+2);
 
-        buildLayer(w, ox, oz, y0, y1, 3, &s->noMip,  &s->noMipCount,  leavesOpaque, leavesCull, &oom,
+        buildLayer(w, ox, oz, y0, y1, 3, &s->noMip,  &s->noMipCount,  &s->noMipVCount,  leavesOpaque, leavesCull, &oom,
                    &s->noMipLavaStart, plo+3, phi+3);
     }
     s->leavesOpaqueBand = leavesOpaque;
