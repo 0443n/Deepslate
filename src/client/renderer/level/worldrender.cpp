@@ -294,6 +294,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             nOpaque++;
         }
     }
+    profAdd(PROFC_DRAWNSEC, nOpaque);
     qsort(g_opaqueList, nOpaque, sizeof(OpaqueSec), cmpOpaqueAsc);
     sceGuDisable(GU_ALPHA_TEST);
 

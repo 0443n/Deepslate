@@ -45,6 +45,9 @@ enum {
 enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
        PROFC_DRAWLIVE, PROFC_PACKVERTS,
 
+       // Opaque sections actually submitted, the number occlusion culling moves.
+       PROFC_DRAWNSEC,
+
        PROFC_MARKED, PROFC_N };
 
 #if PROF
