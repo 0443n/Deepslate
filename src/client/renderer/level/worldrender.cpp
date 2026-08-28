@@ -135,10 +135,17 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
     profBegin(PROF_RBUILD);
     unsigned int tStart = sceKernelGetSystemTimeLow();
     int built = 0;
+
+    // A section build is atomic and averages milliseconds, so checking the budget
+    // after the fact lets a cheap first section start one that overruns it badly.
+    static unsigned int s_sectionUs = TIME_BUDGET_US;
     for (int k = 0; k < nc; k++) {
+        const unsigned int t0 = sceKernelGetSystemTimeLow();
         chunkBuildSection(cand[k].c, w, cand[k].si);
         built++;
-        if (sceKernelGetSystemTimeLow() - tStart >= TIME_BUDGET_US) break;
+        const unsigned int now = sceKernelGetSystemTimeLow();
+        s_sectionUs = (s_sectionUs * 3u + (now - t0)) / 4u;
+        if (now - tStart + s_sectionUs >= TIME_BUDGET_US) break;
     }
     profAdd(PROFC_SECTIONS, built);
     profEnd(PROF_RBUILD);
