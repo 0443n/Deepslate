@@ -81,7 +81,7 @@ void profFrameEnd(void) {
         ++g_profLines;
         fprintf(fp, "fps %.1f frame %u max %u list %u lmin %u | tick %u (plr %u wtick %u [rand %u pend %u] ent %u te %u part %u) "
                     "world %u (stream %u [gen %u dec %u lit %u disk %u evict %u misc %u] light %u rebuild %u [scan %u build %u (emit %u pack %u [alloc %u conv %u])] cull %u) "
-                    "sky %u ent %u water %u part %u hud %u gesync %u vblank %u "
+                    "sky %u ent %u water %u part %u hud %u (item %u bar %u dbg %u) gesync %u vblank %u "
                     "| gstart %u gpre %u gmid %u gpost %u [out %u hand %u fire %u] other %d "
                     "| n(part %.0f sect %.1f pend %.0f strm %.2f live %.2f fb %u vert %.0f mark %.1f drawn %.0f dvert %.0f [op %.0f nm %.0f (leaf %.0f grass %.0f) lv %.0f wt %.0f])\n",
                 f * 1000000.0f / (float)elapsed, frame, s_maxFrame, s_maxList, s_minList,
@@ -94,7 +94,8 @@ void profFrameEnd(void) {
                 avg[PROF_RSCAN], avg[PROF_RBUILD], avg[PROF_MEMIT], avg[PROF_MPACK],
                 avg[PROF_MALLOC], avg[PROF_MCONV], avg[PROF_CULL],
                 avg[PROF_SKY], avg[PROF_ENTITY], avg[PROF_WATER], avg[PROF_PART],
-                avg[PROF_HUD], avg[PROF_GESYNC], avg[PROF_VBLANK],
+                avg[PROF_HUD], avg[PROF_HITEM], avg[PROF_HBAR], avg[PROF_HDBG],
+                avg[PROF_GESYNC], avg[PROF_VBLANK],
                 avg[PROF_GSTART], avg[PROF_GPRE], avg[PROF_GMID], avg[PROF_GPOST],
                 avg[PROF_GOUTLINE], avg[PROF_GHAND], avg[PROF_GFIRE],
                 (int)frame - accounted,

@@ -317,8 +317,9 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
                             d2 > LEAF_INTERIOR_RADIUS * LEAF_INTERIOR_RADIUS)
                          ? 0 : s->leavesCount;
 
-            profAdd(PROFC_DRAWNVERT, s->vertexCount + s->noMipCount + lv + s->waterCount);
-            profAdd(PROFC_VOPAQUE, s->vertexCount);
+            const int op = chunkOpaqueDrawCount(s);
+            profAdd(PROFC_DRAWNVERT, op + s->noMipCount + lv + s->waterCount);
+            profAdd(PROFC_VOPAQUE, op);
             profAdd(PROFC_VNOMIP,  s->noMipCount);
             profAdd(PROFC_VNMLEAF,  s->nmLeaves);
             profAdd(PROFC_VNMGRASS, s->nmGrass);

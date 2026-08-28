@@ -471,7 +471,7 @@ int main(int argc, char* argv[]) {
             extern bool g_photoPending;
 
             if (!g_invOpen && !g_photoPending && !g_hideGui) {
-
+                profBegin(PROF_HDBG);
                 float ty = 10.0f;
                 if (g_showFps) {
                     char fpsBuf[32];
@@ -596,6 +596,7 @@ int main(int argc, char* argv[]) {
                                   (int)floorf(g_level.player->z));
                     fontDrawTextShadow(&s.font, 10, ty, posBuf, 0xFFE0E0E0u, 1.0f);
                 }
+                profEnd(PROF_HDBG);
             }
 
             if (!g_photoPending)

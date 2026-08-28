@@ -38,6 +38,10 @@ enum {
     PROF_PART,
     PROF_HUD,
 
+    PROF_HITEM,
+    PROF_HBAR,
+    PROF_HDBG,
+
     PROF_GSTART,
     PROF_GPRE,
     PROF_GMID,

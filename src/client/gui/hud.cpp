@@ -1,4 +1,5 @@
 #include "client/gui/hud.h"
+#include "util/prof.h"
 #include "world/item/bucket_item.h"
 #include "world/item/item.h"
 #include "world/item/spawn_egg_item.h"
@@ -813,13 +814,16 @@ void drawDurabilityBar(short id, short data, float x, float y, float sizePx) {
 void drawGuiItem(Font& font, const ItemInstance& item, float x, float y, float sizePx,
                  unsigned int tint , bool showCount ) {
     if (item.isNull()) return;
+    profBegin(PROF_HITEM);
     drawBlockIcon(item.id, (unsigned char)(item.data < 0 ? 0 : item.data), x, y, sizePx, tint);
     if (showCount && item.count > 1) drawStackCount(font, item.count, x, y, sizePx);
     drawDurabilityBar(item.id, item.data, x, y, sizePx);
+    profEnd(PROF_HITEM);
 }
 
 void hotbarDraw(MenuState& s) {
     if (!s.haveGui) return;
+    profBegin(PROF_HBAR);
 
     const bool sleeping = g_level.player && g_level.player->isSleeping();
     const bool hideBar  = sleeping;
@@ -1040,6 +1044,7 @@ void hotbarDraw(MenuState& s) {
             fontDrawTextShadow(&s.font, textX, textY, name, color, scale);
         }
     }
+    profEnd(PROF_HBAR);
 }
 
 void guiFill(float x, float y, float w, float h, unsigned int color) {

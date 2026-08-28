@@ -150,6 +150,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
         s->noMipLavaStart = 0;
         s->nmLeaves = s->nmGrass = 0;
+        for (int b = 0; b < 6; b++) s->faceEnd[b] = 0;
         s->skyLit = false;
         s->dirty = false;
         s->visMask = VIS_ALL;
@@ -227,7 +228,8 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
             int n0 = sinkCount(&sk, 0), n1 = sinkCount(&sk, 1);
             int n2 = sinkCount(&sk, 2), n3 = sinkCount(&sk, 3);
             profBegin(PROF_MPACK);
-            s->mesh   = n0 ? chunkPackFinish(g_stage[0], n0) : 0; s->vertexCount = s->mesh   ? n0 : 0;
+            s->mesh   = n0 ? chunkPackFinishSorted(g_stage[0], n0, s->faceEnd) : 0; s->vertexCount = s->mesh ? n0 : 0;
+            if (!s->mesh) for (int b = 0; b < 6; b++) s->faceEnd[b] = 0;
             s->water  = n1 ? chunkPackFinish(g_stage[1], n1) : 0; s->waterCount  = s->water  ? n1 : 0;
             s->leaves = n2 ? chunkPackFinish(g_stage[2], n2) : 0; s->leavesCount = s->leaves ? n2 : 0;
             s->noMip  = n3 ? chunkPackFinish(g_stage[3], n3) : 0; s->noMipCount  = s->noMip  ? n3 : 0;
@@ -250,6 +252,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si) {
     }
     if (!fast) {
         s->nmLeaves = s->nmGrass = 0;
+        for (int b = 0; b < 6; b++) s->faceEnd[b] = 0;
         buildLayer(w, ox, oz, y0, y1, 0, &s->mesh,   &s->vertexCount, leavesOpaque, leavesCull, &oom, 0, plo+0, phi+0);
         buildLayer(w, ox, oz, y0, y1, 1, &s->water,  &s->waterCount,  leavesOpaque, leavesCull, &oom, 0, plo+1, phi+1);
         buildLayer(w, ox, oz, y0, y1, 2, &s->leaves, &s->leavesCount, leavesOpaque, leavesCull, &oom, 0, plo+2, phi+2);
