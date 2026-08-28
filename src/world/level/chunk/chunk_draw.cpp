@@ -52,11 +52,15 @@ static inline int quadFace(const DrawVertex* q) {
 #define MAX_SORT_QUADS 10923
 static unsigned char s_quadFace[MAX_SORT_QUADS];
 
-DrawVertex* chunkPackFinishSorted(const DrawVertex* staging, int n, unsigned short faceEnd[6]) {
+// Sorts the first sortN vertices into facing groups and copies the rest through
+// untouched, which is how the lava tail stays in place.
+DrawVertex* chunkPackFinishSorted(const DrawVertex* staging, int n, int sortN,
+                                  unsigned short faceEnd[6]) {
     for (int b = 0; b < 6; b++) faceEnd[b] = 0;
 
-    const int nq = n / 6;
-    if (n % 6 || nq > MAX_SORT_QUADS || n > 65535) return chunkPackFinish(staging, n);
+    const int nq = sortN / 6;
+    if (sortN <= 0 || sortN > n || sortN % 6 || nq > MAX_SORT_QUADS || n > 65535)
+        return chunkPackFinish(staging, n);
 
     profBegin(PROF_MALLOC);
     DrawVertex* d = (DrawVertex*)memalign(64, (size_t)n * sizeof(DrawVertex));
@@ -82,6 +86,9 @@ DrawVertex* chunkPackFinishSorted(const DrawVertex* staging, int n, unsigned sho
         const DrawVertex* src = staging + q * 6;
         for (int i = 0; i < 6; i++) dst[i] = src[i];
     }
+    if (n > sortN)
+        memcpy_vfpu(d + sortN, staging + sortN, (size_t)(n - sortN) * sizeof(DrawVertex));
+
     dcacheFlush(d, (size_t)n * sizeof(DrawVertex));
     return d;
 }
@@ -132,16 +139,48 @@ static inline void chunkSetModel(const ChunkSection* s, float scaleMul) {
 
 extern float g_camX, g_camY, g_camZ;
 
+static inline void sectionFacing(const ChunkSection* s, bool want[6]) {
+    want[0] = g_camX < (float)(s->ox + CHUNK_SX);
+    want[1] = g_camX > (float)s->ox;
+    want[2] = g_camY < (float)(s->oy + SECTION_SY);
+    want[3] = g_camY > (float)s->oy;
+    want[4] = g_camZ < (float)(s->oz + CHUNK_SZ);
+    want[5] = g_camZ > (float)s->oz;
+}
+
+// Emits the facing groups the camera can see, merging neighbours into one call.
+static void drawFacing(const DrawVertex* mesh, const unsigned short faceEnd[6],
+                       const bool want[6], unsigned int fmt) {
+    for (int b = 0; b < 6; ) {
+        if (!want[b]) { b++; continue; }
+        int e = b;
+        while (e < 6 && want[e]) e++;
+        const int first = b ? faceEnd[b - 1] : 0;
+        const int count = faceEnd[e - 1] - first;
+        if (count > 0) sceGumDrawArray(GU_TRIANGLES, fmt, count, 0, mesh + first);
+        b = e;
+    }
+}
+
 int chunkOpaqueDrawCount(const ChunkSection* s) {
     if (s->vertexCount <= 0 || !s->mesh) return 0;
     if (!s->faceEnd[5]) return s->vertexCount;
+    bool want[6];
+    sectionFacing(s, want);
     int n = s->vertexCount - s->faceEnd[5];
-    if (g_camX < (float)(s->ox + CHUNK_SX))   n += s->faceEnd[0];
-    if (g_camX > (float)s->ox)                n += s->faceEnd[1] - s->faceEnd[0];
-    if (g_camY < (float)(s->oy + SECTION_SY)) n += s->faceEnd[2] - s->faceEnd[1];
-    if (g_camY > (float)s->oy)                n += s->faceEnd[3] - s->faceEnd[2];
-    if (g_camZ < (float)(s->oz + CHUNK_SZ))   n += s->faceEnd[4] - s->faceEnd[3];
-    if (g_camZ > (float)s->oz)                n += s->faceEnd[5] - s->faceEnd[4];
+    for (int b = 0; b < 6; b++)
+        if (want[b]) n += s->faceEnd[b] - (b ? s->faceEnd[b - 1] : 0);
+    return n;
+}
+
+int chunkNoMipDrawCount(const ChunkSection* s) {
+    if (s->noMipCount <= 0 || !s->noMip) return 0;
+    if (!s->nmFaceEnd[5]) return s->noMipCount;
+    bool want[6];
+    sectionFacing(s, want);
+    int n = s->noMipCount - s->nmFaceEnd[5];
+    for (int b = 0; b < 6; b++)
+        if (want[b]) n += s->nmFaceEnd[b] - (b ? s->nmFaceEnd[b - 1] : 0);
     return n;
 }
 
@@ -157,21 +196,9 @@ void chunkDrawSection(const ChunkSection* s) {
 
     // A face is only visible from its own side of its plane, so roughly half the
     // groups never have to reach the GE. The bounds test errs towards drawing.
-    const bool want[6] = {
-        g_camX < (float)(s->ox + CHUNK_SX),  g_camX > (float)s->ox,
-        g_camY < (float)(s->oy + SECTION_SY), g_camY > (float)s->oy,
-        g_camZ < (float)(s->oz + CHUNK_SZ),  g_camZ > (float)s->oz,
-    };
-
-    for (int b = 0; b < 6; ) {
-        if (!want[b]) { b++; continue; }
-        int e = b;
-        while (e < 6 && want[e]) e++;
-        const int first = b ? s->faceEnd[b - 1] : 0;
-        const int count = s->faceEnd[e - 1] - first;
-        if (count > 0) sceGumDrawArray(GU_TRIANGLES, fmt, count, 0, s->mesh + first);
-        b = e;
-    }
+    bool want[6];
+    sectionFacing(s, want);
+    drawFacing(s->mesh, s->faceEnd, want, fmt);
 
     const int tail = s->vertexCount - s->faceEnd[5];
     if (tail > 0) sceGumDrawArray(GU_TRIANGLES, fmt, tail, 0, s->mesh + s->faceEnd[5]);
@@ -197,15 +224,27 @@ void chunkDrawLeavesSection(const ChunkSection* s) {
 
 void chunkDrawNoMipSection(const ChunkSection* s, int part) {
     if (s->noMipCount <= 0 || !s->noMip) return;
+    const unsigned int fmt = GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D;
+
+    if (part != NOMIP_LAVA && s->nmFaceEnd[5]) {
+        chunkSetModel(s, SEAM_OVERSCALE_OPAQUE);
+        bool want[6];
+        sectionFacing(s, want);
+        drawFacing(s->noMip, s->nmFaceEnd, want, fmt);
+
+        // Cross shaped plants and the lava tail sort into no group and always draw.
+        const int end = (part == NOMIP_NO_LAVA) ? s->noMipLavaStart : s->noMipCount;
+        const int tail = end - s->nmFaceEnd[5];
+        if (tail > 0) sceGumDrawArray(GU_TRIANGLES, fmt, tail, 0, s->noMip + s->nmFaceEnd[5]);
+        return;
+    }
 
     int first = 0, count = s->noMipCount;
     if (part == NOMIP_NO_LAVA) count = s->noMipLavaStart;
     else if (part == NOMIP_LAVA) { first = s->noMipLavaStart; count = s->noMipCount - first; }
     if (count <= 0) return;
     chunkSetModel(s, SEAM_OVERSCALE_OPAQUE);
-    sceGumDrawArray(GU_TRIANGLES,
-                    GU_TEXTURE_16BIT | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D,
-                    count, 0, s->noMip + first);
+    sceGumDrawArray(GU_TRIANGLES, fmt, count, 0, s->noMip + first);
 }
 
 void chunkFreeMesh(ChunkMesh* c) {
@@ -217,6 +256,6 @@ void chunkFreeMesh(ChunkMesh* c) {
         if (s->noMip)  { guDeferFree(s->noMip);  s->noMip = 0; }
         s->vertexCount = s->waterCount = s->leavesCount = s->noMipCount = 0;
         s->noMipLavaStart = 0;
-        for (int b = 0; b < 6; b++) s->faceEnd[b] = 0;
+        for (int b = 0; b < 6; b++) s->faceEnd[b] = s->nmFaceEnd[b] = 0;
     }
 }

@@ -67,7 +67,8 @@ void chunkPackInto(DrawVertex* d, const ChunkVertex* s, int n,
 
 DrawVertex* chunkPackFinish(const DrawVertex* staging, int n);
 
-DrawVertex* chunkPackFinishSorted(const DrawVertex* staging, int n, unsigned short faceEnd[6]);
+DrawVertex* chunkPackFinishSorted(const DrawVertex* staging, int n, int sortN,
+                                  unsigned short faceEnd[6]);
 
 float chunkPackDecodeY(int q, int oy);
 

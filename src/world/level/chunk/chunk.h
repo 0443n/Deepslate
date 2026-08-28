@@ -294,9 +294,10 @@ struct ChunkSection {
     // Shares of noMipCount, so the dominant draw layer can be attributed to a source.
     unsigned short nmLeaves, nmGrass;
 
-    // Cumulative ends of the six outward-facing groups in mesh, all zero when
-    // the section could not be sorted. Whatever follows faceEnd[5] always draws.
+    // Cumulative ends of the six outward-facing groups in mesh and noMip, all zero
+    // when the layer could not be sorted. Whatever follows the last end always draws.
     unsigned short faceEnd[6];
+    unsigned short nmFaceEnd[6];
 
     int          noMipLavaStart;
 
@@ -361,6 +362,7 @@ void chunkBuildSection(ChunkMesh* c, const World* w, int si);
 void chunkMeshHeapProbe();
 void chunkDrawSection(const ChunkSection* s);
 int  chunkOpaqueDrawCount(const ChunkSection* s);
+int  chunkNoMipDrawCount(const ChunkSection* s);
 void chunkDrawWaterSection(const ChunkSection* s);
 void chunkDrawLeavesSection(const ChunkSection* s);
 

@@ -318,9 +318,10 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
                          ? 0 : s->leavesCount;
 
             const int op = chunkOpaqueDrawCount(s);
-            profAdd(PROFC_DRAWNVERT, op + s->noMipCount + lv + s->waterCount);
+            const int nm = chunkNoMipDrawCount(s);
+            profAdd(PROFC_DRAWNVERT, op + nm + lv + s->waterCount);
             profAdd(PROFC_VOPAQUE, op);
-            profAdd(PROFC_VNOMIP,  s->noMipCount);
+            profAdd(PROFC_VNOMIP,  nm);
             profAdd(PROFC_VNMLEAF,  s->nmLeaves);
             profAdd(PROFC_VNMGRASS, s->nmGrass);
             profAdd(PROFC_VLEAVES, lv);
