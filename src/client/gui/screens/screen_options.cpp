@@ -17,11 +17,13 @@
 #include "client/renderer/particle.h"
 #include "client/gui/screens/control_scheme.h"
 
+#define OPT_MAX_VALUES 6
+
 struct OptionRowDef {
 
     const char* group;
     const char* label;
-    const char* values[4];
+    const char* values[OPT_MAX_VALUES];
     int numValues;
     int def;
     bool percent;
@@ -61,7 +63,7 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
     {
 
-        { "Graphics", "View Distance",   {"Tiny", "Short", "Normal", "Far"}, 4, 2 },
+        { "Graphics", "View Distance",   {"Tiny", "Short", "Normal", "Far", "Extreme", "Max"}, 6, 2 },
 
         { 0,          "Clouds",          {"Off", "Fast", "Fancy"}, 3, 1 },
 
@@ -138,10 +140,10 @@ extern World g_world;
 #define ROW_DITHER      9
 #define ROW_HIDEGUI     10
 
-static const float kRenderDist[4] = { 16.0f, 32.0f, 48.0f, 64.0f };
+static const float kRenderDist[6] = { 16.0f, 32.0f, 48.0f, 64.0f, 96.0f, 128.0f };
 extern int g_lowMemPsp;
 
-static int renderDistChoices() { return g_lowMemPsp ? 2 : 4; }
+static int renderDistChoices() { return g_lowMemPsp ? 2 : 6; }
 
 #define CAT_CONTROLS     1
 #define ROW_SENS         0
@@ -191,7 +193,7 @@ static void optionsApply() {
     g_cloudMode     = g_optionValueIdx[CAT_GRAPHICS][ROW_CLOUDS];
     g_viewBobbing = g_optionValueIdx[CAT_GRAPHICS][ROW_BOBBING];
     int rd = g_optionValueIdx[CAT_GRAPHICS][ROW_RENDERDIST];
-    if (rd < 0) rd = 0; else if (rd > 3) rd = 3;
+    if (rd < 0) rd = 0; else if (rd > 5) rd = 5;
 
     if (rd >= renderDistChoices()) rd = 0;
     g_optionValueIdx[CAT_GRAPHICS][ROW_RENDERDIST] = rd;
@@ -546,12 +548,12 @@ void OptionsScreen::renderContent(MenuState& s) {
             char valBuf[16];
             const char* valTxt = 0;
             if (row.button) {
-                valTxt = (valIdx >= 0 && valIdx < 4) ? row.values[valIdx] : 0;
+                valTxt = (valIdx >= 0 && valIdx < OPT_MAX_VALUES) ? row.values[valIdx] : 0;
             } else if (!isBool) {
                 if (row.percent) {
                     snprintf(valBuf, sizeof(valBuf), "%d%%", row.percentMin + valIdx * row.percentStep);
                     valTxt = valBuf;
-                } else if (valIdx >= 0 && valIdx < 4) {
+                } else if (valIdx >= 0 && valIdx < OPT_MAX_VALUES) {
                     valTxt = row.values[valIdx];
                 }
             }
