@@ -96,7 +96,10 @@ static const OptionRowDef g_optionRows[OPT_CATEGORIES][OPT_MAX_ROWS] = {
     },
 };
 
-static const int g_optionRowCount[OPT_CATEGORIES] = { 7, 5, 11, 8 };
+// Must match the rows actually filled in g_optionRows above, and stay within
+// OPT_MAX_ROWS. A row past the count is never drawn, defaulted, saved or loaded,
+// and optionsApply then reads its zero-initialised slot.
+static const int g_optionRowCount[OPT_CATEGORIES] = { 7, 5, 12, 8 };
 static const char* g_optionCategoryNames[OPT_CATEGORIES] = { "Game", "Controls", "Graphics", "Audio" };
 static int g_optionValueIdx[OPT_CATEGORIES][OPT_MAX_ROWS];
 
