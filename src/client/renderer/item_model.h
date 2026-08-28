@@ -24,7 +24,13 @@ public:
 private:
 
     static const int MESH_MAX = 4700;
-    ChunkVertex    m_base[MESH_MAX];
+
+    // NOTE: the GE reads m_base directly, so it holds the shaded vertices and
+    // m_baseCol keeps the unshaded colours needed to reshade after a light change.
+    ChunkVertex    m_base[MESH_MAX] __attribute__((aligned(16)));
+    unsigned int   m_baseCol[MESH_MAX];
+    unsigned int   m_shadeCol = 0;
+    bool           m_shaded = false;
     int            m_count = 0;
     bool           m_flat  = false;
     short          m_id = -1;

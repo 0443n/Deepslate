@@ -22,6 +22,9 @@ bool ItemModelRenderer::build(short id, unsigned char data, int bowStage) {
         m_count = m_flat ? itemBuildFlatMesh(id, data, m_base, bowStage, cap)
                          : itemBuildBlockMesh(id, data, m_base);
 
+        for (int i = 0; i < m_count; i++) m_baseCol[i] = m_base[i].color;
+        m_shaded = false;
+
         m_tex = m_flat ? itemFlatTexture(id, data)
               : (id == BLOCK_CHEST) ? chestModelTexture()
               : (g_haveTerrain ? &g_terrain : (const Texture*)0);
@@ -30,20 +33,24 @@ bool ItemModelRenderer::build(short id, unsigned char data, int bowStage) {
 }
 
 void ItemModelRenderer::draw(unsigned int brCol, bool noMip, bool priority) {
+    (void)priority;
     if (m_count <= 0) return;
 
-    ChunkVertex* v = (ChunkVertex*)(priority ? guFrameAllocPriority(m_count * sizeof(ChunkVertex))
-                                             : guFrameAlloc(m_count * sizeof(ChunkVertex)));
-    if (!v) return;
-    for (int i = 0; i < m_count; i++) {
-        v[i] = m_base[i];
-        v[i].color = mulColor(m_base[i].color, brCol);
+    // The display list is uncached, so staging the mesh there costs six uncached
+    // stores per vertex every frame. Shade in place instead and only when the
+    // light actually changed, then hand the GE the cached buffer.
+    if (!m_shaded || brCol != m_shadeCol) {
+        m_shadeCol = brCol;
+        m_shaded   = true;
+        for (int i = 0; i < m_count; i++) m_base[i].color = mulColor(m_baseCol[i], brCol);
+        sceKernelDcacheWritebackRange(m_base, m_count * sizeof(ChunkVertex));
     }
+
     if (m_tex) { noMip ? textureBindNoMip(m_tex) : textureBind(m_tex); }
 
     sceGumDrawArray(GU_TRIANGLES,
                     GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                    m_count, 0, v);
+                    m_count, 0, m_base);
 }
 
 namespace {
