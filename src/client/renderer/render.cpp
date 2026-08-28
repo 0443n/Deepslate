@@ -1693,18 +1693,24 @@ void gameRender(MenuState& s) {
 
     sceGuDepthMask(GU_FALSE);
 
+    profBegin(PROF_GOUTLINE);
     renderSelectionOutline(px0, py0, pz0);
+    profEnd(PROF_GOUTLINE);
 
     loadWorldView(ex, ey, ez, ctrX, ctrY, ctrZ, roll, 0.0f, 0.0f, 0.0f);
 
     extern bool g_thirdPerson;
 
+    profBegin(PROF_GHAND);
     if (!g_thirdPerson && g_level.player && g_level.player->health > 0 &&
         !g_level.player->isSleeping() && !g_photoPending && !g_hideGui) {
         itemHandDraw(a, bs, bc);
     }
+    profEnd(PROF_GHAND);
 
+    profBegin(PROF_GFIRE);
     if (g_worldBuilt) fireScreenEffect();
+    profEnd(PROF_GFIRE);
 
     profEnd(PROF_GPOST);
 

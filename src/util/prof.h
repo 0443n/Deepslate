@@ -42,6 +42,9 @@ enum {
     PROF_GPRE,
     PROF_GMID,
     PROF_GPOST,
+    PROF_GOUTLINE,
+    PROF_GHAND,
+    PROF_GFIRE,
 
     PROF_GESYNC,
     PROF_VBLANK,
