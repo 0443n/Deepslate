@@ -9,7 +9,10 @@ extern bool g_worldBuilt;
 
 extern unsigned int g_meshFallbacks;
 
+#define PROF_REOPEN_LINES 15
+
 static FILE* s_fp = 0;
+static int s_profOpened = 0;
 int g_profLines = -1;
 
 static unsigned int s_cnt[PROFC_N];
@@ -71,10 +74,11 @@ void profFrameEnd(void) {
                           avg[PROF_GSTART] + avg[PROF_GPRE] + avg[PROF_GMID] + avg[PROF_GPOST]);
 
     if (!s_fp) {
-        s_fp = fopen(assetPath("prof.txt"), "w");
+        const char* mode = s_profOpened ? "a" : "w";
+        s_fp = fopen(assetPath("prof.txt"), mode);
 
-        if (!s_fp) s_fp = fopen("ms0:/prof.txt", "w");
-        if (s_fp) g_profLines = 0;
+        if (!s_fp) s_fp = fopen("ms0:/prof.txt", mode);
+        if (s_fp) { s_profOpened = 1; if (g_profLines < 0) g_profLines = 0; }
     }
     FILE* fp = s_fp;
     if (fp) {
@@ -107,6 +111,10 @@ void profFrameEnd(void) {
                 s_cnt[PROFC_VNMLEAF] / f, s_cnt[PROFC_VNMGRASS] / f,
                 s_cnt[PROFC_VLEAVES] / f, s_cnt[PROFC_VWATER] / f);
         fflush(fp);
+
+        // NOTE: the directory entry only records the size on close, so a power-off
+        // with the handle open loses the whole capture. Reopening bounds that.
+        if (g_profLines % PROF_REOPEN_LINES == 0) { fclose(s_fp); s_fp = 0; }
     }
 
     for (int i = 0; i < PROF_N; i++) s_acc[i] = 0;
