@@ -249,6 +249,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
             q->cost = (unsigned char)cost;
         }
     }
+    profAdd(PROFC_WALKNODES, tail);
     return true;
 }
 
@@ -270,6 +271,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     if (!gameFrozen()) worldRebuildStep(w, camX, camY, camZ, viewDist);
 
     profBegin(PROF_CULL);
+    profBegin(PROF_CEVICT);
 
     float keepD2 = (viewDist + 32.0f) * (viewDist + 32.0f);
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
@@ -284,9 +286,13 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     }
 
     float maxD2 = drawCull(viewDist) * drawCull(viewDist);
+    profEnd(PROF_CEVICT);
 
+    profBegin(PROF_CWALK);
     bool walked = g_occlusion && worldWalkVisible(w, camX, camY, camZ, maxD2);
+    profEnd(PROF_CWALK);
 
+    profBegin(PROF_CMARK);
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
         ChunkMesh* c = &w->chunks[i];
 
@@ -306,8 +312,10 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
             s->visible = off ? false : sectionVisible(c, s);
         }
     }
+    profEnd(PROF_CMARK);
     profEnd(PROF_CULL);
 
+    profBegin(PROF_CGATHER);
     g_visN = 0;
     int nOpaque = 0;
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
@@ -343,6 +351,9 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     }
     profAdd(PROFC_DRAWNSEC, nOpaque);
     qsort(g_visList, g_visN, sizeof(VisSec), cmpVisAsc);
+    profEnd(PROF_CGATHER);
+
+    profBegin(PROF_CSUBMIT);
     sceGuDisable(GU_ALPHA_TEST);
 
     extern int g_noMipmap;
@@ -451,8 +462,11 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         sceGuTexFilter(GU_NEAREST_MIPMAP_LINEAR, GU_NEAREST);
         textureMipAuto();
     }
+    profEnd(PROF_CSUBMIT);
 
+    profBegin(PROF_CSYNC);
     guListSync();
+    profEnd(PROF_CSYNC);
 }
 
 void worldDrawWater(const World* w, float camX, float camY, float camZ, float viewDist) {

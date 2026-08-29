@@ -24,6 +24,16 @@ enum {
     PROF_LIGHT,
     PROF_REBUILD,
     PROF_CULL,
+
+    // PROF_CULL split three ways, plus the three stages that follow it inside
+    // PROF_WORLD but were never accounted for.
+    PROF_CEVICT,
+    PROF_CWALK,
+    PROF_CMARK,
+    PROF_CGATHER,
+    PROF_CSUBMIT,
+    PROF_CSYNC,
+
     PROF_RSCAN,
     PROF_RBUILD,
 
@@ -68,6 +78,9 @@ enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
        // or decoration dominates the vertex budget.
        PROFC_VOPAQUE, PROFC_VNOMIP, PROFC_VLEAVES, PROFC_VWATER,
 
+
+       // Sections the cave-cull walk actually enqueued, the walk's own work.
+       PROFC_WALKNODES,
 
        PROFC_MARKED, PROFC_N };
 
