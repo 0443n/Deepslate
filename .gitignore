@@ -7,4 +7,6 @@ EBOOT.PBP
 PARAM.SFO
 .DS_Store
 .vscode/
-.idea/
+.idea/__pycache__/
+saves/
+build/
