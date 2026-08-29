@@ -33,6 +33,11 @@ jobs:
                         --default-toolchain nightly --component rust-src
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
+      # Guards the port against the C++ it replaces. Runs on the host, where
+      # the vectors in rust/tests were generated, so it needs no emulator.
+      - name: Check the Rust port against the C++ vectors
+        run: cd rust && cargo test --target x86_64-unknown-linux-musl
+
       - name: Build
         run: |
           export PSPDEV=/usr/local/pspdev

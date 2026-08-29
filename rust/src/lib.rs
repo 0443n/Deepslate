@@ -7,8 +7,15 @@
 //! IEEE bit pattern in a u32. See tools/patch-eflags.py for the other half of
 //! the arrangement.
 
-#![no_std]
+// Hosted builds keep std so `cargo test` can check the port against vectors
+// taken from the C++ it replaces. The PSP build is no_std.
+#![cfg_attr(target_os = "psp", no_std)]
 
+pub mod random;
+
+pub use random::Random;
+
+#[cfg(target_os = "psp")]
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
