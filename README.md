@@ -1,25 +1,51 @@
-# Minecraft PE for PSP
+# Deepslate
 
-This repository contains a port of **Minecraft Pocket Edition** to the Sony
-PlayStation Portable. It runs on **every PSP model, including the 32 MB
-PSP-1000** — see [Hardware](#hardware) for what the 1000 gives up.
+**Minecraft PE for the PlayStation Portable, brought forward to the modern game.**
 
-The base is MCPE **0.6.1** — that is where the world logic, the save format and
-most of the code come from — but the feature set has since grown past it, piece
+A fork of [Pencea-Flavius/Minecraft-PE-PSP](https://github.com/Pencea-Flavius/Minecraft-PE-PSP).
+It runs on every PSP model, including the 32 MB PSP-1000 - see [Hardware](#hardware)
+for what the 1000 gives up.
+
+The base is MCPE **0.6.1** - that is where the world logic, the save format and
+most of the code come from - but the feature set has since grown past it, piece
 by piece, and now sits at roughly **MCPE 0.7.6**: world generation, survival and
-creative, mobs, crafting, furnaces, chests, armor, TNT, the Nether Reactor,
-buckets, fire and flint & steel, signs, paintings, beds and day/night, the
-tripod camera, sounds and saving. There are probably still some bugs.
+creative, mobs, crafting, furnaces, chests, armor, TNT, buckets, fire and flint &
+steel, signs, paintings, beds and day/night, sounds and saving, plus a real
+Nether. There are probably still some bugs.
 
 > [!Important]
-> Join the Discord for build help, bug reports and updates on the port:
-> **https://discord.gg/uQddmU7Vra**
+> The upstream project's Discord, for build help and bug reports on the port
+> this one is based on: **https://discord.gg/uQddmU7Vra**
+
+## What this fork changes
+
+- **A real Nether.** Build an obsidian frame, light it with flint and steel, and
+  stand in it. The Nether is its own dimension with its own generator, saved
+  beside the overworld as `DIM-1`, with soul sand and an animated portal block.
+  The Nether Reactor it replaces is gone.
+- **Modern art.** `terrain.png`, its two mip levels and the GUI block sheet are
+  rebuilt from current Minecraft's default textures by the scripts in
+  [`tools/`](tools), which compose the legacy 16x16 atlas out of the modern
+  one-file-per-block layout. The composed atlases are committed so the port runs
+  as-is; point the scripts at your own client jar to rebuild them.
+- **Mob spawning that works.** Animals are placed at world generation and keep
+  spawning as you play, on lit grass within range of the player, in creative as
+  well as survival. Hostiles start at Easy, as in the modern game. Previously a
+  creative world stayed empty forever and an overworld filled its animal cap once
+  and never spawned again.
+- **No tripod camera.** The item, the entity, its renderer and the photo path are
+  all removed.
+- **Renderer work.** The visible section list is built during discovery instead of
+  sweeping every section each frame, visibility is marked with a frame stamp
+  rather than cleared, the cave cull walks through streaming chunks instead of
+  stopping at them, and the cull and submit stages are profiled separately.
+- **View distance** no longer collapses to Tiny after a trip through a portal.
 
 ## About the port
 
 This is a **source-based port, not the source code itself.** The gameplay and
-world logic are ported piece by piece from the original MCPE sources — 0.6.1
-first, then later versions for the features 0.6.1 never had — and adapted for
+world logic are ported piece by piece from the original MCPE sources - 0.6.1
+first, then later versions for the features 0.6.1 never had - and adapted for
 the PSP, but the engine underneath is different where the hardware needs it to
 be.
 
@@ -27,21 +53,21 @@ The biggest difference is how the map is kept in memory. MCPE holds the world
 as a cache of separate chunk objects, each carrying its own block, data and
 light arrays. Here the whole fixed 256×128×256 world is resident at once, so
 all three had to get much smaller than a byte per block. None of them is a flat
-array any more — each one pages in only the parts of the world that carry
+array any more - each one pages in only the parts of the world that carry
 information:
 
-- `blocks` — block IDs in **16×16×16 sections**, the scheme Minecraft's console
+- `blocks` - block IDs in **16×16×16 sections**, the scheme Minecraft's console
   edition uses. A section that is a single ID (all air above the surface, solid
   stone below) is just that ID and costs nothing. Anything else gets a page:
   **4 bits per block** indexing a 16-entry palette, or a full byte per block if
-  that section really does hold more than 16 block types — so there is no limit
+  that section really does hold more than 16 block types - so there is no limit
   on what you can build in one place, it just costs more there. Measured across
-  real saved worlds, 8 MB becomes 2.3–2.9 MB.
-- `data` — block metadata at **4 bits per block**, stored sparsely: one 64-byte
+  real saved worlds, 8 MB becomes 2.3-2.9 MB.
+- `data` - block metadata at **4 bits per block**, stored sparsely: one 64-byte
   page per column, allocated on the first non-zero write. Measured on real
   worlds, ~95% of columns never hold any metadata at all, so 4 MB becomes
   about 0.6 MB.
-- `light` — sky and block light as **16×16 horizontal planes** with a sentinel
+- `light` - sky and block light as **16×16 horizontal planes** with a sentinel
   index, also from the console edition. About 95% of sky planes and 80% of
   block-light planes are uniform (all dark or all lit) and cost one index entry
   instead of a page, so 8 MB becomes under 1 MB.
@@ -69,21 +95,21 @@ make dist
 ```
 
 Header dependencies are tracked, so editing a `.h` rebuilds everything that
-includes it — a plain `make` is enough after the first build.
+includes it - a plain `make` is enough after the first build.
 
 ## Running
 
-**On a PSP** — copy onto the memory stick so you have:
+**On a PSP** - copy onto the memory stick so you have:
 
 ```
-PSP/GAME/MCPSP/EBOOT.PBP
-PSP/GAME/MCPSP/data/
+PSP/GAME/DEEPSLATE/EBOOT.PBP
+PSP/GAME/DEEPSLATE/data/
 ```
 
 and launch it from the Game menu. Worlds save into a `saves/` folder created
 next to the EBOOT.
 
-**In PPSSPP** — just open `EBOOT.PBP`.
+**In PPSSPP** - just open `EBOOT.PBP`.
 
 Keep `EBOOT.PBP` and `data/` together; textures and sounds load from `data/`
 next to the EBOOT.
@@ -91,12 +117,12 @@ next to the EBOOT.
 ## DualShock 3
 
 Options > Controls > Control Scheme > **Layout 4** puts the camera on the right
-stick and gives every action its own button — place and break on L2/R2, the
+stick and gives every action its own button - place and break on L2/R2, the
 hotbar on L1/R1, crafting and inventory on Square/Triangle, third person and
 sneak on the stick clicks. It needs a DualShock 3 paired to the PSP, and it
 needs a plugin:
 
-**[VanillaDS3Remapper](https://github.com/rereprep/VanillaDS3Remapper)** —
+**[VanillaDS3Remapper](https://github.com/rereprep/VanillaDS3Remapper)** -
 Total_Noob's DS3Remapper. Not shipped with this port: grab `DS3Remapper.prx`
 from there, drop it in `seplugins/` on the memory stick and enable it
 (`ms0:/seplugins/game.txt`, line `ms0:/seplugins/DS3Remapper.prx 1`).
@@ -116,15 +142,15 @@ saved Layout 4 survives a boot on a plain PSP.
 
 Every PSP model runs it, but the 32 MB machines (PSP-1000, the original "Phat")
 have half the memory of everything later, and the world plus its meshes still
-take most of the heap. The port measures the machine's user memory at boot —
+take most of the heap. The port measures the machine's user memory at boot -
 heap plus what the kernel still holds, so a fragmented heap cannot make a 3000
-look like a 1000 — and on the smaller one it starts smaller:
+look like a 1000 - and on the smaller one it starts smaller:
 
-- **View distance** — Tiny and Short only, out of Tiny / Short / Normal / Far,
+- **View distance** - Tiny and Short only, out of Tiny / Short / Normal / Far,
   and it starts on Tiny. Short is fine on most worlds; heavy caves and lava run
   the heap to the edge, where distant sections simply stop building until you
   get closer.
-- **Sound** — a half-rate pack (11 kHz instead of 22 kHz). It is audibly
+- **Sound** - a half-rate pack (11 kHz instead of 22 kHz). It is audibly
   grainier through the speaker and saves 0.8 MB.
 
 Same world size, same generation, same gameplay, same save files either way. A
@@ -135,12 +161,14 @@ view distances.
 
 Worlds use the real MCPE 0.6.1 on-disk format (`chunks.dat`, `level.dat`,
 `entities.dat`). A world made on the PSP opens in MCPE 0.6.1, and a world copied
-off a phone opens on the PSP.
+off a phone opens on the PSP. The Nether is stored as a `DIM-1` folder beside
+the overworld, which 0.6.1 knows nothing about; it ignores the folder and opens
+the overworld normally.
 
 ## Disclaimer
 
 This is unofficial homebrew, run at your own risk. It comes with **no warranty
-of any kind** — see the license below, which says the same in legal words.
+of any kind** - see the license below, which says the same in legal words.
 
 I am not responsible for anything that happens to your console, your memory
 stick, your save files or anything else while running it. That covers a console
@@ -150,13 +178,12 @@ consequences are yours.
 
 Practical version, because most of the risk here is boring and avoidable:
 
-- **Back up your worlds.** They are plain files in `saves/` next to the EBOOT —
+- **Back up your worlds.** They are plain files in `saves/` next to the EBOOT -
   copy them off the stick before updating. This port is still being worked on and
   a bug that corrupts a save is a real possibility.
 - **Copy, don't move.** Keep the archive you installed from, so a bad update is a
   matter of putting the old folder back.
-- Nothing here writes outside its own folder and `ms0:/PSP/PHOTO` (the camera),
-  and nothing touches firmware — but that is what the code does today, not a
+- Nothing here writes outside its own folder, and nothing touches firmware - but that is what the code does today, not a
   promise about every build.
 
 If something does go wrong, open an issue with what happened and on which PSP
@@ -164,12 +191,15 @@ model; that is worth more than a warning nobody reads.
 
 ## Credits
 
+- [**Pencea-Flavius/Minecraft-PE-PSP**](https://github.com/Pencea-Flavius/Minecraft-PE-PSP)
+  - the port this is a fork of. Everything below is inherited from it, and every
+  credit in it stands here too.
 - Gameplay and world logic ported from the Minecraft Pocket Edition sources
   (0.6.1 as the base, later versions for the newer features).
-- [**MCPE-0.8.1**](https://github.com/oldminecraftcommunity/MCPE-0.8.1) — the
+- [**MCPE-0.8.1**](https://github.com/oldminecraftcommunity/MCPE-0.8.1) - the
   0.8.1 decompilation, used as a source for the features 0.6.1 never had.
-- [**Oreo**](https://github.com/Oreo80) — helped with the porting.
-- [**CODINGBOTSTUDIO**](https://github.com/CODINGBOTSTUDIO) — contributed the
+- [**Oreo**](https://github.com/Oreo80) - helped with the porting.
+- [**CODINGBOTSTUDIO**](https://github.com/CODINGBOTSTUDIO) - contributed the
   code the 3D clouds are based on, and found the leak in `CompoundTag`'s put*,
   which dropped the tag already under a key instead of freeing it. Also spotted
   that exiting the app (HOME/START) skipped the world/player teardown that
@@ -177,24 +207,24 @@ model; that is worth more than a warning nobody reads.
   `preservedTileEntities`, and that world teardown terminated the chunk
   generation worker instead of waiting for it, which can strand the allocator
   lock.
-- [**CYEVV**](https://github.com/CYEVV) — helped fix in-game buttons that were
+- [**CYEVV**](https://github.com/CYEVV) - helped fix in-game buttons that were
   not rendering with the 4444 texture format.
-- [**Stann**](https://github.com/ThatStann) — drew the delete-world **X** button
+- [**Stann**](https://github.com/ThatStann) - drew the delete-world **X** button
   (both states, in `touchgui.png`), the controller drawings the Controls page
   labels (`data/images/gui/controls/psp.png`, `go.png`), and the button-icon
-  sheet the in-game hint row is built from (`data/images/gui/tooltips.png`) —
+  sheet the in-game hint row is built from (`data/images/gui/tooltips.png`) -
   every button in a pressed and a released state, the DualShock's shoulders,
   sticks and PlayStation Start/Select included. Also spotted the uneven border
   widths on the world-type pills that turned out to be a fractional nine-patch
   corner.
-- **Total_Noob** — **DS3Remapper**, the plugin that makes a DualShock's extra
+- **Total_Noob** - **DS3Remapper**, the plugin that makes a DualShock's extra
   buttons and its right stick reach a game at all. Not bundled here; it lives at
   [rereprep/VanillaDS3Remapper](https://github.com/rereprep/VanillaDS3Remapper)
   under its own GPLv3, and Layout 4 needs it (see [DualShock 3](#dualshock-3)).
 
 ### PSP engines this port learned from
 
-- [**DaedalusX64**](https://github.com/DaedalusX64/daedalus) — the N64 emulator
+- [**DaedalusX64**](https://github.com/DaedalusX64/daedalus) - the N64 emulator
   for PSP, and the sharpest PSP renderer to read. `src/util/fast_memcpy.cpp` is
   its `memcpy_vfpu` (`Source/SysPSP/Utility/FastMemcpyPSP.cpp`, © 2009 Raphael,
   modified by Corn) copied essentially verbatim; Daedalus is
@@ -208,25 +238,28 @@ model; that is worth more than a warning nobody reads.
 
 ## License
 
-The original engine code written for this port — the world storage, the PSP
+The original engine code written for this port - the world storage, the PSP
 renderer and mesher, the GU/graphics layer, and everything else authored here
-for the PSP — is released under the **GNU General Public License v3.0**
-(see [LICENSE](LICENSE)). In short: use it, study it, fork it — but if you
+for the PSP - is released under the **GNU General Public License v3.0**
+(see [LICENSE](LICENSE)). In short: use it, study it, fork it - but if you
 distribute a modified version or a binary built from it, you have to release
 its complete source under the same license. This covers **every version of the
-project, including the earlier ones** — there is no MIT branch of it still on
+project, including the earlier ones** - there is no MIT branch of it still on
 offer. (Copies someone already received under the old MIT terms keep those
 rights; that part is not up to anyone.)
 
 **What the GPL does not cover:** the gameplay and world logic in this project is
 ported from the Minecraft Pocket Edition 0.6.1 sources, and Minecraft is the
 intellectual property of Mojang / Microsoft. That copyright, and the
-"Minecraft" trademark, are theirs — the GPL grant applies only to the original
+"Minecraft" trademark, are theirs - the GPL grant applies only to the original
 PSP engine work, not to anything derived from Mojang's code.
 
 This is a non-commercial, educational project and is not affiliated with,
 endorsed by, or associated with Mojang or Microsoft. The game assets bundled
 under `data/` (textures such as `terrain.png`, sounds, the font, mob and GUI
 art) are the property of Mojang / Microsoft and are not covered by the GPL
-above; they are included only to make this educational port runnable.
+above; they are included only to make this educational port runnable. The
+terrain and GUI atlases here are composed from current Minecraft's default
+textures rather than 0.6.1's, by the scripts in `tools/`; the same applies to
+them.
 If you are a rights holder and want anything removed, open an issue.

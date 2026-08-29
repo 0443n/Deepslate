@@ -1,4 +1,4 @@
-TARGET = mcpsp-menu
+TARGET = deepslate
 OBJS = \
 	src/main.o \
 	src/client/player/physics.o \
@@ -203,7 +203,7 @@ LIBS = -lpspgum -lpspgu -lpspge -lpspfpu -lpspdisplay -lpspctrl -lpsppower -lpsp
 
 EXTRA_TARGETS = EBOOT.PBP
 
-PSP_EBOOT_TITLE = Minecraft Pocket-Edition
+PSP_EBOOT_TITLE = Deepslate
 
 PRESENT = presentation
 PSP_EBOOT_ICON  = $(if $(wildcard $(PRESENT)/ICON0.PNG),$(PRESENT)/ICON0.PNG,NULL)
@@ -244,5 +244,5 @@ dist: EBOOT.PBP
 	@cp -r data/. build/data/
 	@rm -rf build/data/sound/aac
 	@rm -rf build/data/sound/cave build/data/sound/extra   # WAV sources: packed into *.bin, never read at runtime
-	@printf 'MCPSP - Minecraft PSP (test build)\n\n=== Run on a real PSP ===\n1. On the memory stick make a folder:  PSP/GAME/MCPSP\n2. Put EBOOT.PBP and the data/ folder inside it, so you have:\n     PSP/GAME/MCPSP/EBOOT.PBP\n     PSP/GAME/MCPSP/data/\n3. Launch it from the PSP Game menu.\n\n=== PPSSPP ===\nJust open EBOOT.PBP.\n\nKeep EBOOT.PBP and data/ together - textures load from data/ next to\nthe EBOOT, and worlds save into a saves/ folder created beside it.\n' > build/README.txt
-	@echo "Packaged -> build/  (copy its contents into ms0:/PSP/GAME/MCPSP/)"
+	@printf 'Deepslate - Minecraft for PSP (test build)\n\n=== Run on a real PSP ===\n1. On the memory stick make a folder:  PSP/GAME/DEEPSLATE\n2. Put EBOOT.PBP and the data/ folder inside it, so you have:\n     PSP/GAME/DEEPSLATE/EBOOT.PBP\n     PSP/GAME/DEEPSLATE/data/\n3. Launch it from the PSP Game menu.\n\n=== PPSSPP ===\nJust open EBOOT.PBP.\n\nKeep EBOOT.PBP and data/ together - textures load from data/ next to\nthe EBOOT, and worlds save into a saves/ folder created beside it.\n' > build/README.txt
+	@echo "Packaged -> build/  (copy its contents into ms0:/PSP/GAME/DEEPSLATE/)"

@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
-static char g_base[256] = "ms0:/PSP/GAME/MCPSP/";
+static char g_base[256] = "ms0:/PSP/GAME/DEEPSLATE/";
 
 void pathInit(const char* argv0) {
     if (!argv0 || !argv0[0])
