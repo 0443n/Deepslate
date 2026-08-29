@@ -1,4 +1,4 @@
-# (col,row) -> modern Faithful 1.21.8 block texture basename, or None to keep the
+# (col,row) -> modern vanilla block texture basename, or None to keep the
 # legacy art. Cells are the ones MCPSP's Tile::getTexture actually addresses.
 MAP = {
  (0,0):"grass_block_top", (1,0):"stone", (2,0):"dirt", (3,0):"grass_block_side",
@@ -28,7 +28,7 @@ MAP = {
 
  (1,6):"oak_door_bottom", (2,6):"iron_door_bottom",
  (4,6):"mossy_stone_bricks", (5,6):"cracked_stone_bricks",
- (7,6):"netherrack", (9,6):"glowstone", (15,6):"melon_stem",
+ (7,6):"netherrack", (8,6):"soul_sand", (9,6):"glowstone", (15,6):"melon_stem",
 
  (4,7):"spruce_log", (5,7):"birch_log",
 
@@ -48,7 +48,7 @@ MAP = {
  (5,13):"quartz_pillar_side", (6,13):"chiseled_quartz_block", (10,13):None,
 
  (0,14):"nether_bricks", (5,14):"chiseled_sandstone", (6,14):"cut_sandstone",
- (8,14):None, (9,14):None, (10,14):None,
+ (8,14):"nether_portal", (9,14):None, (10,14):None,
  (13,14):"lava_still", (14,14):"lava_flow",
 
  (12,15):None, (13,15):None,

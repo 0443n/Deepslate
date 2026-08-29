@@ -28,5 +28,11 @@ the two mip levels.
   MCPSP applies no water tint, so the overworld colour is baked in.
 - Mip levels are downscaled per tile. Resizing the whole atlas at once would
   bleed neighbouring tiles into each other.
+- Terrain draws with `GU_GREATER, 0` alpha test over ordinary src-alpha blending,
+  so a mip texel with partial alpha really does blend. Cutout tiles therefore stay
+  strictly on or off at every level, and colour is averaged weighted by alpha.
+  Getting either wrong turns distant foliage into bright translucent haze.
+- The layer named noMip still mipmaps, it only switches the filter to nearest, so
+  cross-shaped plants need correct mips too.
 - Block art from a Minecraft client jar is Mojang's and is not redistributable.
   Regenerate locally rather than committing a built atlas to a public tree.

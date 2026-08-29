@@ -13,46 +13,89 @@ from map import MAP
 TILE = 16
 GRID = 16
 
-# Vanilla water art is greyscale and coloured per biome at runtime. MCPSP has no
-# water tint, so the overworld default gets baked in here.
+# Vanilla water art is greyscale and coloured per biome at runtime, and MCPSP has
+# no water tint, so these cells get recoloured from the shipped ones instead.
 WATER_CELLS = {(13, 12), (14, 12)}
-WATER_RGB = (0x3F, 0x76, 0xE4)
-
-
-def bake(rgb, colour):
-    """Colour greyscale art so its mean lands on `colour` rather than well under it.
-
-    Scaling by the peak leaves the mean short whenever the art has a few bright
-    texels over a dark field, which is exactly the case for water.
-    """
-    lum = rgb.mean(axis=2, keepdims=True) / 255.0
-    k = 1.0 / max(lum.mean(), 1e-6)
-    for _ in range(8):
-        out = np.clip(lum * k, 0.0, 1.0)
-        err = out.mean()
-        if abs(err - 1.0) < 1e-3 or err <= 0:
-            break
-        k *= min(4.0, 1.0 / err)
-    return np.clip(lum * k, 0.0, 1.0) * np.array(colour, dtype=np.float64)
 
 
 def load(path):
     return np.asarray(Image.open(path).convert("RGBA"), dtype=np.float64)
 
 
-def resize(a, n):
-    """Area-resize RGBA, premultiplying so transparent texels cannot darken edges."""
-    h, w = a.shape[:2]
-    if (h, w) == (n, n):
-        return a.copy()
-    rgb, alpha = a[..., :3], a[..., 3:4]
-    pm = np.concatenate([rgb * (alpha / 255.0), alpha], axis=2)
-    im = Image.fromarray(np.clip(pm, 0, 255).astype(np.uint8), "RGBA")
-    pm = np.asarray(im.resize((n, n), Image.BOX), dtype=np.float64)
-    al = pm[..., 3:4]
-    out = np.concatenate([np.divide(pm[..., :3], al / 255.0,
-                                    out=np.zeros_like(pm[..., :3]), where=al > 0), al], axis=2)
-    return out
+def is_cutout(tile):
+    """True when alpha is strictly on or off, which is how the GE alpha test wants it."""
+    a = tile[..., 3]
+    return not ((a > 0) & (a < 255)).any()
+
+
+def downscale(tile, n):
+    """Box filter weighting colour by alpha, so transparent texels cannot wash it out.
+
+    Dividing by an averaged alpha afterwards, the usual unpremultiply, amplifies
+    colour wherever the footprint was mostly transparent and turns cutout foliage
+    white.
+    """
+    f = tile.shape[0] // n
+    b = tile.reshape(n, f, n, f, 4)
+    a = b[..., 3]
+    wsum = a.sum(axis=(1, 3))
+    rgb = (b[..., :3] * a[..., None]).sum(axis=(1, 3)) / np.maximum(wsum, 1e-9)[..., None]
+
+    # Keep a plausible colour under fully transparent texels so bilinear taps at
+    # the edges do not pull black in.
+    if wsum.sum() > 0:
+        mean = (tile[..., :3] * tile[..., 3:4]).sum(axis=(0, 1)) / tile[..., 3].sum()
+        rgb = np.where((wsum > 0)[..., None], rgb, mean)
+
+    return rgb, a.mean(axis=(1, 3))
+
+
+def resize(tile, n):
+    if tile.shape[0] == n:
+        return tile.copy()
+    rgb, alpha = downscale(tile, n)
+    # A cutout has to stay a cutout. Averaged alpha makes distant leaves and reeds
+    # semi-transparent, and the sky behind them reads as glare.
+    if is_cutout(tile):
+        alpha = binarise(tile[..., 3], alpha, n)
+    return np.concatenate([rgb, alpha[..., None]], axis=2)
+
+
+def binarise(src_alpha, mean_alpha, n):
+    """Pick the binary alpha that best keeps the tile's opaque fraction.
+
+    Thresholding the box average eats thin detail, since a two texel sugar cane
+    stalk straddles every block boundary and averages to exactly half. Point
+    sampling keeps such a stalk but aliases denser art, so both are tried and
+    whichever lands closest to the source coverage wins.
+    """
+    target = (src_alpha == 255).mean()
+    f = src_alpha.shape[0] // n
+
+    best = np.where(mean_alpha >= 128.0, 255.0, 0.0)
+    err = abs((best > 0).mean() - target)
+    for dy in range(f):
+        for dx in range(f):
+            cand = np.where(src_alpha[dy::f, dx::f] == 255, 255.0, 0.0)
+            e = abs((cand > 0).mean() - target)
+            if e < err:
+                best, err = cand, e
+    return best
+
+
+def match_moments(tile, ref):
+    """Recolour greyscale art onto the shipped tile's per-channel mean and spread.
+
+    The shipped cell is the only record of what the renderer and the fog were tuned
+    against, so matching its moments keeps that colour and its contrast while taking
+    the modern wave shapes. Alpha is matched too, since a flat colour under a varying
+    alpha reads as speckle once the mip levels average the colour away.
+    """
+    lum = tile[..., :3].mean(axis=2)
+    sd = lum.std()
+    z = (lum - lum.mean()) / sd if sd > 1e-6 else np.zeros_like(lum)
+    out = ref.mean(axis=(0, 1)) + z[..., None] * ref.std(axis=(0, 1))
+    return np.clip(out, 0.0, 255.0)
 
 
 def first_frame(a):
@@ -73,15 +116,20 @@ def build(base_png, src_dir, out_png):
             continue
         tile = resize(first_frame(load(os.path.join(src_dir, name + ".png"))), TILE)
         if (col, row) in WATER_CELLS:
-            # Keep the original alpha so the water layer's blending is unchanged.
-            tile = np.concatenate(
-                [bake(tile[..., :3], WATER_RGB), atlas[y:y + TILE, x:x + TILE, 3:4]], axis=2)
+            tile = match_moments(tile, atlas[y:y + TILE, x:x + TILE])
         atlas[y:y + TILE, x:x + TILE] = tile
         used += 1
 
     Image.fromarray(np.clip(atlas, 0, 255).astype(np.uint8), "RGBA").save(out_png)
     print("%s  %d cells replaced, %d kept" % (out_png, used, kept))
     return atlas
+
+
+def build_anim(src_dir, name, out_png):
+    """Pass an animation strip through as RGBA; the engine plays a frame per tick."""
+    a = load(os.path.join(src_dir, name + ".png"))
+    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGBA").save(out_png)
+    print("%s  %d frames" % (out_png, a.shape[0] // a.shape[1]))
 
 
 def build_mip(atlas, n, out_png):
@@ -100,3 +148,4 @@ if __name__ == "__main__":
     a = build(base, src, os.path.join(outdir, "terrain.png"))
     build_mip(a, 8, os.path.join(outdir, "terrainMipMapLevel2.png"))
     build_mip(a, 4, os.path.join(outdir, "terrainMipMapLevel3.png"))
+    build_anim(src, "nether_portal", os.path.join(outdir, "portal.png"))
