@@ -50,18 +50,18 @@ jobs:
           # months later "which build is this?" is answerable from the stick
           # itself, and a bug report can carry the commit that produced it.
           {
-            echo "MCPSP $VERSION"
+            echo "Deepslate $VERSION"
             echo "commit:  $GITHUB_SHA"
             echo "built:   $(date -u '+%Y-%m-%d %H:%M UTC')"
           } > build/version.txt
-          mv build MCPSP
-          zip -r "MCPSP-$VERSION.zip" MCPSP
+          mv build Deepslate
+          zip -r "Deepslate-$VERSION.zip" Deepslate
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MCPSP-${{ env.VERSION }}
-          path: MCPSP-${{ env.VERSION }}.zip
+          name: Deepslate-${{ env.VERSION }}
+          path: Deepslate-${{ env.VERSION }}.zip
       - name: Move "latest" tag
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         run: |
@@ -73,7 +73,7 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          files: MCPSP-${{ env.VERSION }}.zip
+          files: Deepslate-${{ env.VERSION }}.zip
           target_commitish: ${{ github.sha }}
           tag_name: ${{ env.VERSION }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
