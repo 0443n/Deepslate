@@ -235,7 +235,6 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
     const int ccz = (int)floorf(camZ) >> 4;
 
     if (!worldChunkInBounds(ccx, ccz) || !worldChunkSettled(w, ccx, ccz)) return false;
-    if (worldSlotBusy(worldSlot(w, ccx, ccz))) return false;
 
     int csi = (int)floorf(camY) / SECTION_SY;
     if (csi < 0) csi = 0; else if (csi >= N_SECTIONS) csi = N_SECTIONS - 1;
@@ -250,10 +249,13 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
 
     while (head < tail) {
         const VisNode n = s_visQ[head++];
-        ChunkMesh*    c = &w->chunks[worldSlotIndex(w, n.cx, n.cz)];
+        const int     ci = worldSlotIndex(w, n.cx, n.cz);
+        ChunkMesh*    c = &w->chunks[ci];
         ChunkSection* s = &c->sec[n.si];
 
-        if (sectionVisible(c, s)) {
+        // A chunk mid-stage is unsafe to draw but still carries the sight lines to
+        // whatever is behind it, so the walk passes through without recording it.
+        if (!worldSlotBusy(&w->slots[ci]) && sectionVisible(c, s)) {
             s->visStamp = s_stamp;
             visListPush(c, s, n.si, camX, camY, camZ);
         }
@@ -269,7 +271,6 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
             if (!worldChunkInBounds(ncx, ncz) || !worldChunkSettled(w, ncx, ncz)) continue;
 
             const int nci = worldSlotIndex(w, ncx, ncz);
-            if (worldSlotBusy(&w->slots[nci])) continue;
             const int key = nci * N_SECTIONS + nsi;
             if (s_visSeen[key] == s_stamp) continue;
 
