@@ -11,9 +11,6 @@
 #define SECTION_SY  16
 #define N_SECTIONS  (CHUNK_SY / SECTION_SY)
 
-// Generator water table. SEA_SECTION is the first section wholly at or above it.
-#define SEA_LEVEL   64
-#define SEA_SECTION (SEA_LEVEL / SECTION_SY)
 
 enum { BLOCK_AIR = 0,
        BLOCK_STONE = 1, BLOCK_GRASS = 2, BLOCK_DIRT = 3, BLOCK_COBBLESTONE = 4,
