@@ -371,6 +371,11 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     }
     for (int i = 0; i < g_visN; i++) {
         if (g_visList[i].s->vertexCount == 0) continue;
+#if BIND_PROBE
+        // Prices one texture bind per section, the cost a per-tile atlas would add.
+        { extern void textureBindLastBoundReset();
+          if (terrain) { textureBindLastBoundReset(); textureBind(terrain); } }
+#endif
         if (distMip) {
             float lvl = (sqrtf(g_visList[i].d2) - MIP_CRISP_RADIUS) * (1.0f / MIP_BLOCKS_PER_LEVEL);
             if (lvl < 0.0f) lvl = 0.0f; else if (lvl > maxLvl) lvl = maxLvl;
