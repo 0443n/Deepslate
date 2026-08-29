@@ -4,6 +4,7 @@
 #include "world/level/tile/tile.h"
 #include "world/level/tile/tile_behavior.h"
 #include "world/level/tile/fire.h"
+#include "world/level/tile/nether_portal.h"
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
 #include "world/level/level.h"
@@ -183,6 +184,11 @@ bool FlintAndSteelItem::useOn(ItemInstance*, Player* player, World* w, int x, in
     int fx = x + kFaceNeighbor[face][0];
     int fy = y + kFaceNeighbor[face][1];
     int fz = z + kFaceNeighbor[face][2];
+    if (NetherPortal::light(w, fx, fy, fz)) {
+        g_level.playSound(fx + 0.5f, fy + 0.5f, fz + 0.5f, "fire.ignite", 1.0f, 1.0f);
+        if (player) player->inventory->hurtSelected(1);
+        return true;
+    }
     if (worldBlock(w, fx, fy, fz) == BLOCK_AIR && fireMayPlace(w, fx, fy, fz)) {
         firePlace(w, fx, fy, fz);
         g_level.playSound(fx + 0.5f, fy + 0.5f, fz + 0.5f, "fire.ignite", 1.0f, 1.0f);

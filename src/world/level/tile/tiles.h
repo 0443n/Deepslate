@@ -11,7 +11,6 @@ void tileChiseledSandstone(unsigned char data, int f, int* col, int* row);
 void tileSmoothSandstone(unsigned char data, int f, int* col, int* row);
 void tileChiseledQuartz(unsigned char data, int f, int* col, int* row);
 void tilePillarQuartz(unsigned char data, int f, int* col, int* row);
-void tileNetherReactor(unsigned char data, int f, int* col, int* row);
 void tileStonecutter(unsigned char data, int f, int* col, int* row);
 void tileCraftingTable(unsigned char data, int f, int* col, int* row);
 

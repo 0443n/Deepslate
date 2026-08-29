@@ -15,7 +15,6 @@
 #include "world/level/tile/entity/sign_tile_entity.h"
 #include "world/level/tile/entity/chest_tile_entity.h"
 #include "world/level/tile/entity/furnace_tile_entity.h"
-#include "world/level/tile/entity/reactor_tile_entity.h"
 #include "world/inventory/inventory.h"
 #include "world/item/item_instance.h"
 #include "client/player/player_state.h"
@@ -32,6 +31,7 @@
 #endif
 #include <cstring>
 #include <string>
+#include <pspiofilemgr.h>
 
 static const int STORAGE_VERSION = 3;
 
@@ -44,6 +44,7 @@ static char s_activeName[64] = "World";
 static long s_activeSeed = 0;
 static int  s_activeGameType = 1;
 static int  s_activeWorldType = WORLD_TYPE_OLD;
+static int  s_activeDim = DIM_OVERWORLD;
 static int  s_activeGenMask = GEN_FEATURES_ALL_ON;
 
 extern bool g_saveShowProgress;
@@ -187,6 +188,7 @@ static bool saveLevelDat(World* w, const char* absDir, long seed, int gameType, 
     root.putString("LevelName", levelName ? levelName : "World");
     root.putInt("StorageVersion", STORAGE_VERSION);
     root.putInt("Platform", 2);
+    root.putInt("Dimension", s_activeDim);
     root.putCompound("Player", buildPlayerTag(w));
 
     MemWriter mw;
@@ -243,6 +245,7 @@ static void loadLevelDat(World* w, const char* absDir, long* outSeed, int* outGa
             if (tag) {
                 if (outSeed)     *outSeed = (long)tag->getLong("RandomSeed");
                 if (outGameType) *outGameType = tag->getInt("GameType");
+                s_activeDim = tag->contains("Dimension") ? tag->getInt("Dimension") : DIM_OVERWORLD;
                 w->dayTime = (long)tag->getLong("Time");
 
                 if (tag->contains("SpawnY")) {
@@ -349,7 +352,6 @@ static const char* tileEntityName(int type) {
     if (type == TE_SIGN)    return "Sign";
     if (type == TE_CHEST)   return "Chest";
     if (type == TE_FURNACE) return "Furnace";
-    if (type == TE_REACTOR) return "NetherReactor";
     return "";
 }
 
@@ -400,7 +402,6 @@ static TileEntity* createTileEntityByName(const std::string& id) {
     if (id == "Sign")    return new SignTileEntity();
     if (id == "Chest")   return new ChestTileEntity();
     if (id == "Furnace") return new FurnaceTileEntity();
-    if (id == "NetherReactor") return new ReactorTileEntity();
     return NULL;
 }
 
@@ -471,11 +472,49 @@ bool save(World* w, const char* absDir, long seed, int gameType, const char* lev
             for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].dirty = true;
         }
     }
-    chunkStorageInit(absDir);
+    char cdir[320];
+    dimDir(cdir, sizeof(cdir), absDir, s_activeDim);
+    chunkStorageInit(cdir);
     saveChunks(w, !fullSave);
     bool ok = saveLevelDat(w, absDir, seed, gameType, levelName);
-    saveEntities(w, absDir);
+    saveEntities(w, cdir);
     return ok;
+}
+
+int  getActiveDim() { return s_activeDim; }
+void setActiveDim(int dim) { s_activeDim = dim; }
+
+void dimDir(char* out, int cap, const char* absDir, int dim) {
+    if (dim == DIM_OVERWORLD) { snprintf(out, cap, "%s", absDir); return; }
+    snprintf(out, cap, "%.300s/DIM-%d", absDir, dim);
+    sceIoMkdir(out, 0777);
+}
+
+bool saveDimension(World* w) {
+    char cdir[320];
+    dimDir(cdir, sizeof(cdir), s_activeDir, s_activeDim);
+    chunkStorageInit(cdir);
+    saveChunks(w, false);
+    saveEntities(w, cdir);
+    return true;
+}
+
+bool loadDimension(World* w, int centreCx, int centreCz) {
+    char cdir[320];
+    dimDir(cdir, sizeof(cdir), s_activeDir, s_activeDim);
+    if (!chunkStorageHasSave(cdir)) return false;
+    if (!worldAllocArrays(w)) return false;
+
+    chunkStorageInit(cdir);
+    loadChunks(w, centreCx, centreCz);
+    g_terrainProgress = 60;
+    worldScheduleLoadedTicks(w);
+    lightCompactAll(w);
+    g_terrainProgress = 100;
+    w->lightReady = true;
+    worldUpdateSkyDarken(w);
+    loadEntities(w, cdir);
+    return true;
 }
 
 bool loadedValidPlayerPos() { return g_loadedPlayerPos; }
@@ -516,7 +555,9 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
     if (levelSourceFor(s_activeWorldType).supportsGenFeatures())
         worldGenInit(outSeed ? *outSeed : 0, s_activeGenMask);
 
-    chunkStorageInit(absDir);
+    char cdir[320];
+    dimDir(cdir, sizeof(cdir), absDir, s_activeDim);
+    chunkStorageInit(cdir);
 
     loadChunks(w, Mth::floor(g_level.player->x) >> 4, Mth::floor(g_level.player->z) >> 4);
     g_terrainProgress = 60;
@@ -528,7 +569,7 @@ bool load(World* w, const char* absDir, long* outSeed, int* outGameType) {
     w->lightReady = true;
 
     worldUpdateSkyDarken(w);
-    loadEntities(w, absDir);
+    loadEntities(w, cdir);
     return true;
 }
 

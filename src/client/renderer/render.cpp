@@ -22,7 +22,6 @@
 #include "client/renderer/entity/player_model.h"
 #include "client/renderer/particle.h"
 #include "world/level/storage/level_storage.h"
-#include "world/entity/tripod_camera.h"
 #include "util/prof.h"
 #include "platform/time.h"
 #include <cstring>
@@ -55,6 +54,11 @@ float g_viewDist = WORLD_VIEW_DIST;
 static const float DEG2RAD = 3.14159265f / 180.0f;
 
 #include "client/renderer/water_anim.h"
+#include "client/renderer/portal_anim.h"
+#include "world/level/dimension.h"
+
+extern void worldViewDistReset(void);
+#include "platform/audio/sound.h"
 #include "client/gui/gen_screen.h"
 #include "client/gui/hud.h"
 #include "client/gui/inventory_ui.h"
@@ -102,7 +106,8 @@ static bool loadTexVram(Texture* out, const char* rel, int psm) {
 float g_camX = 0.0f, g_camY = 0.0f, g_camZ = 0.0f;
 float g_nearZPlane = 0.25f;
 
-enum WorldGenStage { GS_IDLE, GS_SHOW, GS_TERRAIN, GS_TERRAIN_WAIT, GS_MESHING };
+enum WorldGenStage { GS_IDLE, GS_SHOW, GS_TERRAIN, GS_TERRAIN_WAIT, GS_MESHING,
+                     GS_DIM_SHOW, GS_DIM_BUILD };
 
 static volatile bool g_worldAllocFailed = false;
 static WorldGenStage g_genStage = GS_IDLE;
@@ -216,6 +221,9 @@ static void updateDayColors(float alpha) {
 
         }
     }
+
+    if (unsigned int fixed = activeLevelSource().fixedSkyColor())
+        g_skyColorNow = g_skyDomeColorNow = g_cloudColorNow = fixed;
 }
 
 static inline int skyMoonPhase() {
@@ -719,6 +727,7 @@ static void renderCloudsFancy(float alpha, float px, float py, float pz) {
 }
 
 static void renderCloudPass(float a, float px, float py, float pz) {
+    if (activeLevelSource().fixedSkyColor()) return;
     sceGumMatrixMode(GU_MODEL);
     sceGumLoadIdentity();
     sceGuEnable(GU_FOG);
@@ -1054,6 +1063,11 @@ static void renderSelectionOutline(float ex, float ey, float ez) {
     sceGuEnable(GU_TEXTURE_2D);
 }
 
+// Set for the one frame that captures the save thumbnail, so the HUD, the hand
+// and the overlay screens stay out of it.
+bool g_iconShotPending = false;
+char g_iconShotPath[320] = {0};
+
 bool gameProgressScreenUp() { return g_saveRequested || !g_worldBuilt; }
 
 void gameRender(MenuState& s) {
@@ -1061,17 +1075,15 @@ void gameRender(MenuState& s) {
     profBegin(PROF_GPRE);
 
     static bool s_iconShotDone = false;
-    if (g_worldBuilt && g_saveRequested && !s_iconShotDone && !g_photoPending) {
+    if (g_worldBuilt && g_saveRequested && !s_iconShotDone && !g_iconShotPending) {
         s_iconShotDone = true;
         const char* iconDir = LevelStorage::getActiveDir();
         if (iconDir && iconDir[0] != '\0') {
-            snprintf(g_photoIconPath, sizeof(g_photoIconPath), "%s/icon.png", iconDir);
-            g_photoPending = true;
-            g_photoIsIcon  = true;
-
+            snprintf(g_iconShotPath, sizeof(g_iconShotPath), "%s/icon.png", iconDir);
+            g_iconShotPending = true;
         }
     }
-    if (g_worldBuilt && g_saveRequested && !g_photoPending) {
+    if (g_worldBuilt && g_saveRequested && !g_iconShotPending) {
         static int saveStage = 0;
         struct SaveArgs { World* w; long seed; int gamemode; char dir[320]; char name[64]; };
         static SaveArgs sArgs;
@@ -1130,8 +1142,45 @@ void gameRender(MenuState& s) {
         }
         return;
     }
+    if (g_dimSwapTarget >= 0 && g_worldBuilt) {
+        soundStopAll();
+        worldViewDistReset();
+        dimensionSwapTearDown(&g_world);
+        g_worldBuilt = false;
+        g_genStage = GS_DIM_SHOW;
+    }
     if (!g_worldBuilt) {
-        if (g_genStage == GS_IDLE) { g_genStage = GS_SHOW; g_worldAllocFailed = false; }
+        if (g_genStage == GS_IDLE) {
+            g_genStage = GS_SHOW;
+            g_worldAllocFailed = false;
+            worldViewDistReset();
+        }
+
+        if (g_genStage == GS_DIM_SHOW) {
+            drawGeneratingScreen(s, 0, "Entering portal");
+            g_genStage = GS_DIM_BUILD;
+            return;
+        }
+        if (g_genStage == GS_DIM_BUILD) {
+            g_loadedFromDisk = false;
+            g_genPhase = 0;
+            g_terrainProgress = 0;
+            g_terrainThreadDone = false;
+            int thid = sceKernelCreateThread("dim_swap", [](SceSize, void*) -> int {
+                if (!dimensionSwapBuild(&g_world)) g_worldAllocFailed = true;
+                g_terrainThreadDone = true;
+                sceKernelExitDeleteThread(0);
+                return 0;
+            }, 0x22, 0x10000, 0, 0);
+            if (thid >= 0) sceKernelStartThread(thid, 0, 0);
+            else {
+                if (!dimensionSwapBuild(&g_world)) g_worldAllocFailed = true;
+                g_terrainThreadDone = true;
+            }
+            g_genStage = GS_TERRAIN_WAIT;
+            drawGeneratingScreen(s, 0, "Entering portal");
+            return;
+        }
 
         if (g_genStage == GS_SHOW) {
 
@@ -1243,13 +1292,15 @@ void gameRender(MenuState& s) {
             return;
         }
         if (g_genStage == GS_TERRAIN_WAIT) {
-            const char* status = g_loadedFromDisk ? "Loading world"
+            const char* status = g_dimSwapping ? "Entering portal"
+                               : g_loadedFromDisk ? "Loading world"
                                : (g_genPhase == 1 ? "Saving chunks" : "Building terrain");
 
             drawGeneratingScreen(s, g_terrainProgress * 90 / 100, status);
             if (g_terrainThreadDone && g_worldAllocFailed) {
 
                 g_worldAllocFailed = false;
+                g_dimSwapping = false;
                 g_genStage = GS_IDLE;
                 g_worldBuilt = false;
                 s.screen = SCREEN_WORLDS;
@@ -1273,7 +1324,11 @@ void gameRender(MenuState& s) {
                 extern int g_autosaveTick; g_autosaveTick = 0;
                 particlesReset();
                 bool freshWorld = !(g_loadedFromDisk && LevelStorage::loadedValidPlayerPos());
-                if (!freshWorld) {
+                if (g_dimSwapping) {
+
+                    g_dimSwapping = false;
+                    playerSpawnAt(g_level.player->y);
+                } else if (!freshWorld) {
 
                     playerSpawnAt(g_level.player->y);
                 } else {
@@ -1340,11 +1395,6 @@ void gameRender(MenuState& s) {
         }
     }
 
-    if (g_photoPending && !g_photoIsIcon) {
-        ix = g_photoX; iy = g_photoY; iz = g_photoZ;
-        iyaw = g_photoYaw; ipitch = g_photoPitch;
-    }
-
     float px0 = ix, py0 = iy, pz0 = iz;
 
     float bs = 0.0f, bc = 0.0f;
@@ -1374,7 +1424,7 @@ void gameRender(MenuState& s) {
 
     extern bool g_thirdPerson;
 
-    bool thirdNow = g_thirdPerson && !g_level.player->isSleeping() && !g_photoPending;
+    bool thirdNow = g_thirdPerson && !g_level.player->isSleeping() && !g_iconShotPending;
     float camBack = 0.0f;
     if (thirdNow) {
         float best = 4.0f;
@@ -1560,9 +1610,11 @@ void gameRender(MenuState& s) {
         skyBackdrop(g_skyColorNow);
         renderSky(px0, py0, pz0);
 
-        renderSunOrMoon(a, true,  px0, py0, pz0);
-        renderSunOrMoon(a, false, px0, py0, pz0);
-        renderStars(a, px0, py0, pz0);
+        if (!activeLevelSource().fixedSkyColor()) {
+            renderSunOrMoon(a, true,  px0, py0, pz0);
+            renderSunOrMoon(a, false, px0, py0, pz0);
+            renderStars(a, px0, py0, pz0);
+        }
         sceGumMatrixMode(GU_PROJECTION);
         sceGumPopMatrix();
 
@@ -1574,8 +1626,10 @@ void gameRender(MenuState& s) {
 
     loadWorldView(ex, ey, ez, ctrX, ctrY, ctrZ, roll, g_relBaseX, g_relBaseY, g_relBaseZ);
 
-    if (g_animateTextures)
+    if (g_animateTextures) {
         animateWaterTexture();
+        animatePortalTexture();
+    }
 
     if (g_haveTerrain) {
 
@@ -1656,8 +1710,7 @@ void gameRender(MenuState& s) {
 
     extern bool g_thirdPerson;
 
-    if ((g_photoPending && !g_photoIsIcon) ||
-        (g_thirdPerson && !(g_level.player && g_level.player->isSleeping())))
+    if (g_thirdPerson && !(g_level.player && g_level.player->isSleeping()))
         playerModelRender(a);
 
     guListSync();
@@ -1703,7 +1756,7 @@ void gameRender(MenuState& s) {
 
     profBegin(PROF_GHAND);
     if (!g_thirdPerson && g_level.player && g_level.player->health > 0 &&
-        !g_level.player->isSleeping() && !g_photoPending && !g_hideGui) {
+        !g_level.player->isSleeping() && !g_iconShotPending && !g_hideGui) {
         itemHandDraw(a, bs, bc);
     }
     profEnd(PROF_GHAND);
@@ -1735,7 +1788,7 @@ void gameRender(MenuState& s) {
     if (g_worldBuilt && g_level.player && g_level.player->isSleeping())
         inBedRenderFade(s);
 
-    if (g_worldBuilt && !g_photoPending && !g_hideGui) {
+    if (g_worldBuilt && !g_iconShotPending && !g_hideGui) {
         if (g_invOpen) inventoryDraw(s);
         hotbarDraw(s);
     }

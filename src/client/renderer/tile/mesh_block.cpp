@@ -150,6 +150,35 @@ int emitCross(ChunkVertex* out, int n, int gx, int y, int gz, unsigned char id,
     return n;
 }
 
+int emitPortal(ChunkVertex* out, int n, int gx, int y, int gz, unsigned char id,
+               unsigned char data, unsigned int bright) {
+    int col, row; unsigned int tint;
+    tileForBlock(id, data, 0, &col, &row, &tint);
+
+    const float HT = TILE_UV / 32.0f;
+    float u0 = col * TILE_UV + HT, v0 = row * TILE_UV + HT;
+    float u1 = (col + 1) * TILE_UV - HT, v1 = (row + 1) * TILE_UV - HT;
+    const float UV[4][2] = { {u0, v0}, {u0, v1}, {u1, v1}, {u1, v0} };
+    unsigned int color = mulColor(bright, tint);
+
+    float yb = (float)y, yt = (float)y + 1.0f;
+    float P[4][3];
+    if ((data & PORTAL_AXIS_MASK) == PORTAL_AXIS_X) {
+        float pz = gz + 0.5f;
+        P[0][0] = (float)gx;       P[0][1] = yt; P[0][2] = pz;
+        P[1][0] = (float)gx;       P[1][1] = yb; P[1][2] = pz;
+        P[2][0] = (float)gx + 1.f; P[2][1] = yb; P[2][2] = pz;
+        P[3][0] = (float)gx + 1.f; P[3][1] = yt; P[3][2] = pz;
+    } else {
+        float px = gx + 0.5f;
+        P[0][0] = px; P[0][1] = yt; P[0][2] = (float)gz;
+        P[1][0] = px; P[1][1] = yb; P[1][2] = (float)gz;
+        P[2][0] = px; P[2][1] = yb; P[2][2] = (float)gz + 1.f;
+        P[3][0] = px; P[3][1] = yt; P[3][2] = (float)gz + 1.f;
+    }
+    return writeQuadDouble(out, n, P, UV, color);
+}
+
 int emitCropRows(ChunkVertex* out, int n, int gx, int y, int gz, unsigned char id,
                   unsigned char data, unsigned int bright) {
     int col, row; unsigned int tint;
@@ -265,7 +294,8 @@ static inline bool isNoMipLayerId(unsigned char id) {
     return isCrossShaped(id) || id == BLOCK_WHEAT || id == BLOCK_MELON_STEM
         || id == BLOCK_FIRE || isLadder(id) || id == BLOCK_BED || isTorch(id)
         || isPane(id) || isDoor(id) || isTrapdoor(id)
-        || id == BLOCK_CACTUS || isGlass(id) || id == BLOCK_CAKE;
+        || id == BLOCK_CACTUS || isGlass(id) || id == BLOCK_CAKE
+        || id == BLOCK_PORTAL;
 }
 
 bool sectionCannotEmit(const World* w, int ox, int oz, int si) {
@@ -417,6 +447,13 @@ int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, i
             if (out && n + 24 > cap) return -1;
             if (out) emitCross(out, n, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[LLB(gx, y, gz)]);
             n += 24;
+            continue;
+        }
+
+        if (layer == 3 && id == BLOCK_PORTAL) {
+            if (out && n + 12 > cap) return -1;
+            if (out) emitPortal(out, n, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[LLB(gx, y, gz)]);
+            n += 12;
             continue;
         }
 
@@ -663,6 +700,13 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
             if (!sinkReserve(&sk, 3, 24)) return -1;
             emitCross(sk.buf[3], nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
             nn += 24;
+            continue;
+        }
+
+        if (id == BLOCK_PORTAL) {
+            if (!sinkReserve(&sk, 3, 12)) return -1;
+            emitPortal(sk.buf[3], nn, gx, y, gz, id, worldData(w, gx, y, gz), g_brightColor[lightLazy(w, llc, base, gx, y, gz)]);
+            nn += 12;
             continue;
         }
 

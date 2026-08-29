@@ -55,7 +55,9 @@ enum { BLOCK_AIR = 0,
        BLOCK_CACTUS = 81,
        BLOCK_CLAY = 82,
        BLOCK_REEDS = 83,
-       BLOCK_FENCE = 85, BLOCK_NETHERRACK = 87, BLOCK_GLOWSTONE = 89,
+       BLOCK_FENCE = 85, BLOCK_NETHERRACK = 87, BLOCK_SOUL_SAND = 88,
+       BLOCK_GLOWSTONE = 89,
+       BLOCK_PORTAL = 90,
        BLOCK_CAKE = 92,
 
        BLOCK_INVISIBLE_BEDROCK = 95,
@@ -70,7 +72,7 @@ enum { BLOCK_AIR = 0,
 
        BLOCK_WOOD_SLAB_DOUBLE = 157, BLOCK_WOOD_SLAB = 158,
 
-       BLOCK_STONECUTTER = 245, BLOCK_GLOWING_OBSIDIAN = 246, BLOCK_NETHER_REACTOR = 247,
+       BLOCK_STONECUTTER = 245, BLOCK_GLOWING_OBSIDIAN = 246,
 
        BLOCK_UPDATE1 = 248, BLOCK_UPDATE2 = 249 };
 enum { WOOL_COLORS = 16 };
@@ -183,6 +185,9 @@ static inline bool isCrossShaped(unsigned char id) {
            id == BLOCK_TALLGRASS ||
            id == BLOCK_COBWEB;
 }
+
+// Which way the portal plane runs. The frame's obsidian sits along the same axis.
+enum { PORTAL_AXIS_X = 0, PORTAL_AXIS_Z = 1, PORTAL_AXIS_MASK = 1 };
 
 static inline bool isLeaf(unsigned char id) { return id == BLOCK_LEAVES; }
 static inline bool isLog(unsigned char id) { return id == BLOCK_LOG; }

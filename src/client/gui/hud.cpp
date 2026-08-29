@@ -145,6 +145,7 @@ static short guiBlockIcon(short id) {
         case BLOCK_SNOW_BLOCK: return 51;
         case BLOCK_TOPSNOW: return 52;
         case BLOCK_NETHERRACK: return 20;
+        case BLOCK_SOUL_SAND: return 55;
         case BLOCK_GLOWSTONE: return 54;
         case BLOCK_NETHER_BRICK: return 19;
         case BLOCK_TNT: return 65;
@@ -155,7 +156,6 @@ static short guiBlockIcon(short id) {
         case BLOCK_CRAFTING_TABLE: return 61;
         case BLOCK_FURNACE: case BLOCK_FURNACE_LIT: return 64;
         case BLOCK_CHEST: return 63;
-        case BLOCK_NETHER_REACTOR: return 55;
         case BLOCK_CACTUS: return 66;
         case BLOCK_REEDS: return 138;
         case BLOCK_FLOWER: return 134;
@@ -373,7 +373,6 @@ const char* getBlockName(short id, unsigned char data) {
             case ITEM_SHEARS: return "Shears";
             case ITEM_COMPASS: return "Compass";
             case ITEM_CLOCK: return "Clock";
-            case ITEM_CAMERA: return "Camera";
 
             case ITEM_HELMET_CLOTH: return "Leather Cap";
             case ITEM_CHESTPLATE_CLOTH: return "Leather Tunic";
@@ -509,6 +508,7 @@ const char* getBlockName(short id, unsigned char data) {
         case BLOCK_NETHER_BRICK: return "Nether Bricks";
 
         case BLOCK_NETHERRACK: return "Netherrack";
+        case BLOCK_SOUL_SAND: return "Soul Sand";
         case BLOCK_STAIRS_COBBLESTONE: return "Cobblestone Stairs";
         case BLOCK_STAIRS_PLANKS: return "Wooden Stairs";
         case BLOCK_STAIRS_BRICK: return "Brick Stairs";
@@ -566,7 +566,7 @@ const char* getBlockName(short id, unsigned char data) {
         case BLOCK_FENCE_GATE: return "Fence Gate";
 
         case BLOCK_GLOWSTONE: return "Glowstone";
-        case BLOCK_NETHER_REACTOR: return "Nether Reactor Core";
+        case BLOCK_PORTAL: return "Nether Portal";
         case BLOCK_WOOL: {
             switch (data & 0xF) {
                 case 0: return "White Wool";
@@ -736,6 +736,7 @@ const char* getBlockDescription(short id, unsigned char data) {
         case BLOCK_LOG: return "Chopped using an axe, and can be crafted into planks or used as a fuel.";
         case BLOCK_NETHER_BRICK: return "Construction block made from Nether bricks.";
         case BLOCK_NETHERRACK: return "Is a stone material from the Nether.";
+        case BLOCK_SOUL_SAND: return "Drags at your feet. Found in the Nether.";
         case BLOCK_STAIRS_COBBLESTONE: case BLOCK_STAIRS_PLANKS: case BLOCK_STAIRS_BRICK:
         case BLOCK_STAIRS_SANDSTONE: case BLOCK_STAIRS_STONE_BRICK: case BLOCK_STAIRS_NETHER_BRICK:
         case BLOCK_STAIRS_QUARTZ:
@@ -763,7 +764,7 @@ const char* getBlockDescription(short id, unsigned char data) {
         case BLOCK_DOOR_IRON: return "Iron doors can only be opened by Redstone, buttons or switches.";
         case BLOCK_TRAPDOOR: return "Work like normal doors, but are a one by one block and lay flat on the ground.";
         case BLOCK_GLOWSTONE: return "Used to create brighter light than torches. Melts snow/ice and can be used underwater.";
-        case BLOCK_NETHER_REACTOR: return "Core of the Nether Reactor";
+        case BLOCK_PORTAL: return "Formed inside an obsidian frame lit with Flint and Steel.";
         case BLOCK_WOOL: return "Collected from sheep, and can be colored with dyes.";
         case BLOCK_BOOKSHELF: return "Used as decoration.";
         case BLOCK_CRAFTING_TABLE: return "Allows you to craft a more varied selection of items than the normal crafting.";
@@ -1135,8 +1136,8 @@ struct HintDepthOff {
 void gameHintsDraw(MenuState& s) {
     HintDepthOff depthOff;
 
-    extern bool g_photoPending;
-    if (g_photoPending) return;
+    extern bool g_iconShotPending;
+    if (g_iconShotPending) return;
     extern bool g_paused, g_deadScreen, g_optionsOpen;
     if (g_paused || g_deadScreen || g_signEditing) return;
 

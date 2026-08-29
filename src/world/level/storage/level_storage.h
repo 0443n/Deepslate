@@ -7,6 +7,8 @@
 
 struct World;
 
+enum { DIM_OVERWORLD = 0, DIM_NETHER = 1 };
+
 namespace LevelStorage {
 
 bool hasSave(const char* absDir);
@@ -30,6 +32,17 @@ int getActiveGameType();
 int getActiveWorldType();
 int getActiveGenMask();
 const char* getActiveName();
+
+int  getActiveDim();
+void setActiveDim(int dim);
+
+// Where one dimension's chunks and entities live. level.dat belongs to the whole
+// world and always stays at the root.
+void dimDir(char* out, int cap, const char* absDir, int dim);
+
+// Chunks and entities only, for swapping dimensions without disturbing level.dat.
+bool saveDimension(World* w);
+bool loadDimension(World* w, int centreCx, int centreCz);
 
 }
 

@@ -3,7 +3,6 @@
 #include "world/level/tile/entity/sign_tile_entity.h"
 #include "world/level/tile/entity/chest_tile_entity.h"
 #include "world/level/tile/entity/furnace_tile_entity.h"
-#include "world/level/tile/entity/reactor_tile_entity.h"
 #include "nbt/compound_tag.h"
 
 namespace TileEntityFactory {
@@ -13,7 +12,6 @@ TileEntity* createTileEntity(int type) {
         case TE_SIGN:    return new SignTileEntity();
         case TE_CHEST:   return new ChestTileEntity();
         case TE_FURNACE: return new FurnaceTileEntity();
-        case TE_REACTOR: return new ReactorTileEntity();
     }
     return 0;
 }

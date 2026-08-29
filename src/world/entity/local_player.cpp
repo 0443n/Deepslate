@@ -9,6 +9,12 @@
 #include "client/renderer/item_hand.h"
 #include "client/renderer/particle.h"
 #include "world/level/tile/redstone_ore.h"
+#include "world/level/dimension.h"
+#include "world/level/storage/level_storage.h"
+#include "util/mth.h"
+
+// Roughly two seconds of standing still, matching the pause vanilla gives you.
+#define PORTAL_TRAVEL_TICKS 40
 #include <cmath>
 #include <cstdlib>
 #include <pspctrl.h>
@@ -172,6 +178,19 @@ void LocalPlayer::aiStep(unsigned int btn, unsigned char lx, unsigned char ly,
     walkDistO = walkDist;
     float wx0 = x, wz0 = z;
     travel(xs, yf);
+
+    {
+        const int bx = Mth::floor(x), bz = Mth::floor(z);
+        const int feet = Mth::floor(y - PLAYER_EYE + 0.2f);
+        bool inPortal = worldBlock(&g_world, bx, feet, bz) == BLOCK_PORTAL ||
+                        worldBlock(&g_world, bx, Mth::floor(y), bz) == BLOCK_PORTAL;
+        if (!inPortal) { portalIgnore = false; portalTime = 0; }
+        else if (!portalIgnore && ++portalTime >= PORTAL_TRAVEL_TICKS) {
+            portalTime = 0;
+            dimensionRequest(LevelStorage::getActiveDim() == DIM_OVERWORLD
+                                 ? DIM_NETHER : DIM_OVERWORLD);
+        }
+    }
 
     float wdx = x - wx0, wdz = z - wz0;
     float distSq = wdx * wdx + wdz * wdz;

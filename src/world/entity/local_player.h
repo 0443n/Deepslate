@@ -19,6 +19,11 @@ public:
 
     int autoJumpTime = 0;
 
+    // Ticks spent standing in a portal. The flag holds off the return trip until
+    // the player steps out of the one they arrived in.
+    int  portalTime = 0;
+    bool portalIgnore = false;
+
     virtual void die(Entity* source);
 
     virtual void doWaterSplashEffect();

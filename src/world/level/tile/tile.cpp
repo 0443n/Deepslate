@@ -2,6 +2,7 @@
 #include "world/level/tile/tile.h"
 #include "world/level/tile/material.h"
 #include "world/level/tile/tiles.h"
+#include "world/level/tile/nether_portal.h"
 #include "world/level/tile/tile_behavior.h"
 #include "world/level/chunk/chunk.h"
 #include "world/level/world.h"
@@ -16,8 +17,6 @@
 #include "world/level/tile/entity/chest_tile_entity.h"
 #include "world/level/tile/entity/furnace_tile_entity.h"
 #include "world/level/tile/entity/sign_tile_entity.h"
-#include "world/level/tile/entity/reactor_tile_entity.h"
-#include "world/level/tile/nether_reactor_pattern.h"
 #include "world/level/tile/redstone_ore.h"
 #include "world/level/tile/fire.h"
 #include "client/gamemode/gamemode.h"
@@ -132,6 +131,7 @@ Drop Tile::getResource(int data) {
         case BLOCK_ICE:
         case BLOCK_ORE_REDSTONE: case BLOCK_ORE_REDSTONE_LIT:
         case BLOCK_MELON_STEM:
+        case BLOCK_PORTAL:
         case BLOCK_BEDROCK:
         case BLOCK_WATER: case BLOCK_CALM_WATER: case BLOCK_LAVA: case BLOCK_CALM_LAVA:
             return { 0, 0, 0 };
@@ -298,6 +298,7 @@ void Tile::getTexture(unsigned char data, int f, int* col, int* row, unsigned in
             }
             break;
         case BLOCK_FIRE:           *col = 15; *row = 1; break;
+        case BLOCK_PORTAL:         *col = 8;  *row = 14; break;
         case BLOCK_FLOWER:         *col = 13; *row = 0; break;
         case BLOCK_ROSE:           *col = 12; *row = 0; break;
         case BLOCK_MUSHROOM_BROWN: *col = 13; *row = 1; break;
@@ -361,6 +362,7 @@ void Tile::getTexture(unsigned char data, int f, int* col, int* row, unsigned in
         case BLOCK_LAPIS_BLOCK:  *col = 0; *row = 9;  break;
         case BLOCK_SNOW_BLOCK:   *col = 2; *row = 4;  break;
         case BLOCK_NETHERRACK:   *col = 7; *row = 6;  break;
+        case BLOCK_SOUL_SAND:    *col = 8; *row = 6;  break;
         case BLOCK_GLOWSTONE:    *col = 9; *row = 6;  break;
         case BLOCK_STAIRS_NETHER_BRICK:
         case BLOCK_NETHER_BRICK: *col = 0; *row = 14; break;
@@ -393,7 +395,6 @@ void Tile::getTexture(unsigned char data, int f, int* col, int* row, unsigned in
                 default:          tileQuartzBlock(data, f, col, row); break;
             }
             break;
-        case BLOCK_NETHER_REACTOR: tileNetherReactor(data, f, col, row); break;
         case BLOCK_FARMLAND:
             if (f == F_TOP) { *col = (data > 0) ? 6 : 7; *row = 5; }
             else { *col = 2; *row = 0; }
@@ -741,17 +742,12 @@ struct WorkbenchTile : Tile { WorkbenchTile(unsigned char i) : Tile(i) {}
         return true;
     } };
 
-struct ReactorTile : Tile { ReactorTile(unsigned char i) : Tile(i) {}
-    void setPlacedBy(World*, int x, int y, int z, Player*) {
-        if (!g_level.getTileEntity(x, y, z)) g_level.setTileEntity(x, y, z, new ReactorTileEntity());
-    }
-    bool use(World*, int x, int y, int z, Player* p) {
-        if (g_gameMode && !g_gameMode->isCreative()) {
-            if (!g_level.getTileEntity(x, y, z))
-                g_level.setTileEntity(x, y, z, new ReactorTileEntity());
-            NetherReactor::use(&g_level, x, y, z, g_level.player);
-        }
-        return true;
+// The frame check is cheap and local, so a broken frame is noticed the moment a
+// neighbour changes. Clearing the plane is iterative, the default cascade would
+// recurse once per portal block.
+struct PortalTile : Tile { PortalTile(unsigned char i) : Tile(i) {}
+    void neighborChanged(World* w, int x, int y, int z) {
+        if (!NetherPortal::framed(w, x, y, z)) NetherPortal::extinguish(w, x, y, z);
     } };
 
 struct HeavyTile : Tile { HeavyTile(unsigned char i) : Tile(i) {}
@@ -926,7 +922,7 @@ static bool rawSolidPhys(unsigned char id) {
 
     if (id == BLOCK_CACTUS) return false;
     if (id == BLOCK_TOPSNOW || id == BLOCK_TORCH) return false;
-    if (id == BLOCK_FIRE) return false;
+    if (id == BLOCK_FIRE || id == BLOCK_PORTAL) return false;
     if (isSign(id)) return false;
     if (id == BLOCK_LADDER) return false;
     return true;
@@ -938,7 +934,7 @@ static bool rawCube(unsigned char id) {
     if (isFence(id) || isFenceGate(id) || isPane(id)) return false;
     if (isStairs(id) || isSlab(id)) return false;
     if (id == BLOCK_TRAPDOOR || isDoor(id) || id == BLOCK_LADDER || id == BLOCK_TORCH || isBed(id)) return false;
-    if (id == BLOCK_FIRE) return false;
+    if (id == BLOCK_FIRE || id == BLOCK_PORTAL) return false;
     if (isSign(id)) return false;
     if (id == BLOCK_CHEST) return false;
     if (id == BLOCK_CAKE) return false;
@@ -950,7 +946,8 @@ static bool rawOpaque(unsigned char id) {
            !isCrossShaped(id) && id != BLOCK_CACTUS && id != BLOCK_TOPSNOW && id != BLOCK_REEDS &&
            !isSlab(id) && !isStairs(id) && id != BLOCK_FENCE && id != BLOCK_LADDER && id != BLOCK_TORCH &&
            !isDoor(id) && !isTrapdoor(id) && !isFenceGate(id) && !isBed(id) && id != BLOCK_FARMLAND &&
-           id != BLOCK_CHEST && !isSign(id) && id != BLOCK_FIRE && id != BLOCK_CAKE;
+           id != BLOCK_CHEST && !isSign(id) && id != BLOCK_FIRE && id != BLOCK_CAKE &&
+           id != BLOCK_PORTAL;
 }
 static bool rawReplaceable(unsigned char id) {
 
@@ -968,13 +965,14 @@ static int rawLightOpacity(unsigned char id) {
         id == BLOCK_GLASS || id == BLOCK_GLASS_PANE ||
         isFence(id) || isStairs(id) || isSlab(id) || isDoor(id) ||
         isTrapdoor(id) || isFenceGate(id) || id == BLOCK_LADDER || id == BLOCK_TORCH || isBed(id) ||
-        id == BLOCK_FARMLAND || isSign(id) || id == BLOCK_FIRE ||
+        id == BLOCK_FARMLAND || isSign(id) || id == BLOCK_FIRE || id == BLOCK_PORTAL ||
         id == BLOCK_CHEST || id == BLOCK_CAKE) return 0;
     return 15;
 }
 static int rawLightEmit(unsigned char id) {
     if (isLavaId(id) || id == BLOCK_GLOWSTONE || id == BLOCK_FIRE) return 15;
     if (id == BLOCK_TORCH) return 14;
+    if (id == BLOCK_PORTAL) return 11;
     if (id == BLOCK_GLOWING_OBSIDIAN) return 13;
 
     if (id == BLOCK_ORE_REDSTONE_LIT) return 9;
@@ -997,7 +995,7 @@ static int rawSoundType(unsigned char id) {
         case BLOCK_DIRT: case BLOCK_GRAVEL: case BLOCK_CLAY: case BLOCK_FARMLAND:
             return SOUND_GRAVEL;
 
-        case BLOCK_SAND:
+        case BLOCK_SAND: case BLOCK_SOUL_SAND:
             return SOUND_SAND;
 
         case BLOCK_WOOL: case BLOCK_TOPSNOW: case BLOCK_SNOW_BLOCK: case BLOCK_CACTUS:
@@ -1005,6 +1003,7 @@ static int rawSoundType(unsigned char id) {
             return SOUND_CLOTH;
 
         case BLOCK_GLASS: case BLOCK_GLASS_PANE: case BLOCK_ICE: case BLOCK_GLOWSTONE:
+        case BLOCK_PORTAL:
             return SOUND_GLASS;
 
         case BLOCK_GOLD_BLOCK: case BLOCK_IRON_BLOCK: case BLOCK_DIAMOND_BLOCK:
@@ -1041,7 +1040,7 @@ static float rawDestroySpeed(int id) {
         case BLOCK_STONE: case BLOCK_STONE_BRICKS: case BLOCK_BOOKSHELF:
         case BLOCK_STAIRS_STONE_BRICK:
             return 1.5f;
-        case BLOCK_DIRT: case BLOCK_SAND:
+        case BLOCK_DIRT: case BLOCK_SAND: case BLOCK_SOUL_SAND:
             return 0.5f;
         case BLOCK_GRASS: case BLOCK_GRAVEL: case BLOCK_CLAY: case BLOCK_FARMLAND:
             return 0.6f;
@@ -1060,7 +1059,7 @@ static float rawDestroySpeed(int id) {
         case BLOCK_ORE_LAPIS: case BLOCK_ORE_EMERALD:
         case BLOCK_ORE_REDSTONE: case BLOCK_ORE_REDSTONE_LIT:
         case BLOCK_LAPIS_BLOCK: case BLOCK_GOLD_BLOCK:
-        case BLOCK_DOOR_WOOD: case BLOCK_TRAPDOOR: case BLOCK_NETHER_REACTOR:
+        case BLOCK_DOOR_WOOD: case BLOCK_TRAPDOOR:
             return 3.0f;
         case BLOCK_IRON_BLOCK: case BLOCK_DIAMOND_BLOCK: case BLOCK_DOOR_IRON:
             return 5.0f;
@@ -1093,6 +1092,7 @@ static float rawDestroySpeed(int id) {
         case BLOCK_SAPLING: case BLOCK_TALLGRASS: case BLOCK_FLOWER: case BLOCK_ROSE:
         case BLOCK_MUSHROOM_BROWN: case BLOCK_MUSHROOM_RED: case BLOCK_TNT:
         case BLOCK_TORCH: case BLOCK_WHEAT: case BLOCK_REEDS: case BLOCK_MELON_STEM:
+        case BLOCK_PORTAL:
             return 0.0f;
         default:
             return 1.0f;
@@ -1134,6 +1134,7 @@ static Tile* makeTile(unsigned char id) {
         case BLOCK_ORE_REDSTONE: case BLOCK_ORE_REDSTONE_LIT:
             return new RedStoneOreTile(id);
         case BLOCK_FIRE:     return new FireTile(id);
+        case BLOCK_PORTAL:   return new PortalTile(id);
         case BLOCK_GRASS:    return new GrassTile(id);
         case BLOCK_LEAVES:   return new LeafTile(id);
         case BLOCK_CACTUS:   return new CactusTile(id);
@@ -1156,8 +1157,6 @@ static Tile* makeTile(unsigned char id) {
             return new FurnaceTile(id);
         case BLOCK_CRAFTING_TABLE: case BLOCK_STONECUTTER:
             return new WorkbenchTile(id);
-        case BLOCK_NETHER_REACTOR:
-            return new ReactorTile(id);
         case BLOCK_LAVA: case BLOCK_CALM_LAVA:
             return new LavaTile(id);
         default: break;

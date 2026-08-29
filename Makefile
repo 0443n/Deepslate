@@ -9,10 +9,13 @@ OBJS = \
 	src/world/entity/local_player.o \
 	src/world/level/tile/tile.o \
 	src/world/level/tile/material.o \
+	src/world/level/tile/nether_portal.o \
+	src/world/level/dimension.o \
 	src/world/level/tile/tile_shapes.o \
 	src/client/renderer/render.o \
 	src/client/renderer/particle.o \
 	src/client/renderer/water_anim.o \
+	src/client/renderer/portal_anim.o \
 	src/client/renderer/item_hand.o \
 	src/client/renderer/item_model.o \
 	src/client/gui/gen_screen.o \
@@ -32,8 +35,6 @@ OBJS = \
 	src/client/gui/screens/screen_pause.o \
 	src/client/gui/screens/screen_dead.o \
 	src/client/gui/screens/screen_inbed.o \
-	src/world/entity/tripod_camera.o \
-	src/client/renderer/entity/tripod_camera_renderer.o \
 	src/world/item/crafting/recipe.o \
 	src/world/item/crafting/recipes.o \
 	src/client/gui/screens/screen_craft.o \
@@ -41,8 +42,6 @@ OBJS = \
 	src/client/gui/screens/screen_furnace.o \
 	src/client/gui/screens/screen_chest.o \
 	src/world/level/tile/entity/furnace_tile_entity.o \
-	src/world/level/tile/entity/reactor_tile_entity.o \
-	src/world/level/tile/nether_reactor_pattern.o \
 	src/client/gui/screens/screen_sign.o \
 	src/gpu/gu.o \
 	src/gpu/texture.o \
@@ -72,7 +71,6 @@ OBJS = \
 	src/world/level/tile/tile_leaves.o \
 	src/world/level/tile/tile_furnace_chest.o \
 	src/world/level/tile/tile_quartz_sandstone.o \
-	src/world/level/tile/tile_reactor.o \
 	src/world/level/tile/tile_stonecutter_crafting.o \
 	src/world/level/tile/entity/tile_entity.o \
 	src/world/level/tile/entity/sign_tile_entity.o \
@@ -162,6 +160,7 @@ OBJS = \
 	src/world/level/levelgen/PerlinNoise.o \
 	src/world/level/levelgen/biome.o \
 	src/world/level/levelgen/mcpegen.o \
+	src/world/level/levelgen/nether_gen.o \
 	src/world/level/levelgen/level_source.o \
 	src/world/level/levelgen/gen_features.o \
 	src/world/level/levelgen/features_common.o \

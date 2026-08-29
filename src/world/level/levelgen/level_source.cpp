@@ -2,6 +2,7 @@
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
 #include "world/level/levelgen/mcpegen.h"
+#include "world/level/levelgen/nether_gen.h"
 #include "world/level/levelgen/gen_features.h"
 #include "world/level/storage/level_storage.h"
 
@@ -50,16 +51,36 @@ public:
     const char* label() const { return "Flat"; }
 };
 
+class NetherLevelSource : public LevelSource {
+public:
+    void buildTerrain(World* w, long seed) {
+        netherGenInit(seed);
+        worldGenerateWindow(w);
+    }
+    void buildChunk(World* w, int cx, int cz) { netherGenerateChunk(w, cx, cz); }
+
+    // The overworld cave and feature passes have nothing to add under a bedrock roof.
+    bool supportsGenFeatures() const { return false; }
+    bool spawnsMobs() const { return false; }
+
+    bool hasBedrockFog() const { return false; }
+    float clearColorScale() const { return 1.0f; }
+    unsigned int fixedSkyColor() const { return 0xFF0A0C25u; }
+    const char* label() const { return "Nether"; }
+};
+
 RandomLevelSource s_random;
 FlatLevelSource   s_flat;
+NetherLevelSource s_nether;
 
 }
 
 LevelSource& levelSourceFor(int worldType) {
-
+    if (worldType == WORLD_TYPE_NETHER) return (LevelSource&)s_nether;
     return (worldType == WORLD_TYPE_FLAT) ? (LevelSource&)s_flat : (LevelSource&)s_random;
 }
 
 LevelSource& activeLevelSource() {
+    if (LevelStorage::getActiveDim() == DIM_NETHER) return (LevelSource&)s_nether;
     return levelSourceFor(LevelStorage::getActiveWorldType());
 }

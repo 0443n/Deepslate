@@ -14,7 +14,6 @@ enum TileEntityRendererId {
 enum TileEntityType {
     TE_CHEST   = 1,
     TE_FURNACE = 2,
-    TE_REACTOR = 3,
     TE_SIGN    = 4
 };
 
