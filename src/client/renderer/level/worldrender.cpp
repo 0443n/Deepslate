@@ -160,6 +160,40 @@ void worldRebuildStep(const World* cw, float camX, float camY, float camZ, float
 
 int g_occlusion = 1;
 
+static int s_nOpaque;
+
+// Called the moment a section is found visible, so nothing has to sweep all 2048
+// afterwards looking for the hundred that were.
+static void visListPush(const ChunkMesh* c, const ChunkSection* s, int si,
+                        float camX, float camY, float camZ) {
+    if (s->vertexCount == 0 && s->noMipCount == 0 &&
+        s->leavesCount == 0 && s->waterCount == 0) return;
+
+    const float dx = c->cx - camX, dz = c->cz - camZ;
+    const float dy = (float)(si * SECTION_SY + SECTION_SY / 2) - camY;
+    const float d2 = dx * dx + dy * dy + dz * dz;
+
+    g_visList[g_visN].d2 = d2;
+    g_visList[g_visN].s  = s;
+    g_visN++;
+    if (s->vertexCount) s_nOpaque++;
+
+    // Interior leaves are dropped by distance at draw time, so the counters
+    // have to apply the same test or they report work the GE never sees.
+    extern int g_fancyGraphics, g_fancyLeaves;
+    const int lv = (g_fancyGraphics && g_fancyLeaves &&
+                    d2 > LEAF_INTERIOR_RADIUS * LEAF_INTERIOR_RADIUS)
+                 ? 0 : s->leavesCount;
+
+    const int op = chunkOpaqueDrawCount(s);
+    const int nm = chunkNoMipDrawCount(s);
+    profAdd(PROFC_DRAWNVERT, op + nm + lv + s->waterCount);
+    profAdd(PROFC_VOPAQUE, op);
+    profAdd(PROFC_VNOMIP,  nm);
+    profAdd(PROFC_VLEAVES, lv);
+    profAdd(PROFC_VWATER,  s->waterCount);
+}
+
 // Advanced Cave Culling, after tomcc 2014. Breadth-first walk outward from the
 // camera's own section. A neighbour is entered only when the visibility mask says
 // the entry face can reach the exit face, and never through a direction already
@@ -201,6 +235,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
     const int ccz = (int)floorf(camZ) >> 4;
 
     if (!worldChunkInBounds(ccx, ccz) || !worldChunkSettled(w, ccx, ccz)) return false;
+    if (worldSlotBusy(worldSlot(w, ccx, ccz))) return false;
 
     int csi = (int)floorf(camY) / SECTION_SY;
     if (csi < 0) csi = 0; else if (csi >= N_SECTIONS) csi = N_SECTIONS - 1;
@@ -218,7 +253,10 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
         ChunkMesh*    c = &w->chunks[worldSlotIndex(w, n.cx, n.cz)];
         ChunkSection* s = &c->sec[n.si];
 
-        if (sectionVisible(c, s)) s->visStamp = s_stamp;
+        if (sectionVisible(c, s)) {
+            s->visStamp = s_stamp;
+            visListPush(c, s, n.si, camX, camY, camZ);
+        }
 
         for (int f = 0; f < 6; f++) {
             if (n.dirs & (1 << (f ^ 1))) continue;
@@ -231,6 +269,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
             if (!worldChunkInBounds(ncx, ncz) || !worldChunkSettled(w, ncx, ncz)) continue;
 
             const int nci = worldSlotIndex(w, ncx, ncz);
+            if (worldSlotBusy(&w->slots[nci])) continue;
             const int key = nci * N_SECTIONS + nsi;
             if (s_visSeen[key] == s_stamp) continue;
 
@@ -296,6 +335,9 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     float maxD2 = drawCull(viewDist) * drawCull(viewDist);
     profEnd(PROF_CEVICT);
 
+    g_visN = 0;
+    s_nOpaque = 0;
+
     profBegin(PROF_CWALK);
     bool walked = g_occlusion && worldWalkVisible(w, camX, camY, camZ, maxD2);
     profEnd(PROF_CWALK);
@@ -306,8 +348,6 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
         if (!w->slots[i].resident || worldSlotBusy(&w->slots[i])) {
             c->drawn = false;
-            // The walk admits a chunk mid-stage, so its stamps have to be taken back.
-            for (int si = 0; si < N_SECTIONS; si++) c->sec[si].visStamp = 0;
             continue;
         }
         float dx = c->cx - camX, dz = c->cz - camZ;
@@ -318,47 +358,16 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         if (dx * dx + dz * dz > maxD2 || !columnVisible(c)) continue;
         for (int si = 0; si < N_SECTIONS; si++) {
             ChunkSection* s = &c->sec[si];
-            if (sectionVisible(c, s)) s->visStamp = s_stamp;
+            if (!sectionVisible(c, s)) continue;
+            s->visStamp = s_stamp;
+            visListPush(c, s, si, camX, camY, camZ);
         }
     }
     profEnd(PROF_CMARK);
     profEnd(PROF_CULL);
 
     profBegin(PROF_CGATHER);
-    g_visN = 0;
-    int nOpaque = 0;
-    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++) {
-        const ChunkMesh* c = &w->chunks[i];
-        float dx = c->cx - camX, dz = c->cz - camZ;
-        for (int si = 0; si < N_SECTIONS; si++) {
-            const ChunkSection* s = &c->sec[si];
-            if (s->visStamp != s_stamp) continue;
-            if (s->vertexCount == 0 && s->noMipCount == 0 &&
-                s->leavesCount == 0 && s->waterCount == 0) continue;
-            float dy = (float)(si * SECTION_SY + SECTION_SY / 2) - camY;
-            const float d2 = dx * dx + dy * dy + dz * dz;
-            g_visList[g_visN].d2 = d2;
-            g_visList[g_visN].s = s;
-            g_visN++;
-            if (s->vertexCount) nOpaque++;
-
-            // Interior leaves are dropped by distance at draw time, so the counters
-            // have to apply the same test or they report work the GE never sees.
-            extern int g_fancyGraphics, g_fancyLeaves;
-            const int lv = (g_fancyGraphics && g_fancyLeaves &&
-                            d2 > LEAF_INTERIOR_RADIUS * LEAF_INTERIOR_RADIUS)
-                         ? 0 : s->leavesCount;
-
-            const int op = chunkOpaqueDrawCount(s);
-            const int nm = chunkNoMipDrawCount(s);
-            profAdd(PROFC_DRAWNVERT, op + nm + lv + s->waterCount);
-            profAdd(PROFC_VOPAQUE, op);
-            profAdd(PROFC_VNOMIP,  nm);
-            profAdd(PROFC_VLEAVES, lv);
-            profAdd(PROFC_VWATER,  s->waterCount);
-        }
-    }
-    profAdd(PROFC_DRAWNSEC, nOpaque);
+    profAdd(PROFC_DRAWNSEC, s_nOpaque);
     qsort(g_visList, g_visN, sizeof(VisSec), cmpVisAsc);
     profEnd(PROF_CGATHER);
 
