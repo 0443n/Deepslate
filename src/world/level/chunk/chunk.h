@@ -308,7 +308,10 @@ struct ChunkSection {
     float        lby0, lby1;
     float        wby0, wby1;
     bool         dirty;
-    bool         visible;
+
+    // Set to the current frame stamp when visible, so nothing has to clear 2048
+    // of these every frame.
+    unsigned short visStamp;
 
     unsigned short visMask;
 

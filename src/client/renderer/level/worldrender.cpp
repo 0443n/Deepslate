@@ -175,8 +175,20 @@ struct VisNode {
 #define VIS_COST_DARK    3
 #define VIS_COST_DEEP    1
 
-static VisNode      s_visQ[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
-static unsigned char s_visSeen[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
+static VisNode       s_visQ[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
+static unsigned short s_visSeen[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
+
+// Frame stamp shared by the walk's seen set and the sections' visible flag. Both
+// used to be wiped every frame, which is 164 KB of cache misses for no result.
+static unsigned short s_stamp = 0;
+
+static void visStampAdvance(World* w) {
+    if (++s_stamp != 0) return;
+    memset(s_visSeen, 0, sizeof s_visSeen);
+    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
+        for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].visStamp = 0;
+    s_stamp = 1;
+}
 
 static const signed char kFaceDX[6] = { -1, 1,  0, 0,  0, 0 };
 static const signed char kFaceDY[6] = {  0, 0, -1, 1,  0, 0 };
@@ -193,17 +205,12 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
     int csi = (int)floorf(camY) / SECTION_SY;
     if (csi < 0) csi = 0; else if (csi >= N_SECTIONS) csi = N_SECTIONS - 1;
 
-    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
-        for (int si = 0; si < N_SECTIONS; si++) w->chunks[i].sec[si].visible = false;
-
-    memset(s_visSeen, 0, sizeof s_visSeen);
-
     int head = 0, tail = 0;
     {
         VisNode* q = &s_visQ[tail++];
         q->cx = (short)ccx; q->cz = (short)ccz;
         q->si = (unsigned char)csi; q->from = VIS_START; q->dirs = 0; q->cost = 0;
-        s_visSeen[worldSlotIndex(w, ccx, ccz) * N_SECTIONS + csi] = 1;
+        s_visSeen[worldSlotIndex(w, ccx, ccz) * N_SECTIONS + csi] = s_stamp;
     }
 
     while (head < tail) {
@@ -211,7 +218,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
         ChunkMesh*    c = &w->chunks[worldSlotIndex(w, n.cx, n.cz)];
         ChunkSection* s = &c->sec[n.si];
 
-        if (sectionVisible(c, s)) s->visible = true;
+        if (sectionVisible(c, s)) s->visStamp = s_stamp;
 
         for (int f = 0; f < 6; f++) {
             if (n.dirs & (1 << (f ^ 1))) continue;
@@ -225,7 +232,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
 
             const int nci = worldSlotIndex(w, ncx, ncz);
             const int key = nci * N_SECTIONS + nsi;
-            if (s_visSeen[key]) continue;
+            if (s_visSeen[key] == s_stamp) continue;
 
             ChunkMesh* nc = &w->chunks[nci];
 
@@ -240,7 +247,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
             if (dx * dx + dz * dz > maxD2) continue;
             if (!sectionBoxVisible(nc, nsi)) continue;
 
-            s_visSeen[key] = 1;
+            s_visSeen[key] = s_stamp;
             VisNode* q = &s_visQ[tail++];
             q->cx = (short)ncx; q->cz = (short)ncz;
             q->si = (unsigned char)nsi;
@@ -271,6 +278,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
     if (!gameFrozen()) worldRebuildStep(w, camX, camY, camZ, viewDist);
 
     profBegin(PROF_CULL);
+    visStampAdvance(w);
     profBegin(PROF_CEVICT);
 
     float keepD2 = (viewDist + 32.0f) * (viewDist + 32.0f);
@@ -298,7 +306,8 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
         if (!w->slots[i].resident || worldSlotBusy(&w->slots[i])) {
             c->drawn = false;
-            for (int si = 0; si < N_SECTIONS; si++) c->sec[si].visible = false;
+            // The walk admits a chunk mid-stage, so its stamps have to be taken back.
+            for (int si = 0; si < N_SECTIONS; si++) c->sec[si].visStamp = 0;
             continue;
         }
         float dx = c->cx - camX, dz = c->cz - camZ;
@@ -306,10 +315,10 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
 
         if (walked) continue;
 
-        bool off = (dx * dx + dz * dz > maxD2 || !columnVisible(c));
+        if (dx * dx + dz * dz > maxD2 || !columnVisible(c)) continue;
         for (int si = 0; si < N_SECTIONS; si++) {
             ChunkSection* s = &c->sec[si];
-            s->visible = off ? false : sectionVisible(c, s);
+            if (sectionVisible(c, s)) s->visStamp = s_stamp;
         }
     }
     profEnd(PROF_CMARK);
@@ -323,7 +332,7 @@ void worldDraw(const World* cw, float camX, float camY, float camZ, float viewDi
         float dx = c->cx - camX, dz = c->cz - camZ;
         for (int si = 0; si < N_SECTIONS; si++) {
             const ChunkSection* s = &c->sec[si];
-            if (!s->visible) continue;
+            if (s->visStamp != s_stamp) continue;
             if (s->vertexCount == 0 && s->noMipCount == 0 &&
                 s->leavesCount == 0 && s->waterCount == 0) continue;
             float dy = (float)(si * SECTION_SY + SECTION_SY / 2) - camY;
