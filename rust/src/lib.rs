@@ -11,11 +11,16 @@
 // taken from the C++ it replaces. The PSP build is no_std.
 #![cfg_attr(target_os = "psp", no_std)]
 
+extern crate alloc;
+
 pub mod biome;
 pub mod blocks;
 pub mod caves;
 pub mod fdlibm;
 pub mod features;
+#[cfg(target_os = "psp")]
+mod heap;
+pub mod mcpegen;
 pub mod mth;
 pub mod noise;
 pub mod random;

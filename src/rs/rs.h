@@ -7,6 +7,8 @@
 extern "C" {
 
 int ds_abi_check(int a, int b, int c, int d);
+void* ds_alloc(int align, int size);
+void ds_free(void* ptr);
 
 }
 

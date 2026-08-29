@@ -109,13 +109,7 @@ fn matches_cpp_vectors() {
             let seed: i64 = head[0].parse().unwrap();
             assert_eq!(head[1].parse::<usize>().unwrap(), levels, "level order");
             let mut rng = Random::new(seed as i32);
-            checked += match levels {
-                2 => check_perlin(PerlinNoise::<2>::new(&mut rng), &mut v),
-                4 => check_perlin(PerlinNoise::<4>::new(&mut rng), &mut v),
-                8 => check_perlin(PerlinNoise::<8>::new(&mut rng), &mut v),
-                10 => check_perlin(PerlinNoise::<10>::new(&mut rng), &mut v),
-                _ => check_perlin(PerlinNoise::<16>::new(&mut rng), &mut v),
-            };
+            checked += check_perlin(PerlinNoise::new(&mut rng, levels), &mut v);
         }
     }
 
@@ -123,7 +117,7 @@ fn matches_cpp_vectors() {
     assert!(checked > 30000, "only {} values checked", checked);
 }
 
-fn check_perlin<const L: usize>(pn: PerlinNoise<L>, v: &mut Vectors) -> usize {
+fn check_perlin(pn: PerlinNoise, v: &mut Vectors) -> usize {
     let mut checked = 0usize;
 
     for i in -4..=4 {

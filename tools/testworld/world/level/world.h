@@ -9,6 +9,8 @@
 
 #include "world/level/chunk/chunk.h"
 
+#include <cstring>
+
 #define WORLD_CHUNKS_X 16
 #define WORLD_CHUNKS_Z 16
 #define WORLD_W (WORLD_CHUNKS_X * CHUNK_SX)
@@ -46,6 +48,27 @@ static inline bool worldCanSeeSky(const World* w, int x, int y, int z) {
 static inline int lightRawAt(const World* w, int x, int y, int z) {
     return worldCanSeeSky(w, x, y, z) ? 15 : 0;
 }
+
+static inline bool blockPut(World* w, int x, int y, int z, unsigned char id) {
+    if (y < 0 || y >= WORLD_H || !worldReady(w, x, z)) return false;
+    w->id[x][y][z] = id;
+    return true;
+}
+
+static inline void blockColumnGet(const World* w, int x, int z, unsigned char* out128) {
+    if (!worldReady(w, x, z)) { memset(out128, BLOCK_INVISIBLE_BEDROCK, WORLD_H); return; }
+    for (int y = 0; y < WORLD_H; y++) out128[y] = w->id[x][y][z];
+}
+
+static inline void blockColumnPut(World* w, int x, int z, const unsigned char* in128) {
+    if (!worldReady(w, x, z)) return;
+    for (int y = 0; y < WORLD_H; y++) w->id[x][y][z] = in128[y];
+}
+
+static inline bool worldFitsInWindow(const World*) { return true; }
+
+#define WORLD_SIZE_CHUNKS WORLD_CHUNKS_X
+extern volatile int g_terrainProgress;
 
 static inline bool worldSetBlockAndData(World* w, int x, int y, int z,
                                         unsigned char id, unsigned char data) {

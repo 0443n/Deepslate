@@ -6,6 +6,9 @@
 //! create, getDataSize and ImprovedNoise's never assigned `scale` field had
 //! none at all.
 
+extern crate alloc;
+use alloc::vec::Vec;
+
 use crate::random::Random;
 
 fn lerp(t: f32, a: f32, b: f32) -> f32 {
@@ -260,15 +263,20 @@ impl ImprovedNoise {
 
 /// `LEVELS` is a constant at every construction site in the generator, so the
 /// octaves sit inline instead of behind the C++ array of heap pointers.
-pub struct PerlinNoise<const LEVELS: usize> {
-    levels: [ImprovedNoise; LEVELS],
+/// The octaves live behind a Vec because the C++ heap allocates them too, and
+/// because McpeGen holds eleven of these and would not otherwise fit on the
+/// terrain thread's stack while it is being built.
+pub struct PerlinNoise {
+    levels: Vec<ImprovedNoise>,
 }
 
-impl<const LEVELS: usize> PerlinNoise<LEVELS> {
-    pub fn new(random: &mut Random) -> PerlinNoise<LEVELS> {
-        PerlinNoise {
-            levels: core::array::from_fn(|_| ImprovedNoise::new(random)),
+impl PerlinNoise {
+    pub fn new(random: &mut Random, levels: usize) -> PerlinNoise {
+        let mut v = Vec::with_capacity(levels);
+        for _ in 0..levels {
+            v.push(ImprovedNoise::new(random));
         }
+        PerlinNoise { levels: v }
     }
 
     pub fn get_value2(&self, x: f32, y: f32) -> f32 {

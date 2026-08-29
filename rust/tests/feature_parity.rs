@@ -5,17 +5,21 @@
 
 use deepslate_gen::blocks::{self, WORLD_H};
 use deepslate_gen::features::{self, PendingList};
+use deepslate_gen::mcpegen::{self, McpeGen};
 use deepslate_gen::random::Random;
 use deepslate_gen::world::World;
 use deepslate_gen::{biome_surface, classify_biome};
 
 const WORLD_W: i32 = 256;
 const WORLD_D: i32 = 256;
+const CHUNKS: i32 = 16;
 
 struct TestWorld {
     id: Vec<u8>,
     data: Vec<u8>,
     trace: Vec<String>,
+    /// Off for the whole generator run, which writes far too much to trace.
+    tracing: bool,
 }
 
 fn idx(x: i32, y: i32, z: i32) -> usize {
@@ -29,6 +33,7 @@ impl TestWorld {
             id: vec![blocks::AIR; n],
             data: vec![0; n],
             trace: Vec::new(),
+            tracing: true,
         }
     }
 
@@ -58,11 +63,15 @@ impl World for TestWorld {
         }
         self.id[idx(x, y, z)] = id;
         self.data[idx(x, y, z)] = data;
-        self.trace.push(format!("S {} {} {} {} {}", x, y, z, id, data));
+        if self.tracing {
+            self.trace.push(format!("S {} {} {} {} {}", x, y, z, id, data));
+        }
     }
 
     fn schedule_tick(&mut self, x: i32, y: i32, z: i32, id: u8, delay: i32) {
-        self.trace.push(format!("T {} {} {} {} {}", x, y, z, id, delay));
+        if self.tracing {
+            self.trace.push(format!("T {} {} {} {} {}", x, y, z, id, delay));
+        }
     }
 
     fn light_raw(&self, x: i32, y: i32, z: i32) -> i32 {
@@ -83,6 +92,57 @@ impl World for TestWorld {
             }
         }
         true
+    }
+
+    fn put(&mut self, x: i32, y: i32, z: i32, id: u8) {
+        if y < 0 || y >= WORLD_H || !self.ready(x, z) {
+            return;
+        }
+        self.id[idx(x, y, z)] = id;
+    }
+
+    fn column_get(&self, x: i32, z: i32, out: &mut [u8; 128]) {
+        if !self.ready(x, z) {
+            out.fill(blocks::INVISIBLE_BEDROCK);
+            return;
+        }
+        for y in 0..WORLD_H {
+            out[y as usize] = self.id[idx(x, y, z)];
+        }
+    }
+
+    fn column_put(&mut self, x: i32, z: i32, col: &[u8; 128]) {
+        if !self.ready(x, z) {
+            return;
+        }
+        for y in 0..WORLD_H {
+            self.id[idx(x, y, z)] = col[y as usize];
+        }
+    }
+}
+
+/// FNV-1a over one chunk's ids and data, in the x, z, y order the C++ walks.
+fn chunk_hash(w: &TestWorld, cx: i32, cz: i32) -> u32 {
+    let mut h: u32 = 2166136261;
+    for x in cx * 16..cx * 16 + 16 {
+        for z in cz * 16..cz * 16 + 16 {
+            for y in 0..WORLD_H {
+                h ^= w.id[idx(x, y, z)] as u32;
+                h = h.wrapping_mul(16777619);
+                h ^= w.data[idx(x, y, z)] as u32;
+                h = h.wrapping_mul(16777619);
+            }
+        }
+    }
+    h
+}
+
+fn hash_all(w: &mut TestWorld, tag: &str) {
+    for cz in 0..CHUNKS {
+        for cx in 0..CHUNKS {
+            let h = chunk_hash(w, cx, cz);
+            w.trace.push(format!("H {} {} {} {:08x}", tag, cx, cz, h));
+        }
     }
 }
 
@@ -322,6 +382,33 @@ fn matches_cpp_vectors() {
             deepslate_gen::caves::cave_feature(&mut w, 20260829, cx, cz);
         }
     }
+
+    feature!("mcpegen");
+    w.tracing = false;
+    for &seed in &[1337, 110, 129] {
+        w.trace.push(format!("G seed {}", seed));
+        w.id.iter_mut().for_each(|b| *b = blocks::AIR);
+        w.data.iter_mut().for_each(|b| *b = 0);
+        let mut gen = McpeGen::new(seed);
+        for cz in 0..CHUNKS {
+            for cx in 0..CHUNKS {
+                mcpegen::chunk_generate_terrain(&mut gen, &mut w, cx, cz, true);
+            }
+        }
+        hash_all(&mut w, "terrain");
+        for phase in 0..6 {
+            for cz in 0..CHUNKS {
+                for cx in 0..CHUNKS {
+                    gen.post_process_phase(&mut w, cx, cz, phase);
+                }
+            }
+            hash_all(&mut w, &format!("phase{}", phase));
+        }
+        gen.place_flowers(&mut w);
+        gen.place_mushrooms(&mut w);
+        hash_all(&mut w, "placed");
+    }
+    w.tracing = true;
 
     w.trace.push("DONE".to_string());
 

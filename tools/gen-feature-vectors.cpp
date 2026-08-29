@@ -10,6 +10,7 @@
 #include "world/level/levelgen/features.h"
 #include "world/level/levelgen/biome.h"
 #include "world/level/levelgen/caves.h"
+#include "world/level/levelgen/gen_features.h"
 #include "world/level/levelgen/mcpegen.h"
 #include "world/level/levelgen/Random.h"
 
@@ -19,12 +20,20 @@
 
 Tile* Tile::tiles[256];
 
+// Pulled in by worldGenerateWindow and worldGenerateMCPE, which the harness
+// never calls but the linker still wants.
+volatile int g_terrainProgress;
+void worldGetChunk(World*, int, int) {}
+
+// Off for the whole generator run below, which writes far too much to trace.
+static bool g_trace = true;
+
 void traceSet(int x, int y, int z, unsigned char id, unsigned char data) {
-    printf("S %d %d %d %u %u\n", x, y, z, (unsigned)id, (unsigned)data);
+    if (g_trace) printf("S %d %d %d %u %u\n", x, y, z, (unsigned)id, (unsigned)data);
 }
 
 void traceTick(int x, int y, int z, unsigned char id, int tickDelay) {
-    printf("T %d %d %d %u %d\n", x, y, z, (unsigned)id, tickDelay);
+    if (g_trace) printf("T %d %d %d %u %d\n", x, y, z, (unsigned)id, tickDelay);
 }
 
 // Ground that gives every feature something to work with. Ridged height with a
@@ -54,6 +63,26 @@ static void buildTerrain(World* w) {
         if ((x / 8 + z / 8) % 3 == 0)
             for (int y = 30; y <= 33; y++) w->id[x][y][z] = BLOCK_AIR;
     }
+}
+
+// FNV-1a over a chunk's block ids, the compact stand in for dumping terrain.
+static unsigned int chunkHash(const World* w, int cx, int cz) {
+    unsigned int h = 2166136261u;
+    for (int x = cx * 16; x < cx * 16 + 16; x++)
+    for (int z = cz * 16; z < cz * 16 + 16; z++)
+    for (int y = 0; y < WORLD_H; y++) {
+        h ^= w->id[x][y][z];
+        h *= 16777619u;
+        h ^= w->data[x][y][z];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static void hashAll(const World* w, const char* tag) {
+    for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++)
+    for (int cx = 0; cx < WORLD_CHUNKS_X; cx++)
+        printf("H %s %d %d %08x\n", tag, cx, cz, chunkHash(w, cx, cz));
 }
 
 static int surfaceAt(const World* w, int x, int z) {
@@ -230,6 +259,39 @@ int main() {
         for (int cx = 2; cx < 8; cx++)
         for (int cz = 2; cz < 8; cz++)
             caveFeature(w, 20260829, cx, cz);
+    }
+
+    {
+        // The whole generator over a whole world. Block writes are far too many
+        // to trace, so each pass reports an FNV-1a per chunk over ids and data
+        // instead. Two seeds, because no single one grows every biome, 1337 has
+        // the forests, 110 is the only desert with standing cactus, 129 is frozen.
+        FEATURE("mcpegen");
+        g_trace = false;
+        static const int seeds[] = { 1337, 110, 129 };
+        for (unsigned si = 0; si < sizeof seeds / sizeof *seeds; si++) {
+            printf("G seed %d\n", seeds[si]);
+            std::memset(w->id, BLOCK_AIR, sizeof w->id);
+            std::memset(w->data, 0, sizeof w->data);
+            worldGenInit(seeds[si], GEN_FEATURES_ALL_ON);
+            for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++)
+            for (int cx = 0; cx < WORLD_CHUNKS_X; cx++)
+                chunkGenerateTerrain(w, cx, cz);
+            hashAll(w, "terrain");
+            for (int phase = 0; phase < 6; phase++) {
+                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++)
+                for (int cx = 0; cx < WORLD_CHUNKS_X; cx++)
+                    chunkPostProcessPhase(w, cx, cz, phase);
+                char tag[16];
+                std::snprintf(tag, sizeof tag, "phase%d", phase);
+                hashAll(w, tag);
+            }
+            worldPlaceFlowers(w);
+            worldPlaceMushrooms(w);
+            hashAll(w, "placed");
+            worldGenFree();
+        }
+        g_trace = true;
     }
 
     printf("DONE\n");

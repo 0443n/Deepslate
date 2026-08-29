@@ -240,7 +240,7 @@ include $(PSPSDK)/lib/build.mak
 -include $(OBJS:.o=.d)
 
 $(RUST_ARCHIVE): $(RUST_SRC)
-	cd $(RUST_DIR) && cargo build --release -Z build-std=core
+	cd $(RUST_DIR) && cargo build --release -Z build-std=core,alloc
 
 $(RUST_LIB): $(RUST_ARCHIVE)
 	python3 tools/patch-eflags.py $< $@
