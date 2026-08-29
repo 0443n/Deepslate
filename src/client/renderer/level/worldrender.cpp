@@ -166,8 +166,14 @@ int g_occlusion = 1;
 // travelled in reverse. Frustum is the last test because it is the dearest.
 struct VisNode {
     short         cx, cz;
-    unsigned char si, from, dirs;
+    unsigned char si, from, dirs, cost;
 };
+
+// A step into daylight is free, so the surface walk is untouched. Sections the sky
+// never reaches, and sections under the water table, charge against a budget.
+#define VIS_COST_BUDGET 15
+#define VIS_COST_DARK    3
+#define VIS_COST_DEEP    1
 
 static VisNode      s_visQ[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
 static unsigned char s_visSeen[WORLD_CHUNKS_X * WORLD_CHUNKS_Z * N_SECTIONS];
@@ -196,7 +202,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
     {
         VisNode* q = &s_visQ[tail++];
         q->cx = (short)ccx; q->cz = (short)ccz;
-        q->si = (unsigned char)csi; q->from = VIS_START; q->dirs = 0;
+        q->si = (unsigned char)csi; q->from = VIS_START; q->dirs = 0; q->cost = 0;
         s_visSeen[worldSlotIndex(w, ccx, ccz) * N_SECTIONS + csi] = 1;
     }
 
@@ -222,6 +228,14 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
             if (s_visSeen[key]) continue;
 
             ChunkMesh* nc = &w->chunks[nci];
+
+            // Cheaper than the two tests below, so it runs first and it leaves the
+            // node unseen, letting a later cheaper path still reach it.
+            int cost = n.cost;
+            if (!nc->sec[nsi].skyLit) cost += VIS_COST_DARK;
+            if (nsi < SEA_SECTION)    cost += VIS_COST_DEEP;
+            if (cost > VIS_COST_BUDGET) continue;
+
             const float dx = nc->cx - camX, dz = nc->cz - camZ;
             if (dx * dx + dz * dz > maxD2) continue;
             if (!sectionBoxVisible(nc, nsi)) continue;
@@ -232,6 +246,7 @@ bool worldWalkVisible(World* w, float camX, float camY, float camZ, float maxD2)
             q->si = (unsigned char)nsi;
             q->from = (unsigned char)(f ^ 1);
             q->dirs = (unsigned char)(n.dirs | (1 << f));
+            q->cost = (unsigned char)cost;
         }
     }
     return true;
