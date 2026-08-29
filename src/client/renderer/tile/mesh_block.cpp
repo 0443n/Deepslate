@@ -3,6 +3,7 @@
 #include "world/level/chunk/mesh_sink.h"
 #include "client/renderer/tile/mesh_light.h"
 #include "world/level/world.h"
+#include "util/prof.h"
 #include "world/level/tile/fire.h"
 #include <string.h>
 
@@ -272,6 +273,79 @@ bool sectionCannotEmit(const World* w, int ox, int oz, int si) {
     return blockSectionUniform(w, ox, si * SECTION_SY, oz, &id) && id == BLOCK_AIR;
 }
 
+#ifndef MERGE_PROBE
+#define MERGE_PROBE 0
+#endif
+
+#if MERGE_PROBE
+
+// One 16x16 key grid per facing per plane. A cell is empty when its key is zero,
+// so two faces merge exactly when their keys match.
+static unsigned int s_pk[6][SECTION_SY][256];
+static unsigned char s_pv[256];
+
+static inline unsigned int probeKey(int col, int row, unsigned int tint,
+                                    const unsigned int cc[2][2],
+                                    float th, float ix, float iz) {
+    unsigned int h = 2166136261u;
+    const unsigned int v[9] = {
+        (unsigned int)col, (unsigned int)row, tint,
+        cc[0][0], cc[0][1], cc[1][0], cc[1][1],
+        (unsigned int)(int)(th * 256.0f),
+        (unsigned int)(((int)(ix * 256.0f) << 16) ^ (int)(iz * 256.0f))
+    };
+    for (int i = 0; i < 9; i++) {
+        h = (h ^ v[i]) * 16777619u;
+    }
+    return h | 1u;
+}
+
+static void probeRecord(int f, int lx, int ly, int lz, unsigned int key) {
+    const int axis = f >> 1;
+    int plane, cell;
+    if (axis == 0)      { plane = lx; cell = ly * 16 + lz; }
+    else if (axis == 1) { plane = ly; cell = lx * 16 + lz; }
+    else                { plane = lz; cell = lx * 16 + ly; }
+    s_pk[f][plane][cell] = key;
+}
+
+// Standard greedy meshing, widen along b then extend along a. Counts the quads
+// only, nothing is emitted.
+static int probeGreedyCount(void) {
+    int quads = 0;
+    for (int f = 0; f < 6; f++)
+    for (int plane = 0; plane < SECTION_SY; plane++) {
+        const unsigned int* k = s_pk[f][plane];
+        memset(s_pv, 0, sizeof s_pv);
+        for (int a = 0; a < 16; a++)
+        for (int b = 0; b < 16; b++) {
+            const int i0 = a * 16 + b;
+            if (!k[i0] || s_pv[i0]) continue;
+            const unsigned int key = k[i0];
+
+            int wdt = 1;
+            while (b + wdt < 16 && k[i0 + wdt] == key && !s_pv[i0 + wdt]) wdt++;
+
+            int hgt = 1;
+            while (a + hgt < 16) {
+                bool ok = true;
+                for (int c = 0; c < wdt && ok; c++) {
+                    const int i = (a + hgt) * 16 + b + c;
+                    if (k[i] != key || s_pv[i]) ok = false;
+                }
+                if (!ok) break;
+                hgt++;
+            }
+
+            for (int r = 0; r < hgt; r++)
+                for (int c = 0; c < wdt; c++) s_pv[(a + r) * 16 + b + c] = 1;
+            quads++;
+        }
+    }
+    return quads;
+}
+#endif
+
 int meshPass(const World* w, int ox, int oz, int y0, int y1, ChunkVertex* out, int layer, int cap, bool leavesOpaque, bool leavesCull, int* nLava) {
     int n = 0;
     bool sawLava = false;
@@ -530,6 +604,11 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
     int& no = sk.n[0]; int& nw = sk.n[1]; int& nn = sk.n[3];
     bool sawLava = false;
 
+#if MERGE_PROBE
+    int probeFaces = 0;
+    memset(s_pk, 0, sizeof s_pk);
+#endif
+
     unsigned char lc[18 * 18 * 18];
     unsigned char llc[18 * 18 * 18];
 
@@ -706,6 +785,14 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
                 else if (f == F_FORWARD) iz = -0.0625f;
             }
 
+#if MERGE_PROBE
+            if (layer == 0 && !leafInterior) {
+                probeFaces++;
+                probeRecord(f, gx - ox, y - y0, gz - oz,
+                            probeKey(col, row, tint, cc, th, ix, iz));
+            }
+#endif
+
             static const int tri[6] = { 0, 1, 2, 2, 3, 0 };
 
             ChunkVertex* fdst = dst;
@@ -754,6 +841,11 @@ int meshSectionSink(const World* w, int ox, int oz, int y0, int y1,
     }
     #undef LCB
     #undef LLB
+
+#if MERGE_PROBE
+    profAdd(PROFC_MFACES, probeFaces);
+    profAdd(PROFC_MQUADS, probeGreedyCount());
+#endif
 
     for (int L = 0; L < 4; L++) sinkCheckPrev(&sk, L);
     if (sk.flush)

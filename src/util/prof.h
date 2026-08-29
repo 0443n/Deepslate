@@ -82,6 +82,10 @@ enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
        // Sections the cave-cull walk actually enqueued, the walk's own work.
        PROFC_WALKNODES,
 
+       // MERGE_PROBE only. Layer 0 faces emitted, and the quads a greedy merge
+       // keyed on tile plus corner light would have produced instead.
+       PROFC_MFACES, PROFC_MQUADS,
+
        PROFC_MARKED, PROFC_N };
 
 #if PROF
