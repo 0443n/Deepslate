@@ -10,3 +10,6 @@ PARAM.SFO
 .idea/__pycache__/
 saves/
 build/
+
+rust/target/
+rust/libdeepslate_psp.a

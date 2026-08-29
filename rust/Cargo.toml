@@ -1,0 +1,15 @@
+[package]
+name = "deepslate-gen"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "deepslate_gen"
+crate-type = ["staticlib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+overflow-checks = false

@@ -16,11 +16,22 @@ jobs:
     container: pspdev/pspdev:latest        # ships the PSPSDK toolchain
     steps:
       # The pspdev image is Alpine-based; the JS-based actions below need node,
-      # and checkout needs git. zip packages the release.
+      # and checkout needs git. zip packages the release, python3 runs
+      # tools/patch-eflags.py, and curl plus build-base bootstrap rustup.
       - name: Install helpers
-        run: apk add --no-cache nodejs git zip
+        run: apk add --no-cache nodejs git zip curl build-base python3
 
       - uses: actions/checkout@v4
+
+      # rust/ builds for mipsel-sony-psp, a tier 3 target with no prebuilt std,
+      # so it needs nightly and rust-src to compile core itself. Alpine's own
+      # rust package is stable-only and cannot do that.
+      - name: Install Rust nightly
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal \
+                        --default-toolchain nightly --component rust-src
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Build
         run: |

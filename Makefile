@@ -177,7 +177,8 @@ OBJS = \
 	src/world/level/levelgen/feature_spring.o \
 	src/world/level/levelgen/feature_lake.o \
 	src/world/level/levelgen/feature_snow.o \
-	src/world/level/levelgen/caves.o
+	src/world/level/levelgen/caves.o \
+	src/rs/rs.o
 
 INCDIR = src
 # -MMD -MP: gcc writes a .d file next to every .o listing the headers that
@@ -199,7 +200,17 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR =
 LDFLAGS =
-LIBS = -lpspgum -lpspgu -lpspge -lpspfpu -lpspdisplay -lpspctrl -lpsppower -lpspaudio -lpspmp3 -lpsputility -lpng -lz -lm -lstdc++
+# The Rust half. rustc only targets the PSP as o32 while every psp-gcc object
+# here is EABI32, so the archive is retagged before the link. The two agree for
+# calls of at most four integer or pointer arguments returning one, which is the
+# rule rust/src/lib.rs documents and every exported symbol keeps to.
+RUST_DIR     = rust
+RUST_TRIPLE  = mipsel-sony-psp
+RUST_ARCHIVE = $(RUST_DIR)/target/$(RUST_TRIPLE)/release/libdeepslate_gen.a
+RUST_LIB     = $(RUST_DIR)/libdeepslate_psp.a
+RUST_SRC     = $(wildcard $(RUST_DIR)/src/*.rs) $(RUST_DIR)/Cargo.toml
+
+LIBS = -lpspgum -lpspgu -lpspge -lpspfpu -lpspdisplay -lpspctrl -lpsppower -lpspaudio -lpspmp3 -lpsputility -lpng -lz -lm -lstdc++ -L$(RUST_DIR) -ldeepslate_psp
 
 EXTRA_TARGETS = EBOOT.PBP
 
@@ -228,15 +239,27 @@ include $(PSPSDK)/lib/build.mak
 # already in place; '-include' because they don't exist on the first build.
 -include $(OBJS:.o=.d)
 
+$(RUST_ARCHIVE): $(RUST_SRC)
+	cd $(RUST_DIR) && cargo build --release
+
+$(RUST_LIB): $(RUST_ARCHIVE)
+	python3 tools/patch-eflags.py $< $@
+
+$(TARGET).elf: $(RUST_LIB)
+
+
 EBOOT_ASSETS := $(filter-out NULL,$(PSP_EBOOT_ICON) $(PSP_EBOOT_ICON1) \
                                   $(PSP_EBOOT_PIC0) $(PSP_EBOOT_PIC1) \
                                   $(PSP_EBOOT_SND0))
 EBOOT.PBP: $(EBOOT_ASSETS)
 
 # build.mak's clean only knows about $(OBJS) and the targets.
-clean: clean-deps
+clean: clean-deps clean-rust
 clean-deps:
 	@rm -f $(OBJS:.o=.d)
+clean-rust:
+	@rm -f $(RUST_LIB)
+	@cd $(RUST_DIR) && cargo clean 2>/dev/null || true
 
 dist: EBOOT.PBP
 	@rm -rf build && mkdir -p build/data

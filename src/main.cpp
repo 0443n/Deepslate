@@ -16,6 +16,7 @@
 #include "gpu/sprite.h"
 #include "gpu/font.h"
 #include "platform/path.h"
+#include "rs/rs.h"
 #include "util/prof.h"
 #include "platform/audio/sound.h"
 #include "world/level/storage/worldlist.h"
@@ -256,6 +257,9 @@ int main(int argc, char* argv[]) {
     pspFpuSetEnable(0);
     setupCallbacks();
     pathInit(argc > 0 ? argv[0] : 0);
+
+    // Guards the o32/EABI32 bridge, see src/rs/rs.h.
+    printf(rsAbiOk() ? "rs abi ok\n" : "rs abi MISMATCH\n");
 
     detectLowMemPsp();
     detectPspGo();
