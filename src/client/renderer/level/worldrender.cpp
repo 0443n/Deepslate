@@ -46,6 +46,13 @@ static int   s_oomFrames = 0;
 
 #define OOM_FRAMES_BEFORE_BACKOFF 60
 
+// A new world starts on the slider again. The mesh pressure that forced a backoff
+// belongs to the world being left, and the nether alone can trip it.
+void worldViewDistReset() {
+    s_lastSlider = 0.0f;
+    s_oomFrames  = 0;
+}
+
 float worldViewDistEffective(float slider) {
     if (slider != s_lastSlider) {
         s_lastSlider = slider;
