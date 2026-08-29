@@ -13,6 +13,7 @@
 
 pub mod biome;
 pub mod blocks;
+pub mod caves;
 pub mod fdlibm;
 pub mod features;
 pub mod mth;

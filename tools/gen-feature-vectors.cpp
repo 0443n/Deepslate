@@ -9,6 +9,7 @@
 #include "world/level/world.h"
 #include "world/level/levelgen/features.h"
 #include "world/level/levelgen/biome.h"
+#include "world/level/levelgen/caves.h"
 #include "world/level/levelgen/mcpegen.h"
 #include "world/level/levelgen/Random.h"
 
@@ -222,6 +223,13 @@ int main() {
         printf("P place\n");
         worldPlaceMushrooms(w);
         CHECKPOINT(r);
+    }
+
+    {
+        FEATURE("caves");
+        for (int cx = 2; cx < 8; cx++)
+        for (int cz = 2; cz < 8; cz++)
+            caveFeature(w, 20260829, cx, cz);
     }
 
     printf("DONE\n");

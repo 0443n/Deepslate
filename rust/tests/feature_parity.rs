@@ -316,6 +316,13 @@ fn matches_cpp_vectors() {
     features::world_place_mushrooms(&mut w, &mut pending);
     checkpoint!(r);
 
+    feature!("caves");
+    for cx in 2..8 {
+        for cz in 2..8 {
+            deepslate_gen::caves::cave_feature(&mut w, 20260829, cx, cz);
+        }
+    }
+
     w.trace.push("DONE".to_string());
 
     let expected: Vec<&str> = include_str!("feature_vectors.txt").lines().collect();
