@@ -22,6 +22,7 @@ pub mod features;
 mod heap;
 pub mod mcpegen;
 pub mod mth;
+pub mod nether;
 pub mod noise;
 pub mod random;
 pub mod world;

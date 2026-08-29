@@ -12,6 +12,7 @@
 #include "world/level/levelgen/caves.h"
 #include "world/level/levelgen/gen_features.h"
 #include "world/level/levelgen/mcpegen.h"
+#include "world/level/levelgen/nether_gen.h"
 #include "world/level/levelgen/Random.h"
 
 #include <cstdio>
@@ -291,6 +292,22 @@ int main() {
             hashAll(w, "placed");
             worldGenFree();
         }
+        g_trace = true;
+    }
+
+    {
+        // The nether, which writes through blockPut and so traces nothing
+        // either. One seed is enough, it has no biomes to miss.
+        FEATURE("nether");
+        g_trace = false;
+        std::memset(w->id, BLOCK_AIR, sizeof w->id);
+        std::memset(w->data, 0, sizeof w->data);
+        netherGenInit(20260829);
+        for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++)
+        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++)
+            netherGenerateChunk(w, cx, cz);
+        hashAll(w, "nether");
+        netherGenFree();
         g_trace = true;
     }
 

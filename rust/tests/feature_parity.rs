@@ -6,6 +6,7 @@
 use deepslate_gen::blocks::{self, WORLD_H};
 use deepslate_gen::features::{self, PendingList};
 use deepslate_gen::mcpegen::{self, McpeGen};
+use deepslate_gen::nether::NetherGen;
 use deepslate_gen::random::Random;
 use deepslate_gen::world::World;
 use deepslate_gen::{biome_surface, classify_biome};
@@ -408,6 +409,20 @@ fn matches_cpp_vectors() {
         gen.place_mushrooms(&mut w);
         hash_all(&mut w, "placed");
     }
+    w.tracing = true;
+
+    feature!("nether");
+    w.tracing = false;
+    w.id.iter_mut().for_each(|b| *b = blocks::AIR);
+    w.data.iter_mut().for_each(|b| *b = 0);
+    let mut ng = NetherGen::new(20260829);
+    ng.calibrate();
+    for cz in 0..CHUNKS {
+        for cx in 0..CHUNKS {
+            ng.generate_chunk(&mut w, cx, cz);
+        }
+    }
+    hash_all(&mut w, "nether");
     w.tracing = true;
 
     w.trace.push("DONE".to_string());

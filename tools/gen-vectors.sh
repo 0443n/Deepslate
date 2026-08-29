@@ -21,7 +21,7 @@ g++ -O2 -Itools/testworld -Isrc -o "$OUT" tools/gen-feature-vectors.cpp \
     "$SRC/feature_mushroom.cpp" "$SRC/feature_cactus.cpp" "$SRC/feature_reeds.cpp" \
     "$SRC/feature_ore.cpp" "$SRC/feature_clay.cpp" "$SRC/feature_spring.cpp" \
     "$SRC/feature_lake.cpp" "$SRC/feature_snow.cpp" "$SRC/biome.cpp" \
-    "$SRC/caves.cpp" "$SRC/mcpegen.cpp" "$SRC/gen_features.cpp" \
+    "$SRC/caves.cpp" "$SRC/mcpegen.cpp" "$SRC/gen_features.cpp" "$SRC/nether_gen.cpp" \
     "$SRC/ImprovedNoise.cpp" "$SRC/PerlinNoise.cpp" "$SRC/Synth.cpp"
 "$OUT" > rust/tests/feature_vectors.txt
 
