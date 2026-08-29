@@ -11,12 +11,19 @@
 // taken from the C++ it replaces. The PSP build is no_std.
 #![cfg_attr(target_os = "psp", no_std)]
 
+pub mod biome;
+pub mod blocks;
 pub mod fdlibm;
+pub mod features;
+pub mod mth;
 pub mod noise;
 pub mod random;
+pub mod world;
 
+pub use biome::{biome_surface, classify_biome, BiomeId};
 pub use noise::{ImprovedNoise, PerlinNoise};
 pub use random::Random;
+pub use world::World;
 
 #[cfg(target_os = "psp")]
 #[panic_handler]
