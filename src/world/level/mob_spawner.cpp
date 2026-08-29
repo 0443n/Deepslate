@@ -6,7 +6,6 @@
 #include "world/entity/mob.h"
 #include "world/entity/mob_factory.h"
 #include "world/entity/mob_category.h"
-#include "world/inventory/inventory.h"
 #include "world/entity/entity_types.h"
 #include "world/entity/animal/animal.h"
 #include "world/entity/monster/monster.h"
@@ -40,6 +39,11 @@ static const int MONSTER_TOTAL_WEIGHT = 30;
 
 static const int MIN_SPAWN_DISTANCE = 24;
 
+// Same window the monsters use, so the cap means the same thing for both.
+static const int CREATURE_RADIUS = 96;
+
+static const int CREATURE_LIGHT = 9;
+
 static const int MAX_SPAWN_CLUSTER = 4;
 
 static const int SPAWN_ATTEMPTS = 8;
@@ -56,6 +60,9 @@ static const SpawnEntry& pickWeighted(const SpawnEntry* table, int n, int totalW
 
 static Random s_rng((long)sceKernelGetSystemTimeLow());
 
+// Vanilla rolls this per mob as it spawns, so a herd is adults with the odd calf.
+static const int BABY_ODDS = 20;
+
 typedef char assert_order_fits[((WORLD_W / 16) * (WORLD_D / 16) <= 256) ? 1 : -1];
 
 static bool spawnOk(Level* L, int x, int y, int z) {
@@ -68,22 +75,50 @@ static bool spawnOk(Level* L, int x, int y, int z) {
     return true;
 }
 
+// Vanilla puts animals on lit grass. Nothing else keeps them off treetops and bare
+// stone, which is where a plain surface probe most often points.
+static bool creatureSpawnOk(Level* L, int x, int y, int z) {
+    if (!spawnOk(L, x, y, z)) return false;
+    if (L->getTile(x, y - 1, z) != BLOCK_GRASS) return false;
+    return L->getRawBrightness(x, y, z) >= CREATURE_LIGHT;
+}
+
+// Vanilla counts the cap over the chunks loaded around a player. This world is small
+// enough to stay resident whole, so the radius has to be applied by hand, or animals
+// on the far side of the map hold the cap full for good.
+static int countCreaturesNear(Level* L, float px, float pz, float r) {
+    int n = 0;
+    for (size_t i = 0; i < L->entities.size(); i++) {
+        Entity* e = L->entities[i];
+        if (!e || e->removed || !e->isMob()) continue;
+        if (e->getCreatureBaseType() != MobCategory::creature.baseType) continue;
+        float dx = e->x - px, dz = e->z - pz;
+        if (dx * dx + dz * dz <= r * r) n++;
+    }
+    return n;
+}
+
 static void spawnCreatures(Level* level) {
     LocalPlayer* p = level->player;
     if (!p) return;
 
     float pfy = p->y - p->heightOffset;
+    const int R = CREATURE_RADIUS / 16;
+    int pcx = (int)floorf(p->x / 16.0f);
+    int pcz = (int)floorf(p->z / 16.0f);
 
-    int mobCount = level->countInstanceOfBaseType(MobCategory::creature.baseType);
+    int mobCount = countCreaturesNear(level, p->x, p->z, (float)CREATURE_RADIUS);
     for (int attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
         if (mobCount > MobCategory::creature.maxPerLevel) return;
 
-        int cx = s_rng.nextInt(WORLD_W / 16);
-        int cz = s_rng.nextInt(WORLD_D / 16);
+        int cx = pcx + s_rng.nextInt(2 * R + 1) - R;
+        int cz = pcz + s_rng.nextInt(2 * R + 1) - R;
+        if (!level->hasChunksAt(cx * 16, 0, cz * 16, cx * 16 + 15, 0, cz * 16 + 15)) continue;
+
         int bx = cx * 16 + s_rng.nextInt(16);
         int bz = cz * 16 + s_rng.nextInt(16);
         int by = level->getTopSolidBlock(bx, bz);
-        if (!spawnOk(level, bx, by, bz)) continue;
+        if (!creatureSpawnOk(level, bx, by, bz)) continue;
 
         float dx = bx + 0.5f - p->x, dy = by - pfy, dz = bz + 0.5f - p->z;
         if (dx * dx + dy * dy + dz * dz < (float)(MIN_SPAWN_DISTANCE * MIN_SPAWN_DISTANCE)) continue;
@@ -95,14 +130,14 @@ static void spawnCreatures(Level* level) {
             int sx = bx + s_rng.nextInt(6) - s_rng.nextInt(6);
             int sz = bz + s_rng.nextInt(6) - s_rng.nextInt(6);
             int sy = level->getTopSolidBlock(sx, sz);
-            if (!spawnOk(level, sx, sy, sz)) continue;
+            if (!creatureSpawnOk(level, sx, sy, sz)) continue;
             Mob* m = MobFactory::createMob(e.mobId, level);
             if (!m) continue;
             m->moveTo(sx + 0.5f, (float)sy, sz + 0.5f, s_rng.nextFloat() * 360.0f, 0.0f);
 
             if (!m->canSpawn()) { delete m; continue; }
 
-            if (s_rng.nextInt(2) == 0) ((Animal*)m)->setAge(-24000);
+            if (s_rng.nextInt(BABY_ODDS) == 0) ((Animal*)m)->setAge(-24000);
             level->addEntity(m);
             mobCount++;
         }
@@ -194,11 +229,11 @@ static void spawnMonsters(Level* level) {
     }
 }
 
-static const int GEN_CREATURE_CAP = 40;
+// Animals never despawn, so worldgen has to leave the runtime spawner headroom under
+// the cap, or the world it hands over is one where nothing can ever spawn again.
+static const int GEN_CREATURE_CAP = 24;
 
 void populateInitial(Level* level) {
-
-    if (g_level.player->inventory->isCreative()) return;
 
     if (!activeLevelSource().spawnsMobs()) return;
 
@@ -232,7 +267,7 @@ void populateInitial(Level* level) {
                         if (!m) return;
                         m->moveTo(x + 0.5f, (float)y, z + 0.5f, s_rng.nextFloat() * 360.0f, 0.0f);
 
-                        if (s_rng.nextInt(2) == 0) ((Animal*)m)->setAge(-24000);
+                        if (s_rng.nextInt(BABY_ODDS) == 0) ((Animal*)m)->setAge(-24000);
                         level->addEntity(m);
                         break;
                     }
@@ -249,9 +284,9 @@ void populateInitial(Level* level) {
     }
 }
 
+// Modern Minecraft spawns mobs in creative too. MCPE 0.6.1 gated it off, which left
+// a creative world permanently empty.
 void tick(Level* level, bool spawnEnemies, bool spawnFriendlies) {
-
-    if (g_level.player->inventory->isCreative()) return;
 
     if (!activeLevelSource().spawnsMobs()) return;
 
