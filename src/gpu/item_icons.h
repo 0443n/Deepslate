@@ -11,7 +11,6 @@
 #define II_BUCKET_MILK        124
 #define II_BUCKET_WATER       122
 #define II_CAKE               120
-#define II_CAMERA             114
 #define II_CHESTPLATE_CHAIN   110
 #define II_EGG                113
 #define II_HELMET_CHAIN       109
@@ -45,7 +44,7 @@ static const short kItemIcon[256] = {
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-     114,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+      -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
       -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,

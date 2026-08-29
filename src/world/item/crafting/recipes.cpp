@@ -418,9 +418,4 @@ Recipes::Recipes() {
     addShapedRecipe(ItemInstance(ITEM_BED_ITEM, 1, 0),
                     "###",
                     "XXX", { TILE('#', BLOCK_WOOL), TILE('X', BLOCK_PLANKS) });
-
-    addShapedRecipe(ItemInstance(BLOCK_NETHER_REACTOR, 1, 0),
-                    "X#X",
-                    "X#X",
-                    "X#X", { ITEM('#', ITEM_DIAMOND), ITEM('X', ITEM_IRON_INGOT) });
 }

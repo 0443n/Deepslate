@@ -4,7 +4,6 @@
 #include "client/player/player.h"
 #include "client/gui/hud.h"
 #include "platform/audio/sound.h"
-#include "world/entity/tripod_camera.h"
 #include "client/player/player_state.h"
 #include "world/level/world.h"
 #include "world/level/tile/material.h"
@@ -25,39 +24,11 @@
 #include "world/level/tile/entity/chest_tile_entity.h"
 #include "world/item/crafting/recipe.h"
 #include "world/level/tile/entity/furnace_tile_entity.h"
-#include "world/level/tile/entity/reactor_tile_entity.h"
 #include "world/level/tile/fire.h"
 #include "world/entity/item_entity.h"
 #include "platform/time.h"
 #include <cstring>
 #include "client/gamemode/click_repeat.h"
-
-static Mob* nearbyTripodCamera() {
-    if (!g_level.player) return 0;
-
-    static EntityList nearby;
-    g_level.getEntities(0, g_level.player->bb.grow(2.5f, 2.5f, 2.5f), nearby);
-    for (size_t i = 0; i < nearby.size(); i++) {
-        Entity* e = nearby[i];
-        if (e->entityRendererId != ER_TRIPODCAMERA_RENDERER) continue;
-        float dx = e->x - g_level.player->x;
-        float dy = e->y - g_level.player->y;
-        float dz = e->z - g_level.player->z;
-        if (dx * dx + dy * dy + dz * dz < 2.5f * 2.5f) return (Mob*)e;
-    }
-    return 0;
-}
-
-static const int MAX_TRIPOD_CAMERAS = 4;
-
-static int countTripodCameras() {
-    int n = 0;
-    for (size_t i = 0; i < g_level.entities.size(); i++) {
-        Entity* e = g_level.entities[i];
-        if (e && !e->removed && e->entityRendererId == ER_TRIPODCAMERA_RENDERER) n++;
-    }
-    return n;
-}
 
 static bool s_drawing = false;
 
@@ -494,30 +465,6 @@ void GameMode::handleInput(unsigned int pressed, unsigned int held) {
             pressed &= ~PSP_CTRL_LTRIGGER;
         }
 
-        else if (sel && sel->id == ITEM_CAMERA) {
-            if ((pressed & PSP_CTRL_LTRIGGER) && !g_useItemDelay) {
-                g_useItemDelay = USE_ITEM_DELAY_TICKS;
-
-                bool handled = interactMobUnderCrosshair();
-                if (!handled) {
-                    Mob* near = nearbyTripodCamera();
-                    if (near) handled = near->playerInteract();
-                }
-                if (!handled) {
-                    if (countTripodCameras() >= MAX_TRIPOD_CAMERAS) {
-
-                        hudChatMessage("Can't place the camera. The maximum number of "
-                                       "cameras in a world has been reached.");
-                    } else {
-                        g_level.addEntity(new TripodCamera(&g_level,
-                            g_level.player->x, g_level.player->y, g_level.player->z,
-                            g_level.player->yRot, g_level.player->xRot));
-                    }
-                }
-                playerSwing();
-            }
-            pressed &= ~PSP_CTRL_LTRIGGER;
-        }
     }
 
     if (g_worldBuilt) {
@@ -727,11 +674,6 @@ CrosshairTarget gameModeCrosshairTarget() {
         return t;
     }
 
-    if (sel && sel->id == ITEM_CAMERA) {
-        t.useLabel = nearbyTripodCamera() ? "Take Picture" : "Place";
-        return t;
-    }
-
     if (sel) {
         Entity* m = pickEntityOnViewRay(3.0f, 3.0f, true);
         switch (m ? m->getEntityTypeId() : 0) {
@@ -793,7 +735,6 @@ CrosshairTarget gameModeCrosshairTarget() {
                                                                        t.useLabel = "Ignite";
 
         else if (id == BLOCK_BED && !sneakBlocksUse(sel))               t.useLabel = "Sleep";
-        else if (id == BLOCK_NETHER_REACTOR && !sneakBlocksUse(sel))    t.useLabel = "Activate";
         else if (isUsableBlockId(id) && !sneakBlocksUse(sel))           t.useLabel = "Use";
 
         else if (sel && sel->id == ITEM_BUCKET && sel->data != BUCKET_MILK) {

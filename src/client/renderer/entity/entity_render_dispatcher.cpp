@@ -17,17 +17,14 @@ extern World g_world;
 #include "world/item/item.h"
 #include "client/renderer/entity/creeper_renderer.h"
 #include "client/renderer/entity/spider_renderer.h"
-#include "client/renderer/entity/tripod_camera_renderer.h"
 #include "world/entity/entity.h"
 #include "world/entity/local_player.h"
-#include "world/entity/tripod_camera.h"
 #include "world/level/level.h"
 #include <cstring>
 
 EntityRenderDispatcher::EntityRenderDispatcher() {
     memset(_renderers, 0, sizeof(_renderers));
     assign(ER_PAINTING_RENDERER, new PaintingRenderer());
-    assign(ER_TRIPODCAMERA_RENDERER, new TripodCameraRenderer());
     assign(ER_ARROW_RENDERER, new ArrowRenderer());
     assign(ER_FALLINGTILE_RENDERER, new FallingTileRenderer());
     assign(ER_TNT_RENDERER, new PrimedTntRenderer());
@@ -87,8 +84,6 @@ void EntityRenderDispatcher::renderAll(Level* level, float a) {
     for (size_t i = 0; i < level->entities.size(); i++) {
         Entity* e = level->entities[i];
         if (!e || e->removed || e->invisible) continue;
-
-        if (g_photoPending && e == g_photoCamera) continue;
 
         if (!worldColumnDrawn(&g_world, e->x, e->z)) continue;
         if (level->player) {

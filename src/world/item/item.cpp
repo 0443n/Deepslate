@@ -131,7 +131,6 @@ void Item::initItems() {
     new DoorItem(ITEM_DOOR_WOOD_ITEM, BLOCK_DOOR_WOOD, ic(11, 2));
     new DoorItem(ITEM_DOOR_IRON_ITEM, BLOCK_DOOR_IRON, ic(12, 2));
     new BedItem (ITEM_BED_ITEM,       BLOCK_BED,       ic(13, 2));
-    new SimpleItem(ITEM_CAMERA,          ic(0, 14), 1);
 
     new SeedItem(ITEM_SEEDS_WHEAT, BLOCK_WHEAT, ic(9, 0));
     new SeedItem(ITEM_SEEDS_MELON, BLOCK_MELON_STEM, ic(14, 3));
@@ -183,7 +182,6 @@ void Item::initItems() {
             { BLOCK_STAIRS_QUARTZ, 1 }, { BLOCK_STAIRS_SANDSTONE, 1 },
             { BLOCK_CHEST, 1 }, { BLOCK_FURNACE, 1 }, { BLOCK_CRAFTING_TABLE, 1 },
             { BLOCK_STONECUTTER, 1 }, { BLOCK_NETHER_BRICK, 1 }, { BLOCK_QUARTZ_BLOCK, 1 },
-            { BLOCK_NETHER_REACTOR, 1 },
 
             { ITEM_DIAMOND, 8 }, { ITEM_IRON_INGOT, 8 }, { ITEM_GOLD_INGOT, 8 },
             { ITEM_PAPER, 8 }, { ITEM_BOOK, 8 }, { ITEM_PAINTING, 8 }, { ITEM_SIGN, 8 },

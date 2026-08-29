@@ -89,8 +89,7 @@ enum {
     ITEM_CHICKEN_RAW    = 365,
     ITEM_CHICKEN_COOKED = 366,
     ITEM_NETHER_BRICK   = 405,
-    ITEM_NETHER_QUARTZ  = 406,
-    ITEM_CAMERA         = 456
+    ITEM_NETHER_QUARTZ  = 406
 };
 
 enum { DYE_WHITE = 15 };

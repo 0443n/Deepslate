@@ -463,14 +463,14 @@ int main(int argc, char* argv[]) {
             guOrtho();
             sceGuDisable(GU_DEPTH_TEST);
 
-            { extern bool g_photoPending;
-              if (gameProgressScreenUp() && !g_photoPending) { guEndFrame(); continue; } }
+            { extern bool g_iconShotPending;
+              if (gameProgressScreenUp() && !g_iconShotPending) { guEndFrame(); continue; } }
             extern bool g_invOpen;
             extern int g_showFps, g_showCoords;
             extern int g_hideGui;
-            extern bool g_photoPending;
+            extern bool g_iconShotPending;
 
-            if (!g_invOpen && !g_photoPending && !g_hideGui) {
+            if (!g_invOpen && !g_iconShotPending && !g_hideGui) {
                 profBegin(PROF_HDBG);
                 float ty = 10.0f;
                 if (g_showFps) {
@@ -605,7 +605,7 @@ int main(int argc, char* argv[]) {
                 profEnd(PROF_HDBG);
             }
 
-            if (!g_photoPending)
+            if (!g_iconShotPending)
                 if (Screen* over = overlayScreen()) { over->render(s); }
 
             gameHintsDraw(s);
@@ -613,48 +613,12 @@ int main(int argc, char* argv[]) {
             sceGuEnable(GU_DEPTH_TEST);
 
             {
-                extern bool g_photoPending;
-                extern Entity* g_photoCamera;
-                extern bool g_photoIsIcon;
-                extern char g_photoIconPath[320];
-                if (g_photoPending && g_photoIsIcon) {
-
+                extern bool g_iconShotPending;
+                extern char g_iconShotPath[320];
+                if (g_iconShotPending) {
                     guFinishFrame();
-                    guSavePhotoPng(g_photoIconPath, 4);
-                    g_photoPending = false;
-                    g_photoIsIcon  = false;
-                    continue;
-                }
-                if (g_photoPending) {
-                    guFinishFrame();
-
-                    sceIoMkdir("ms0:/PSP", 0777);
-                    sceIoMkdir("ms0:/PSP/PHOTO", 0777);
-                    sceIoMkdir("ms0:/PSP/PHOTO/Minecraft", 0777);
-                    char full[320];
-                    for (int i = 0; i < 10000; i++) {
-                        std::snprintf(full, sizeof(full),
-                                      "ms0:/PSP/PHOTO/Minecraft/img_%04d.png", i);
-                        FILE* probe = fopen(full, "rb");
-                        if (!probe) break;
-                        fclose(probe);
-                    }
-                    if (!guSavePhotoPng(full, 1)) {
-                        sceIoMkdir(assetPath("photos"), 0777);
-                        char rel[64];
-                        for (int i = 0; i < 10000; i++) {
-                            std::snprintf(rel, sizeof(rel), "photos/img_%04d.png", i);
-                            std::strncpy(full, assetPath(rel), sizeof(full) - 1);
-                            full[sizeof(full) - 1] = '\0';
-                            FILE* probe = fopen(full, "rb");
-                            if (!probe) break;
-                            fclose(probe);
-                        }
-                        guSavePhotoPng(full, 1);
-                    }
-                    g_photoPending = false;
-                    g_photoCamera = 0;
-
+                    guSavePhotoPng(g_iconShotPath, 4);
+                    g_iconShotPending = false;
                     continue;
                 }
             }
