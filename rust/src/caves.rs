@@ -14,7 +14,7 @@ const CAVE_LAVA_LEVEL: i32 = 10;
 const CAVE_RARITY: i32 = 15;
 
 fn floorf_i32(v: f32) -> i32 {
-    libm::floorf(v) as i32
+    crate::mth::floor(v)
 }
 
 // The C++ keeps each tunnel's Random on the heap to spare the PSP stack. Here

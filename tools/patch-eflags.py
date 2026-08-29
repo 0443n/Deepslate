@@ -50,6 +50,10 @@ def main():
             sys.exit("patch-eflags: %s held no objects" % src)
         for m in members:
             retag(os.path.join(work, m))
+        # ar r only replaces members by name, so a rebuild whose object hashes
+        # changed would leave the previous ones behind alongside the new.
+        if os.path.exists(dst):
+            os.remove(dst)
         subprocess.run([AR, "rcs", dst] + members, cwd=work, check=True)
     finally:
         shutil.rmtree(work, ignore_errors=True)

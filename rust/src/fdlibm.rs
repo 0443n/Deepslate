@@ -166,10 +166,9 @@ fn rem_pio2f(x: f32, y: &mut [f32; 2]) -> Option<i32> {
     None
 }
 
-/// Newlib's sinf. Above 2^7*(pi/2) it falls through to the libm crate rather
-/// than carrying fdlibm's kernel_rem_pio2f and its 66 word table, which no
-/// argument levelgen produces ever reaches. Results there may differ from the
-/// console by an ulp and are not part of the terrain contract.
+/// Newlib's sinf. Above 2^7*(pi/2) it hands back to newlib rather than carrying
+/// fdlibm's kernel_rem_pio2f and its 66 word table, an argument no levelgen
+/// call ever produces.
 pub fn sinf(x: f32) -> f32 {
     let ix = x.to_bits() & 0x7fff_ffff;
     if ix <= 0x3f49_0fd8 {
@@ -180,7 +179,7 @@ pub fn sinf(x: f32) -> f32 {
     }
     let mut y = [0.0f32; 2];
     match rem_pio2f(x, &mut y) {
-        None => libm::sinf(x),
+        None => crate::newlib::sinf(x),
         Some(n) => match n & 3 {
             0 => kernel_sinf(y[0], y[1], 1),
             1 => kernel_cosf(y[0], y[1]),
@@ -201,7 +200,7 @@ pub fn cosf(x: f32) -> f32 {
     }
     let mut y = [0.0f32; 2];
     match rem_pio2f(x, &mut y) {
-        None => libm::cosf(x),
+        None => crate::newlib::cosf(x),
         Some(n) => match n & 3 {
             0 => kernel_cosf(y[0], y[1]),
             1 => -kernel_sinf(y[0], y[1], 1),

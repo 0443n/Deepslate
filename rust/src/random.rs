@@ -4,6 +4,8 @@
 //! reproducibility depends on this matching draw for draw, so the quirks are
 //! deliberate and must not be tidied up. See tests/ for the comparison.
 
+use crate::newlib::{logf, sqrtf};
+
 const N: usize = 624;
 const M: usize = 397;
 const MATRIX_A: u32 = 0x9908b0df;
@@ -144,22 +146,3 @@ impl Random {
     }
 }
 
-#[cfg(target_os = "psp")]
-fn sqrtf(x: f32) -> f32 {
-    libm::sqrtf(x)
-}
-
-#[cfg(target_os = "psp")]
-fn logf(x: f32) -> f32 {
-    libm::logf(x)
-}
-
-#[cfg(not(target_os = "psp"))]
-fn sqrtf(x: f32) -> f32 {
-    x.sqrt()
-}
-
-#[cfg(not(target_os = "psp"))]
-fn logf(x: f32) -> f32 {
-    x.ln()
-}

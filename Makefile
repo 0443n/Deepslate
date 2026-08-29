@@ -158,26 +158,13 @@ OBJS = \
 	src/world/level/levelgen/Synth.o \
 	src/world/level/levelgen/ImprovedNoise.o \
 	src/world/level/levelgen/PerlinNoise.o \
-	src/world/level/levelgen/biome.o \
-	src/world/level/levelgen/mcpegen.o \
-	src/world/level/levelgen/nether_gen.o \
+	src/world/level/levelgen/gen_bridge.o \
 	src/world/level/levelgen/level_source.o \
 	src/world/level/levelgen/gen_features.o \
 	src/world/level/levelgen/features_common.o \
 	src/world/level/levelgen/feature_tree_oak.o \
 	src/world/level/levelgen/feature_tree_birch.o \
 	src/world/level/levelgen/feature_tree_spruce.o \
-	src/world/level/levelgen/feature_tree_pine.o \
-	src/world/level/levelgen/feature_clay.o \
-	src/world/level/levelgen/feature_flower.o \
-	src/world/level/levelgen/feature_mushroom.o \
-	src/world/level/levelgen/feature_cactus.o \
-	src/world/level/levelgen/feature_reeds.o \
-	src/world/level/levelgen/feature_ore.o \
-	src/world/level/levelgen/feature_spring.o \
-	src/world/level/levelgen/feature_lake.o \
-	src/world/level/levelgen/feature_snow.o \
-	src/world/level/levelgen/caves.o \
 	src/rs/rs.o
 
 INCDIR = src

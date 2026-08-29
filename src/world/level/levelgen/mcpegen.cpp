@@ -1,3 +1,8 @@
+// Not built. The Rust port in rust/src/ replaces this, see
+// src/world/level/levelgen/gen_bridge.cpp. It stays in the tree because
+// tools/gen-vectors.sh compiles it to produce the vectors the port is
+// checked against, so editing it here changes nothing until the port follows.
+
 #include "world/level/levelgen/mcpegen.h"
 #include "world/level/chunk/chunk_cache.h"
 #include "world/level/levelgen/features.h"

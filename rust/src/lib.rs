@@ -19,11 +19,16 @@ pub mod caves;
 pub mod fdlibm;
 pub mod features;
 #[cfg(target_os = "psp")]
+pub mod ffi;
+#[cfg(target_os = "psp")]
 mod heap;
 pub mod mcpegen;
 pub mod mth;
+pub mod newlib;
 pub mod nether;
 pub mod noise;
+#[cfg(target_os = "psp")]
+pub mod psp_world;
 pub mod random;
 pub mod world;
 
@@ -44,4 +49,12 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn ds_abi_check(a: i32, b: i32, c: i32, d: i32) -> i32 {
     a.wrapping_mul(1000) + b.wrapping_mul(100) + c.wrapping_mul(10) + d
+}
+
+/// The float half of the same check. It goes out through newlib's sqrtf, so a
+/// wrong answer means the one float shape the two conventions share stopped
+/// being shared. Bits in, bits out, because the boundary itself takes integers.
+#[no_mangle]
+pub extern "C" fn ds_abi_check_f(bits: i32) -> i32 {
+    newlib::sqrtf(f32::from_bits(bits as u32)).to_bits() as i32
 }

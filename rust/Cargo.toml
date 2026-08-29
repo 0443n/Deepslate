@@ -7,9 +7,6 @@ edition = "2021"
 name = "deepslate_gen"
 crate-type = ["staticlib", "rlib"]
 
-[dependencies]
-libm = "0.2"
-
 [profile.release]
 opt-level = "s"
 lto = true
