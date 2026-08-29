@@ -1,5 +1,6 @@
-[unstable]
-build-std = ["core"]
-
+# mipsel-sony-psp is tier 3 and ships no precompiled core, so the PSP build has
+# to compile it from source. That is asked for on the build command instead of
+# here, because applying it to a hosted `cargo test` gives the test binary two
+# copies of core and it fails to link.
 [build]
 target = "mipsel-sony-psp"
