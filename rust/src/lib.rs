@@ -11,6 +11,7 @@
 // taken from the C++ it replaces. The PSP build is no_std.
 #![cfg_attr(target_os = "psp", no_std)]
 
+pub mod fdlibm;
 pub mod noise;
 pub mod random;
 

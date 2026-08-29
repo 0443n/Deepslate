@@ -7,7 +7,7 @@ edition = "2021"
 name = "deepslate_gen"
 crate-type = ["staticlib", "rlib"]
 
-[target.mipsel-sony-psp.dependencies]
+[dependencies]
 libm = "0.2"
 
 [profile.release]
