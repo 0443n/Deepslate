@@ -1,7 +1,11 @@
 #!/bin/sh
-# Regenerates the reference vectors in rust/tests from the C++ they replace.
-# Run this only when the C++ changes, and expect the Rust tests to fail if it
-# did anything more than move code around.
+# Regenerates the vectors in rust/tests that still have C++ to generate them
+# from, which is the noise and the Random the game itself keeps using.
+#
+# feature_vectors.txt has no generator any more, the levelgen C++ it came from
+# was deleted once the Rust port replaced it. It is a golden file now, so a
+# deliberate generator change means reviewing its diff by hand. Commit 9fcd4fb
+# is the last one that still holds the C++ and tools/gen-feature-vectors.cpp.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -14,16 +18,6 @@ g++ -O2 -Isrc -o "$OUT" tools/gen-random-vectors.cpp
 g++ -O2 -Isrc -o "$OUT" tools/gen-noise-vectors.cpp \
     "$SRC/ImprovedNoise.cpp" "$SRC/PerlinNoise.cpp" "$SRC/Synth.cpp"
 "$OUT" > rust/tests/noise_vectors.txt
-
-g++ -O2 -Itools/testworld -Isrc -o "$OUT" tools/gen-feature-vectors.cpp \
-    "$SRC/features_common.cpp" "$SRC/feature_tree_oak.cpp" "$SRC/feature_tree_birch.cpp" \
-    "$SRC/feature_tree_spruce.cpp" "$SRC/feature_tree_pine.cpp" "$SRC/feature_flower.cpp" \
-    "$SRC/feature_mushroom.cpp" "$SRC/feature_cactus.cpp" "$SRC/feature_reeds.cpp" \
-    "$SRC/feature_ore.cpp" "$SRC/feature_clay.cpp" "$SRC/feature_spring.cpp" \
-    "$SRC/feature_lake.cpp" "$SRC/feature_snow.cpp" "$SRC/biome.cpp" \
-    "$SRC/caves.cpp" "$SRC/mcpegen.cpp" "$SRC/gen_features.cpp" "$SRC/nether_gen.cpp" \
-    "$SRC/ImprovedNoise.cpp" "$SRC/PerlinNoise.cpp" "$SRC/Synth.cpp"
-"$OUT" > rust/tests/feature_vectors.txt
 
 rm -f "$OUT"
 wc -l rust/tests/*_vectors.txt
