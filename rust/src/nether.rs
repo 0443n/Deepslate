@@ -23,6 +23,11 @@ const NG_SCALE_XZ: f32 = 684.412 * NG_SQUEEZE;
 const NG_SCALE_Y: f32 = 2053.236;
 
 const NG_LAVA_LEVEL: i32 = 32;
+
+// Vanilla only swaps exposed netherrack for gravel or soul sand in this band
+// around its sea level, and leaves every other exposed face alone.
+const NG_SURFACE_LO: i32 = 60;
+const NG_SURFACE_HI: i32 = 65;
 const NG_SPREAD: f32 = 20.0;
 const NG_OPENNESS: f32 = 8.0;
 
@@ -266,9 +271,12 @@ impl NetherGen {
                 let gz = cz * 16 + z;
 
                 // Counts down through the top of each exposed run, which is
-                // where vanilla swaps netherrack for the patch material.
+                // where vanilla swaps netherrack for the patch material. The
+                // pair is only reassigned inside the band, so a choice made
+                // there carries on down the column.
                 let mut run = -1;
-                let mut patch = blocks::NETHERRACK;
+                let mut top = blocks::NETHERRACK;
+                let mut filler = blocks::NETHERRACK;
 
                 for y in (0..WORLD_H).rev() {
                     if y >= WORLD_H - 1 - self.deco_rnd.next_int_bound(5)
@@ -287,20 +295,30 @@ impl NetherGen {
                     }
 
                     if run == -1 {
-                        run = 4;
-                        patch = if want_gravel {
-                            blocks::GRAVEL
-                        } else if want_soul {
-                            blocks::SOUL_SAND
-                        } else {
-                            blocks::NETHERRACK
-                        };
-                        if !want_gravel && !want_soul {
-                            run = 0;
+                        if (NG_SURFACE_LO..=NG_SURFACE_HI).contains(&y) {
+                            top = blocks::NETHERRACK;
+                            filler = blocks::NETHERRACK;
+                            if want_gravel {
+                                top = blocks::GRAVEL;
+                                filler = blocks::NETHERRACK;
+                            }
+                            if want_soul {
+                                top = blocks::SOUL_SAND;
+                                filler = blocks::SOUL_SAND;
+                            }
                         }
+                        if top == blocks::NETHERRACK {
+                            run = 0;
+                            continue;
+                        }
+                        w.put(gx, y, gz, top);
+                        // Netherrack filler would only write back the block
+                        // already there.
+                        run = if filler == blocks::NETHERRACK { 0 } else { 3 };
+                        continue;
                     }
                     if run > 0 {
-                        w.put(gx, y, gz, patch);
+                        w.put(gx, y, gz, filler);
                         run -= 1;
                     }
                 }

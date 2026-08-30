@@ -30,6 +30,11 @@
 // Whatever the density leaves open under this height floods with lava.
 #define NG_LAVA_LEVEL 32
 
+// Vanilla only swaps exposed netherrack for gravel or soul sand in this band
+// around its sea level, and leaves every other exposed face alone.
+#define NG_SURFACE_LO 60
+#define NG_SURFACE_HI 65
+
 // Every height level is rescaled to this spread, which is roughly what vanilla's
 // density carries and so keeps the ripple's share of it the same.
 #define NG_SPREAD 20.0f
@@ -198,9 +203,10 @@ void NetherGen::buildSurfaces(World* w, int cx, int cz) {
         int  gx = cx * 16 + x, gz = cz * 16 + z;
 
         // Counts down through the top of each exposed run, which is where vanilla
-        // swaps netherrack for the patch material.
+        // swaps netherrack for the patch material. The pair is only reassigned
+        // inside the band, so a choice made there carries on down the column.
         int run = -1;
-        unsigned char patch = BLOCK_NETHERRACK;
+        unsigned char top = BLOCK_NETHERRACK, filler = BLOCK_NETHERRACK;
 
         for (int y = WORLD_H - 1; y >= 0; y--) {
             if (y >= WORLD_H - 1 - decoRnd.nextInt(5) || y <= decoRnd.nextInt(5)) {
@@ -212,11 +218,18 @@ void NetherGen::buildSurfaces(World* w, int cx, int cz) {
             if (id != BLOCK_NETHERRACK) continue;
 
             if (run == -1) {
-                run = 4;
-                patch = wantGravel ? BLOCK_GRAVEL : (wantSoul ? BLOCK_SOUL_SAND : BLOCK_NETHERRACK);
-                if (!wantGravel && !wantSoul) run = 0;
+                if (y >= NG_SURFACE_LO && y <= NG_SURFACE_HI) {
+                    top = BLOCK_NETHERRACK; filler = BLOCK_NETHERRACK;
+                    if (wantGravel) { top = BLOCK_GRAVEL;    filler = BLOCK_NETHERRACK; }
+                    if (wantSoul)   { top = BLOCK_SOUL_SAND; filler = BLOCK_SOUL_SAND; }
+                }
+                if (top == BLOCK_NETHERRACK) { run = 0; continue; }
+                blockPut(w, gx, y, gz, top);
+                // Netherrack filler would only write back the block already there.
+                run = (filler == BLOCK_NETHERRACK) ? 0 : 3;
+                continue;
             }
-            if (run > 0) { blockPut(w, gx, y, gz, patch); run--; }
+            if (run > 0) { blockPut(w, gx, y, gz, filler); run--; }
         }
     }
 }
