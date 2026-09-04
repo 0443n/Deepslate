@@ -59,6 +59,14 @@ float worldViewDistEffective(float slider) {
         g_viewDistEff = slider;
         s_oomFrames = 0;
     }
+
+    // A streamed world can only show what the window holds, and the outer two
+    // rings of the load square are the margin decoration needs to settle.
+    extern World g_world;
+    if (!worldFitsInWindow(&g_world)) {
+        float cap = (float)((worldLoadRadius(&g_world) - 2) * 16);
+        if (g_viewDistEff > cap) g_viewDistEff = cap;
+    }
     return g_viewDistEff;
 }
 

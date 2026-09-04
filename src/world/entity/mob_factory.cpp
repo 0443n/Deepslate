@@ -13,6 +13,21 @@
 #include "world/entity/monster/pig_zombie.h"
 #include <cstdlib>
 
+// Entity::operator new silently falls back to malloc for anything that does
+// not fit a pool slot, so an oversized mob would only show up as heap churn.
+#define CHECK_FITS_POOL(T) \
+    static_assert(sizeof(T) <= Entity::ENTITY_SLOT, #T " outgrew the entity pool slot")
+
+CHECK_FITS_POOL(Pig);
+CHECK_FITS_POOL(Cow);
+CHECK_FITS_POOL(Chicken);
+CHECK_FITS_POOL(Sheep);
+CHECK_FITS_POOL(Zombie);
+CHECK_FITS_POOL(Skeleton);
+CHECK_FITS_POOL(Creeper);
+CHECK_FITS_POOL(Spider);
+CHECK_FITS_POOL(PigZombie);
+
 namespace MobFactory {
 
 static const int MOB_SLOT_RESERVE = 24;

@@ -23,16 +23,16 @@ static inline int ifloor(float v) { int i = (int)v; return (v < 0 && v != i) ? i
 
 Mob::Mob(Level* level)
 :   Entity(level), flying(false),
-    xxa(0), yya(0), yRotA(0), jumping(false),
+    xxa(0), yya(0), jumping(false),
     walkingSpeed(0.1f),
 
-    flyingSpeed(0.02f), flySlowdown(1.0f), defaultLookAngle(0.0f),
+    flyingSpeed(0.02f), flySlowdown(1.0f),
     health(10), lastHealth(0), lastHurt(0),
     hurtTime(0), hurtDuration(0), deathTime(0), attackTime(0),
     invulnerableDuration(20), dmgSpill(0), hurtDir(0), noActionTime(0),
     yBodyRot(0), yBodyRotO(0), walkAnimSpeed(0), walkAnimSpeedO(0),
     walkAnimPos(0), walkAnimPosO(0),
-    run(0), oRun(0), animStep(0), animStepO(0), lookTime(0),
+    run(0), oRun(0), animStep(0), animStepO(0),
     attackAnim(0), oAttackAnim(0), swingTime(-1), swinging(false),
     ambientSoundTime(0)
 {
@@ -234,41 +234,14 @@ void Mob::checkDespawn() {
     float sd = pdx * pdx + pdy * pdy + pdz * pdz;
     bool removeIfFar = removeWhenFarAway();
     if (removeIfFar && sd > 96.0f * 96.0f) { remove(); return; }
+    // Nothing can take this one away, so there is no despawn timer to protect.
+    // Leaving it to run would park every animal that strolled past 32 blocks.
+    if (!removeIfFar) { noActionTime = 0; return; }
     if (noActionTime > 30 * 20 && sharedRandom.nextInt(800) == 0 &&
         removeIfFar && sd > 32.0f * 32.0f)
         remove();
-    else
+    else if (sd < 32.0f * 32.0f)
         noActionTime = 0;
-}
-
-void Mob::updateAi() {
-    noActionTime++;
-    checkDespawn();
-    if (removed) return;
-    xxa = 0; yya = 0;
-
-    if (lookTime <= 0 && level->player && sharedRandom.nextFloat() < 0.02f) {
-        float dx = level->player->x - x, dz = level->player->z - z;
-        if (dx * dx + dz * dz < 64.0f) lookTime = 10 + sharedRandom.nextInt(20);
-    }
-    if (lookTime > 0 && level->player) {
-        lookTime--;
-        float dx = level->player->x - x, dz = level->player->z - z;
-        float want = atan2f(dz, dx) * MOB_RADDEG - 90.0f;
-        float diff = want - yRot;
-        while (diff < -180.0f) diff += 360.0f;
-        while (diff >= 180.0f) diff -= 360.0f;
-        if (diff >  10.0f) diff =  10.0f;
-        if (diff < -10.0f) diff = -10.0f;
-        yRot += diff;
-    } else {
-        if (sharedRandom.nextFloat() < 0.05f)
-            yRotA = (sharedRandom.nextFloat() - 0.5f) * 20.0f;
-        yRot += yRotA;
-    }
-    xRot = defaultLookAngle;
-
-    applySwimUrge();
 }
 
 void Mob::applySwimUrge() {
@@ -286,7 +259,7 @@ void Mob::aiStep() {
     if (isImmobile() || farAway) {
 
         if (farAway) { checkDespawn(); if (removed) return; }
-        jumping = false; xxa = 0; yya = 0; yRotA = 0;
+        jumping = false; xxa = 0; yya = 0;
 
         applySwimUrge();
     } else if (!level->isClientSide) {
@@ -299,7 +272,7 @@ void Mob::aiStep() {
         else if (onGround)     jumpFromGround();
     }
 
-    xxa *= 0.98f; yya *= 0.98f; yRotA *= 0.9f;
+    xxa *= 0.98f; yya *= 0.98f;
 
     float ns = walkingSpeed, nf = flyingSpeed;
     walkingSpeed *= getWalkingSpeedModifier();

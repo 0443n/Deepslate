@@ -10,6 +10,7 @@ public:
 
     explicit HumanoidRenderer(const char* texPath, bool thin = false, bool bow = false, short holdItem = 0);
     virtual void render(Entity* entity, float x, float y, float z, float rot, float a);
+    virtual void preload();
 
 private:
     const char* texPath;

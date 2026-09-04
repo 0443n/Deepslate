@@ -1,10 +1,8 @@
 #include "world/entity/monster/pig_zombie.h"
 #include "world/entity/entity_types.h"
-#include "world/entity/arrow.h"
 #include "world/level/level.h"
 #include "world/item/item.h"
 #include "nbt/compound_tag.h"
-#include <vector>
 
 PigZombie::PigZombie(Level* level)
 :   Zombie(level, ER_PIGZOMBIE_RENDERER),
@@ -22,6 +20,7 @@ int PigZombie::getEntityTypeId() const { return EntityTypes::IdPigZombie; }
 
 void PigZombie::tick() {
     if (stunedTime > 0) stunedTime--;
+    if (angerTime > 0) angerTime--;
     if (playAngrySoundIn > 0) {
         if (--playAngrySoundIn == 0)
 
@@ -31,54 +30,19 @@ void PigZombie::tick() {
     Zombie::tick();
 }
 
-Entity* PigZombie::findAttackTarget() {
-    if (stunedTime != 0) return 0;
-    Entity* t = Monster::findAttackTarget();
-    if (angerTime == 0) {
-
-        if (t && t->distanceTo(x, y, z) < 5.0f) return t;
-        return 0;
-    }
-    return t;
+// Freshly spawned pig zombies stay calm, and an unangered one only reacts to
+// something practically on top of it.
+bool PigZombie::canAttack(Entity* target) {
+    if (stunedTime != 0) return false;
+    if (angerTime != 0) return true;
+    return target && target->distanceTo(x, y, z) < 5.0f;
 }
 
-void PigZombie::alert(Entity* target) {
-    if (!target) return;
-    attackTargetId = target->entityId;
-
+// Anger only opens the canAttack gate, the target goal picks the player up on
+// its next scan. Writing the id here would be undone by the AI's own answer.
+void PigZombie::alerted() {
     angerTime = 400 + sharedRandom.nextInt(400);
     playAngrySoundIn = sharedRandom.nextInt(40);
-}
-
-bool PigZombie::hurt(Entity* source, int damage) {
-
-    Entity* attacker = 0;
-    if (source) {
-        if (source->isPlayer()) {
-            attacker = source;
-        } else if (source->isEntityType(EntityTypes::IdArrow)) {
-            Arrow* ar = (Arrow*)source;
-            if (ar->ownerId != 0) {
-                Entity* o = level->getEntity(ar->ownerId);
-                if (o && o->isPlayer()) attacker = o;
-            }
-        }
-    }
-
-    bool applied = Zombie::hurt(source, damage);
-
-    if (applied && attacker) {
-
-        AABB box = bb.grow(12.0f, 12.0f, 12.0f);
-        static std::vector<Entity*> nearby;
-        level->getEntities(this, box, nearby);
-        for (size_t i = 0; i < nearby.size(); i++) {
-            if (nearby[i]->isEntityType(EntityTypes::IdPigZombie))
-                ((PigZombie*)nearby[i])->alert(attacker);
-        }
-        alert(attacker);
-    }
-    return applied;
 }
 
 void PigZombie::dropDeathLoot() {

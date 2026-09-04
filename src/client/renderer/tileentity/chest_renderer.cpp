@@ -25,6 +25,8 @@ static void ensureAssets() {
               || textureLoad16("data/images/item/chest/double_normal.png", &s_double, GU_PSM_5551);
 }
 
+void chestRendererPreload(void) { ensureAssets(); }
+
 const Texture* chestModelTexture() {
     ensureAssets();
     return s_singleOk ? &s_single : 0;

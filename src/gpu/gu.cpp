@@ -69,6 +69,10 @@ static inline volatile unsigned int* guListCanary(int i) {
 }
 static inline void* guListCur(void) { return g_listUncached[g_listIdx]; }
 
+// guFinishFrame is the only other caller, so an overrun inside a pass went
+// unseen until the frame was already over.
+int guListCanaryCheck(void) { return canaryCheck(guListCanary(g_listIdx)); }
+
 #ifndef BSS_PAD_KB
 #define BSS_PAD_KB 0
 #endif
@@ -86,6 +90,7 @@ unsigned int g_frameAllocFails = 0;
 unsigned int g_frameAllocListFails = 0;
 
 unsigned int g_listPeakBytes = 0;
+volatile int g_inFrame = 0;
 unsigned int g_listOverruns  = 0;
 unsigned int g_listBadFinish = 0;
 
@@ -373,6 +378,7 @@ bool guStartFrame(unsigned int clearColor) {
     if (s_dialogUp) return false;
 
     g_listIdx ^= 1;
+    g_inFrame = 1;
     sceGuStart(GU_DIRECT, guListCur());
     g_frameScratch = 0;
     g_listUsed     = 0;
@@ -401,6 +407,7 @@ static void guCheckListCanary(void) {
 }
 
 void guFinishFrame(void) {
+    g_inFrame = 0;
 
     profBegin(PROF_GESYNC);
 

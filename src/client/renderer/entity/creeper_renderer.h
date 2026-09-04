@@ -9,6 +9,7 @@ class CreeperRenderer : public EntityRenderer {
 public:
     CreeperRenderer();
     virtual void render(Entity* entity, float x, float y, float z, float rot, float a);
+    virtual void preload();
 
 private:
     Texture tex;

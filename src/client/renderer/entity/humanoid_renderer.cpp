@@ -54,8 +54,12 @@ HumanoidRenderer::HumanoidRenderer(const char* texPath, bool thin, bool bow, sho
     shadowRadius = 0.5f; shadowStrength = 1.0f;
 }
 
+void HumanoidRenderer::preload() {
+    if (!haveTex) haveTex = textureLoad16(texPath, &tex, GU_PSM_5551);
+}
+
 void HumanoidRenderer::render(Entity* e, float x, float y, float z, float rot, float a) {
-    if (!haveTex) { haveTex = textureLoad16(texPath, &tex, GU_PSM_5551); if (!haveTex) return; }
+    if (!haveTex) return;
     build();
     MobPart* parts = thin ? partsT : partsN;
     Mob* mob = (Mob*)e;

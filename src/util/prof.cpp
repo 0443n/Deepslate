@@ -1,4 +1,110 @@
 #include "util/prof.h"
+#include <pspdisplay.h>
+
+volatile unsigned char g_profPhase = 0;
+
+static const char* const kSlotName[PROF_N] = {
+    "tick",
+    "tplayer",
+    "tworld",
+    "trand",
+    "tpend",
+    "tent",
+    "tte",
+    "tpart",
+    "world",
+    "stream",
+    "sgen",
+    "sdecor",
+    "slight",
+    "sdisk",
+    "sevict",
+    "smisc",
+    "light",
+    "rebuild",
+    "cull",
+    "cevict",
+    "cwalk",
+    "cmark",
+    "cgather",
+    "csubmit",
+    "csync",
+    "rscan",
+    "rbuild",
+    "memit",
+    "mpack",
+    "malloc",
+    "mconv",
+    "sky",
+    "entity",
+    "water",
+    "part",
+    "hud",
+    "hitem",
+    "hbar",
+    "hdbg",
+    "gstart",
+    "gpre",
+    "gmid",
+    "gpost",
+    "goutline",
+    "ghand",
+    "gfire",
+    "gesync",
+    "vblank",
+};
+
+const char* profSlotName(int slot) {
+    return (slot >= 0 && slot < PROF_N) ? kSlotName[slot] : "?";
+}
+
+// Four rows of six blocks, most significant on the left, white for one. Small
+// bit strips did not survive being photographed off the screen; these do.
+static unsigned short* s_fb = 0;
+static int s_bw = 0;
+
+enum { BLK_W = 20, BLK_H = 12, BLK_STEP = 26, BLK_BITS = 6, ROW_STEP = 14, PHASE_ROWS = 5 };
+
+static int s_cur[PHASE_ROWS]   = { 0, 0, 0, 0, 0 };
+static int s_drawn[PHASE_ROWS] = { -1, -1, -1, -1, -1 };
+
+static void drawBit(int row, int b, int set) {
+    unsigned short c = set ? 0xFFFF : 0xF800;
+    unsigned short* p = s_fb + (2 + row * ROW_STEP) * s_bw + b * BLK_STEP;
+    for (int y = 0; y < BLK_H; y++, p += s_bw)
+        for (int x = 0; x < BLK_W; x++) p[x] = c;
+}
+
+// Only the bits that actually changed are repainted, so a change costs a few
+// hundred stores rather than a few thousand.
+void phaseRow(int row, int value) {
+    if (row < 0 || row >= PHASE_ROWS) return;
+    value &= (1 << BLK_BITS) - 1;
+    s_cur[row] = value;
+    if (!s_fb || value == s_drawn[row]) return;
+    int diff = (s_drawn[row] < 0) ? ((1 << BLK_BITS) - 1) : (value ^ s_drawn[row]);
+    for (int b = 0; b < BLK_BITS; b++) {
+        int m = 1 << (BLK_BITS - 1 - b);
+        if (diff & m) drawBit(row, b, value & m);
+    }
+    s_drawn[row] = value;
+}
+
+void phaseFrameBegin(void) {
+    void* fb = 0; int bw = 0, pf = 0;
+    if (sceDisplayGetFrameBuf(&fb, &bw, &pf, PSP_DISPLAY_SETBUF_IMMEDIATE) < 0
+        || !fb || bw <= 0) { s_fb = 0; return; }
+    s_fb = (unsigned short*)((unsigned int)fb | 0x40000000u);
+    s_bw = bw;
+    // Rows 1 and up carry over otherwise, and a stale value reads exactly like a
+    // fresh one. All ones is a value no caller writes, so it means never reached.
+    for (int r = 1; r < PHASE_ROWS; r++) s_cur[r] = (1 << BLK_BITS) - 1;
+    // The two buffers alternate, so each one is repainted in full once a frame.
+    for (int r = 0; r < PHASE_ROWS; r++) { s_drawn[r] = -1; phaseRow(r, s_cur[r]); }
+}
+
+void phaseMark(int slot) { phaseRow(0, slot); }
+
 #if PROF
 
 #include <pspthreadman.h>
@@ -36,6 +142,8 @@ void profListBytes(unsigned bytes) {
 }
 
 void profBegin(int slot) {
+    g_profPhase = (unsigned char)slot;
+    phaseMark(slot);
 
     s_t0[slot] = sceKernelGetSystemTimeLow();
     s_open[slot] = 1;

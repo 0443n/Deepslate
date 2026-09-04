@@ -29,9 +29,26 @@ struct TickNextTickData {
 
 #define WORLD_VIEW_DIST 64.0f
 
+#define WORLD_SLOT_BITS 4
+
 #ifndef WORLD_SIZE_CHUNKS
 #define WORLD_SIZE_CHUNKS 16
 #endif
+
+// WORLD_W and WORLD_D size the resident window and every per-slot array.
+// WORLD_LIMIT_X and WORLD_LIMIT_Z are the world, which is only the same square
+// while WORLD_SIZE_CHUNKS still fits in that window. Zero means unbounded.
+#if WORLD_SIZE_CHUNKS
+#define WORLD_LIMIT_X (WORLD_SIZE_CHUNKS * CHUNK_SX)
+#define WORLD_LIMIT_Z (WORLD_SIZE_CHUNKS * CHUNK_SZ)
+#else
+#define WORLD_LIMIT_X 0
+#define WORLD_LIMIT_Z 0
+#endif
+
+// True when chunks have to be streamed in and out of the window as the player
+// moves, which retires every pass that walks the world from the origin.
+#define WORLD_STREAMS (WORLD_SIZE_CHUNKS == 0 || WORLD_SIZE_CHUNKS > (1 << WORLD_SLOT_BITS))
 
 static inline bool worldChunkInBounds(int cx, int cz) {
 #if WORLD_SIZE_CHUNKS
@@ -131,7 +148,6 @@ void worldValidateSpawn(World* w, int* x, int* y, int* z);
 
 void worldFree(World* w);
 
-#define WORLD_SLOT_BITS 4
 static inline void worldSetWindow(World* w, int slotBits) {
     w->slotBits = slotBits;
     w->slotN    = 1 << slotBits;

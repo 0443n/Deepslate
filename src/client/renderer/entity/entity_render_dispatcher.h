@@ -14,6 +14,9 @@ public:
 
     void renderAll(Level* level, float a);
 
+    // Every renderer gets its textures before the first frame that needs them.
+    void preloadAll();
+
     void render(Entity* entity, float a);
 
 private:

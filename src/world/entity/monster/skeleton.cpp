@@ -7,23 +7,18 @@
 
 static const float SK_RADDEG = 180.0f / 3.14159265f;
 
-Skeleton::Skeleton(Level* level) : Monster(level) {
+Skeleton::Skeleton(Level* level)
+:   Monster(level) {
     setSize(0.6f, 1.8f);
     entityRendererId = ER_SKELETON_RENDERER;
     attackDamage = 2;
     health = getMaxHealth();
-}
 
-void Skeleton::aiStep() {
-    updateSunburn();
-    Mob::aiStep();
 }
 
 int Skeleton::getEntityTypeId() const { return EntityTypes::IdSkeleton; }
 
-void Skeleton::checkHurtTarget(Entity* target, float d) {
-    if (d >= 10.0f) return;
-
+void Skeleton::performRangedAttack(Entity* target, float dist) {
     float myEyeY = y + getHeadHeight();
     float ex = target->x;
     float ey = target->y + target->getHeadHeight() - 0.7f;
@@ -37,15 +32,10 @@ void Skeleton::checkHurtTarget(Entity* target, float d) {
 
     xRot = pitch;
 
-    if (attackTime == 0) {
-
-        Arrow* a = new Arrow(level, x, myEyeY, z, yaw, pitch, 1.6f / 1.5f, false,
-                              false,  32.0f);
-        a->ownerId = entityId;
-        level->addEntity(a);
-        attackTime = TicksPerSecond * 3;
-    }
-    holdGround = true;
+    Arrow* a = new Arrow(level, x, myEyeY, z, yaw, pitch, 1.6f / 1.5f, false,
+                          false,  32.0f);
+    a->ownerId = entityId;
+    level->addEntity(a);
 }
 
 void Skeleton::dropDeathLoot() {

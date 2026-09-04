@@ -77,3 +77,35 @@ impl World for PspWorld {
         unsafe { ds_world_column_put(self.raw, x, z, col.as_ptr()) }
     }
 }
+
+extern "C" {
+    fn ds_world_data(w: *mut CWorld, x: i32, y: i32, z: i32) -> i32;
+}
+
+impl crate::pathfinder::PathWorld for PspWorld {
+    fn block(&self, x: i32, y: i32, z: i32) -> i32 {
+        unsafe { ds_world_block(self.raw, x, y, z) }
+    }
+    fn data(&self, x: i32, y: i32, z: i32) -> i32 {
+        unsafe { ds_world_data(self.raw, x, y, z) }
+    }
+}
+
+extern "C" {
+    fn ds_world_brightness(w: *mut CWorld, x: i32, y: i32, z: i32) -> i32;
+}
+
+impl crate::mob::ctx::MobWorld for PspWorld {
+    fn block(&self, x: i32, y: i32, z: i32) -> i32 {
+        unsafe { ds_world_block(self.raw, x, y, z) }
+    }
+    fn brightness(&self, x: i32, y: i32, z: i32) -> f32 {
+        unsafe { ds_world_brightness(self.raw, x, y, z) as f32 * 0.001 }
+    }
+    fn can_see_sky(&self, x: i32, y: i32, z: i32) -> bool {
+        unsafe { ds_world_can_see_sky(self.raw, x, y, z) != 0 }
+    }
+    fn as_path(&self) -> &dyn crate::pathfinder::PathWorld {
+        self
+    }
+}

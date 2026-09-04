@@ -10,6 +10,8 @@ public:
 
     virtual int  getMaxHealth() { return 16; }
     virtual void tick();
+    virtual int  getAiKind() const { return DS_MOB_CREEPER; }
+
     virtual int  getEntityTypeId() const;
 
     virtual bool playerInteract();
@@ -20,12 +22,17 @@ public:
     float getSwelling(float a) const;
     static const int MAX_SWELL = 30;
 
+    int  getSwellDir() const { return swellDir; }
+    // 2 means flint and steel lit it, and nothing the AI says untethers that.
+    virtual void setSwellDir(int dir) { if (swellDir != 2) swellDir = dir; }
+
 protected:
     virtual int  getDeathLoot();
-    virtual void checkHurtTarget(Entity* target, float d);
-    virtual void checkCantSeeTarget(Entity* target, float d);
+
 
 private:
+    void explode();
+
     int swell, oldSwell, swellDir;
 };
 

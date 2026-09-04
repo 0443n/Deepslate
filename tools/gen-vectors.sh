@@ -19,5 +19,11 @@ g++ -O2 -Isrc -o "$OUT" tools/gen-noise-vectors.cpp \
     "$SRC/ImprovedNoise.cpp" "$SRC/PerlinNoise.cpp" "$SRC/Synth.cpp"
 "$OUT" > rust/tests/noise_vectors.txt
 
+# The pathfinder C++ is still here, compiled against the stub world in
+# tools/pathtest rather than the real chunk store.
+g++ -O2 -Itools/pathtest -Isrc -o "$OUT" tools/gen-path-vectors.cpp \
+    src/world/level/pathfinder/path_finder.cpp src/world/level/pathfinder/path.cpp
+"$OUT" > rust/tests/path_vectors.txt
+
 rm -f "$OUT"
 wc -l rust/tests/*_vectors.txt

@@ -12,6 +12,8 @@ public:
     virtual void tick();
     virtual bool onLadder();
     virtual void makeStuckInWeb();
+    virtual int  getAiKind() const { return DS_MOB_SPIDER; }
+
     virtual int  getEntityTypeId() const;
 
     virtual const char* getAmbientSound() { return "mob.spider"; }
@@ -20,10 +22,12 @@ public:
 
     bool isClimbing() const { return climbing; }
 
+    virtual bool canAttack(Entity* target);
+    virtual bool shouldKeepTarget(Entity* target);
+
 protected:
-    virtual Entity* findAttackTarget();
-    virtual void    checkHurtTarget(Entity* target, float d);
-    virtual int     getDeathLoot();
+    virtual int getDeathLoot();
+
 
 private:
     bool climbing;

@@ -8,6 +8,7 @@ Zombie::Zombie(Level* level) : Monster(level) {
     runSpeed = 0.5f;
     attackDamage = 4;
     health = getMaxHealth();
+
 }
 
 Zombie::Zombie(Level* level, int rendererId) : Monster(level) {
@@ -16,11 +17,7 @@ Zombie::Zombie(Level* level, int rendererId) : Monster(level) {
     runSpeed = 0.5f;
     attackDamage = 4;
     health = getMaxHealth();
-}
 
-void Zombie::aiStep() {
-    updateSunburn();
-    Mob::aiStep();
 }
 
 int Zombie::getEntityTypeId() const { return EntityTypes::IdZombie; }

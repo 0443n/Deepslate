@@ -16,6 +16,9 @@
 #include "gpu/sprite.h"
 #include "gpu/font.h"
 #include "platform/path.h"
+#include "platform/trace.h"
+#include "platform/fbtext.h"
+#include <malloc.h>
 #include "rs/rs.h"
 #include "util/prof.h"
 #include "platform/audio/sound.h"
@@ -34,6 +37,7 @@
 
 #include "platform/time.h"
 #include "world/level/level.h"
+#include "world/level/pathfinder/path_bridge.h"
 #include "world/entity/entity.h"
 #include "world/entity/local_player.h"
 #include "world/entity/item_entity.h"
@@ -60,6 +64,7 @@ static void detectPspGo(void) {
 
 int g_lowMemPsp  = 0;
 int g_lowMemHeap = 0;
+int g_heapCeilingMB = 0;
 static void detectLowMemPsp(void) {
     enum { MAX_BLOCKS = 64 };
     void* blocks[MAX_BLOCKS];
@@ -68,6 +73,7 @@ static void detectLowMemPsp(void) {
     for (int i = 0; i < n; i++) free(blocks[i]);
 
     int stillFreeMB = (int)(sceKernelTotalFreeMemSize() / (1024u * 1024u));
+    g_heapCeilingMB = n;
     g_lowMemHeap = (n < 32);
     g_lowMemPsp  = (n + stillFreeMB) < 32;
 }
@@ -165,6 +171,13 @@ static float drawFaultCounters(MenuState& s, float ty) {
         ty += 12.0f;
     }
 
+    extern unsigned int g_chunkCrcFails;
+    if (g_chunkCrcFails) {
+        std::snprintf(buf, sizeof(buf), "CHUNK CRC FAIL %u", g_chunkCrcFails);
+        fontDrawTextShadow(&s.font, 10, ty, buf, 0xFF4040FFu, 1.0f);
+        ty += 12.0f;
+    }
+
     extern World g_world;
     if (g_blockOomDrops || g_world.lightOomDrops) {
         std::snprintf(buf, sizeof(buf), "STORAGE OOM block %u light %u",
@@ -257,9 +270,20 @@ int main(int argc, char* argv[]) {
     pspFpuSetEnable(0);
     setupCallbacks();
     pathInit(argc > 0 ? argv[0] : 0);
+    traceInit();
 
-    // Guards the o32/EABI32 bridge, see src/rs/rs.h.
-    printf(rsAbiOk() ? "rs abi ok\n" : "rs abi MISMATCH\n");
+    // Guards the o32/EABI32 bridge, see src/rs/rs.h. It goes to the trace too,
+    // because stdout is invisible on the console and a dead bridge looks like a
+    // dozen unrelated bugs.
+    bool abiOk = rsAbiOk();
+    printf(abiOk ? "rs abi ok\n" : "rs abi MISMATCH\n");
+    traceMark("RS abi %s", abiOk ? "ok" : "MISMATCH");
+
+    // Needs the tiles registered, they are where the block flags come from.
+    pathFinderInit();
+    // The runtime spawner wants a fresh stream per session, or every boot lays
+    // the same herds down in the same places.
+    ds_spawn_init((int)sceKernelGetSystemTimeLow());
 
     detectLowMemPsp();
     detectPspGo();
@@ -349,7 +373,14 @@ int main(int argc, char* argv[]) {
     float fpsLastTime = nowSeconds();
     int fpsFrames = 0;
 
+    traceWatchdogStart();
+
     while (!g_exitRequested) {
+        g_frameSeq++;
+        phaseFrameBegin();
+        fbTextFrameBegin();
+        codeGuardStep();
+        if (g_worldBuilt) g_level.guardEntities();
         float now = nowSeconds();
 
         if (now - fpsLastTime >= 1.0f) {
@@ -362,6 +393,22 @@ int main(int argc, char* argv[]) {
 
         SceCtrlData pad;
         sceCtrlReadBufferPositive(&pad, 1);
+
+#ifdef AUTOPLAY
+        // Synthetic input, so an emulator run can walk a real world unattended
+        // and the interpreter gets to see every access the hardware faults on.
+        {
+            static int t = 0;
+            t++;
+            pad.Lx = pad.Ly = pad.Rx = pad.Ry = 128;
+            pad.Buttons = 0;
+            if (!g_worldBuilt) { if ((t % 40) < 3) pad.Buttons |= PSP_CTRL_CROSS; }
+            else {
+                pad.Ly = 0;
+                pad.Rx = (unsigned char)(128 + (int)(100.0f * std::sin(t * 0.004f)));
+            }
+        }
+#endif
 
         controlSchemeNotePad(pad.Buttons, pad.Rx, pad.Ry);
 
@@ -454,6 +501,38 @@ int main(int argc, char* argv[]) {
         panoramaSetLoaded(s.screen != SCREEN_GAME && !g_worldBuilt);
 
         worldIconsSetLoaded(s.screen == SCREEN_WORLDS || s.screen == SCREEN_DELETE);
+
+        // A lockup or a power-off leaves only what already reached the stick,
+        // so the heartbeat has to be written, not buffered.
+        if (g_worldBuilt && g_level.player && (fpsFrames % 300) == 0) {
+            int res = 0;
+            for (int i = 0; i < g_world.slotN * g_world.slotN; i++)
+                if (g_world.slots[i].resident) res++;
+            struct mallinfo mi = mallinfo();
+            int linkR = 0, linkE = 0;
+            g_level.linkStats(&linkR, &linkE);
+            unsigned int snk = 0;
+#if MESH_RESERVE_CHECK
+            { extern unsigned int g_sinkOverruns; snk = g_sinkOverruns; }
+#endif
+            extern unsigned int g_deferStalls;
+            // Broken out per pool, so a climbing heap names its own leak.
+            traceMark("LIVE x %d y %d z %d res %d heap %uK world %uK "
+                      "ent %u lnk %d/%d tile %u tick %u/%u lq %u dpg %d defer %u stk %u snk %u cg %u "
+                      "ge %uK/%d/%d/%d fa %u/%u sd %u",
+                      (int)g_level.player->x, (int)g_level.player->y,
+                      (int)g_level.player->z, res, (unsigned)mi.uordblks / 1024,
+                      worldMemBytes(&g_world) / 1024,
+                      (unsigned)g_level.entities.size(), linkR, linkE,
+                      (unsigned)g_level.tileEntities.size(),
+                      (unsigned)g_world.tickNextTickList.size(),
+                      (unsigned)g_world.tickSet.size(),
+                      (unsigned)g_world.lightQueue.size(),
+                      g_world.dataPages, g_deferStalls, g_mainStackMin, snk, g_codeFixes,
+                      g_listPeakBytes / 1024, (int)g_listOverruns, (int)g_listBadFinish,
+                      (int)g_canaryBroken, g_frameAllocFails, g_frameAllocListFails,
+                      traceSdTrips());
+        }
 
         profBegin(PROF_GSTART);
         const bool frameOpen = guStartFrame(s.screen == SCREEN_GAME ? g_skyColorNow : 0xFF000000u);
@@ -605,6 +684,30 @@ int main(int argc, char* argv[]) {
                                   (int)floorf(g_level.player->y - 1.62f),
                                   (int)floorf(g_level.player->z));
                     fontDrawTextShadow(&s.font, 10, ty, posBuf, 0xFFE0E0E0u, 1.0f);
+                    ty += 12.0f;
+
+                    // A streamed world can starve, and that reads on screen as
+                    // invisible bedrock rather than as a loading problem.
+                    if (!worldFitsInWindow(&g_world)) {
+                        const int pcx = (int)floorf(g_level.player->x) >> 4;
+                        const int pcz = (int)floorf(g_level.player->z) >> 4;
+                        const int R = worldLoadRadius(&g_world);
+                        int res = 0, miss = 0;
+                        for (int i = 0; i < g_world.slotN * g_world.slotN; i++)
+                            if (g_world.slots[i].resident) res++;
+                        for (int dz = -R; dz <= R; dz++)
+                            for (int dx = -R; dx <= R; dx++)
+                                if (!worldChunkReady(&g_world, pcx + dx, pcz + dz)) miss++;
+                        char buf2[112];
+                        std::snprintf(buf2, sizeof(buf2),
+                                      "STREAM res %d/%d  miss %d/%d  in %u out %u  heap %uK/%dM",
+                                      res, g_world.slotN * g_world.slotN,
+                                      miss, (2 * R + 1) * (2 * R + 1),
+                                      g_streamIn, g_streamOut,
+                                      (unsigned)mallinfo().uordblks / 1024, g_heapCeilingMB);
+                        fontDrawTextShadow(&s.font, 10, ty, buf2,
+                                           miss > 40 ? 0xFF4040FFu : 0xFFE0E0E0u, 1.0f);
+                    }
                 }
                 profEnd(PROF_HDBG);
             }
@@ -636,13 +739,24 @@ int main(int argc, char* argv[]) {
 
         drawFaultCounters(s, 10.0f);
 
+        if (const char* crash = traceLastCrash()) {
+            if (crash[0]) {
+                char cb[224];
+                std::snprintf(cb, sizeof(cb), "last run ended at: %s", crash);
+                fontDrawTextShadow(&s.font, 10, 246, cb, 0xFF4040FFu, 0.8f);
+            }
+        }
+
         guEndFrame();
     }
 
     soundShutdown();
 
+    traceMark("QUIT");
+    // HOME can land here mid-save, and worldFree would pull the world out from
+    // under a thread that is still writing chunks through it.
+    { extern void worldJoinBackgroundWork(); worldJoinBackgroundWork(); }
     if (g_worldBuilt) releaseWorldAndPlayer();
-    worldGenWorkerStop();
 
     if (s.haveFont)  fontFree(&s.font);
     if (s.haveGui)   textureFree(&s.guiAtlas);
@@ -652,6 +766,7 @@ int main(int argc, char* argv[]) {
     if (s.haveTouch) textureFree(&s.touchGui);
     panoramaSetLoaded(false);
 
+    traceClose();
     guTerm();
     sceKernelExitGame();
     return 0;

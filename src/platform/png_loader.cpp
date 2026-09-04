@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <csetjmp>
+#include <cstring>
 
 struct PngReader {
     png_structp png;
@@ -26,10 +27,53 @@ static void pngErrorFn(png_structp png, png_const_charp msg) {
 static void pngWarnFn(png_structp, png_const_charp) {}
 
 PngReader* pngOpen(const char* path, int* outW, int* outH) {
-    FILE* fp = fopen(path, "rb");
-    if (!fp) return 0;
-
+    // NOTE: cleared before the open, or a caller reporting the reason picks up
+    // whatever the last failing image left behind and names the wrong fault.
     g_pngLastError[0] = 0;
+
+    FILE* fp = fopen(path, "rb");
+    if (!fp) { std::snprintf(g_pngLastError, sizeof(g_pngLastError), "fopen failed"); return 0; }
+
+    // libpng calls these files unsigned while a plain re-read of the same path
+    // returns the right bytes, so the handle is checked before libpng sees it.
+    {
+        unsigned char sig[8] = { 0 };
+        size_t got = std::fread(sig, 1, 8, fp);
+        static const unsigned char kSig[8] = { 137, 80, 78, 71, 13, 10, 26, 10 };
+        const bool mineOk = (got == 8) && memcmp(sig, kSig, 8) == 0;
+        if (got != 8 || png_sig_cmp(sig, 0, 8)) {
+            // Our own copy agreeing while libpng's disagrees puts the fault in
+            // libpng's constant, not in the file.
+            if (mineOk) {
+                // png_sig_cmp is the only way to read libpng's own constant, so
+                // each byte is probed for the value it accepts.
+                unsigned char want[8];
+                for (int i = 0; i < 8; i++) {
+                    unsigned char probe[8];
+                    memcpy(probe, kSig, 8);
+                    want[i] = 0;
+                    for (int v = 0; v < 256; v++) {
+                        probe[i] = (unsigned char)v;
+                        if (png_sig_cmp(probe, (size_t)i, 1) == 0) { want[i] = (unsigned char)v; break; }
+                    }
+                }
+                std::snprintf(g_pngLastError, sizeof(g_pngLastError),
+                              "rot want %02x%02x%02x%02x%02x%02x%02x%02x",
+                              want[0], want[1], want[2], want[3],
+                              want[4], want[5], want[6], want[7]);
+                std::fclose(fp);
+                return 0;
+            }
+            std::snprintf(g_pngLastError, sizeof(g_pngLastError),
+                          "read %u %02x%02x%02x%02x%02x%02x%02x%02x", (unsigned)got,
+                          sig[0], sig[1], sig[2], sig[3],
+                          sig[4], sig[5], sig[6], sig[7]);
+            std::fclose(fp);
+            return 0;
+        }
+        std::rewind(fp);
+    }
+
     png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0,
                                              pngErrorFn, pngWarnFn);
     if (!png) { fclose(fp); return 0; }

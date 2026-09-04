@@ -40,6 +40,8 @@ static inline int quad(PVert* m, int n, unsigned int col,
     return n;
 }
 
+void PaintingRenderer::preload() { ensureArt(); }
+
 void PaintingRenderer::render(Entity* entity, float x, float y, float z, float rot, float a) {
     ensureArt();
     if (!s_artOk) return;

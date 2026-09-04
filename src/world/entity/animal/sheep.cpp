@@ -24,6 +24,7 @@ Sheep::Sheep(Level* level) : Animal(level), woolColor(0), sheared(false) {
     entityRendererId = ER_SHEEP_RENDERER;
     health = getMaxHealth();
     woolColor = getSheepColor(sharedRandom);
+
 }
 
 int Sheep::getEntityTypeId() const { return EntityTypes::IdSheep; }
@@ -86,35 +87,17 @@ void Sheep::readAdditionalSaveData(CompoundTag* tag) {
     woolColor = tag->getByte("Color") & 0x0f;
 }
 
-void Sheep::aiStep() {
-    PathfinderMob::aiStep();
-    if (eatAnimationTick > 0) eatAnimationTick--;
-
-    int bx = (int)floorf(x), by = (int)floorf(y), bz = (int)floorf(z);
-
-    if (eatAnimationTick <= 0) {
-
-        if (((isBaby() && sharedRandom.nextInt(50) == 0) || sharedRandom.nextInt(1000) == 0) &&
-            worldBlock(&g_world, bx, by - 1, bz) == BLOCK_GRASS) {
-            eatAnimationTick = EAT_ANIMATION_TICKS;
-        }
-    } else if (eatAnimationTick == 4) {
-
-        if (worldBlock(&g_world, bx, by - 1, bz) == BLOCK_GRASS) {
-            worldSetBlockAndData(&g_world, bx, by - 1, bz, BLOCK_DIRT, 0);
-            worldNotifyNeighborsChanged(&g_world, bx, by - 1, bz);
-            worldRebuildAroundNow(&g_world, bx, by - 1, bz);
-            setSheared(false);
-            if (isBaby()) {
-                int na = getAge() + TicksPerSecond * 60;
-                if (na > 0) na = 0;
-                setAge(na);
-            }
-        }
-    }
+// EatBlockGoal has already turned the grass to dirt by the time this runs.
+void Sheep::ate() {
+    setSheared(false);
+    if (!isBaby()) return;
+    int na = getAge() + TicksPerSecond * 60;
+    if (na > 0) na = 0;
+    setAge(na);
 }
 
 float Sheep::getHeadEatPositionScale(float a) const {
+    int eatAnimationTick = getEatAnimationTick();
     if (eatAnimationTick <= 0) return 0.0f;
     if (eatAnimationTick >= 4 && eatAnimationTick <= EAT_ANIMATION_TICKS - 4) return 1.0f;
     if (eatAnimationTick < 4) return ((float)eatAnimationTick - a) / 4.0f;
@@ -122,6 +105,7 @@ float Sheep::getHeadEatPositionScale(float a) const {
 }
 
 float Sheep::getHeadEatAngleScale(float a) const {
+    int eatAnimationTick = getEatAnimationTick();
     if (eatAnimationTick > 4 && eatAnimationTick <= EAT_ANIMATION_TICKS - 4) {
         float s = ((float)(eatAnimationTick - 4) - a) / (float)(EAT_ANIMATION_TICKS - 8);
         return MTH_PI * 0.20f + MTH_PI * 0.07f * sinf(s * 28.7f);

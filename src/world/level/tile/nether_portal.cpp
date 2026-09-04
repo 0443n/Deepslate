@@ -123,7 +123,7 @@ static bool sitsHere(const World* w, int x, int y, int z, int dx, int dz) {
     if (y < 1 || y + PORTAL_IH >= WORLD_H) return false;
     for (int i = -1; i <= PORTAL_IW; i++) {
         int bx = x + dx * i, bz = z + dz * i;
-        if (bx < 0 || bz < 0 || bx >= WORLD_W || bz >= WORLD_D) return false;
+        if (bx < 0 || bz < 0 || bx >= WORLD_LIMIT_X || bz >= WORLD_LIMIT_Z) return false;
         if (!Tile::tiles[worldBlock(w, bx, y - 1, bz)]->solidPhys) return false;
         for (int h = 0; h <= PORTAL_IH; h++)
             if (!isEmpty(worldBlock(w, bx, y + h, bz))) return false;
@@ -141,7 +141,7 @@ static void raise(World* w, int x, int y, int z, int dx, int dz) {
         for (int h = -1; h <= PORTAL_IH; h++)
             for (int s = -1; s <= 1; s++) {
                 int bx = x + dx * i + px * s, by = y + h, bz = z + dz * i + pz * s;
-                if (bx < 0 || bz < 0 || bx >= WORLD_W || bz >= WORLD_D) continue;
+                if (bx < 0 || bz < 0 || bx >= WORLD_LIMIT_X || bz >= WORLD_LIMIT_Z) continue;
                 if (by < 0 || by >= WORLD_H) continue;
 
                 bool shell = (i == -1 || i == PORTAL_IW || h == -1 || h == PORTAL_IH);
@@ -161,7 +161,7 @@ void findOrCreate(World* w, int x, int z, int* outX, int* outY, int* outZ) {
     int bestD = 1 << 30, bx = -1, by = 0, bz = 0;
     for (int sx = x - R; sx <= x + R; sx++)
         for (int sz = z - R; sz <= z + R; sz++) {
-            if (sx < 0 || sz < 0 || sx >= WORLD_W || sz >= WORLD_D) continue;
+            if (sx < 0 || sz < 0 || sx >= WORLD_LIMIT_X || sz >= WORLD_LIMIT_Z) continue;
             for (int sy = 1; sy < WORLD_H - 1; sy++) {
                 if (worldBlock(w, sx, sy, sz) != BLOCK_PORTAL) continue;
                 int d = (sx - x) * (sx - x) + (sz - z) * (sz - z);
@@ -177,7 +177,7 @@ void findOrCreate(World* w, int x, int z, int* outX, int* outY, int* outZ) {
         for (int sx = x - r; sx <= x + r; sx++)
             for (int sz = z - r; sz <= z + r; sz++) {
                 if (r > 0 && sx != x - r && sx != x + r && sz != z - r && sz != z + r) continue;
-                if (sx < 2 || sz < 2 || sx >= WORLD_W - 2 || sz >= WORLD_D - 2) continue;
+                if (sx < 2 || sz < 2 || sx >= WORLD_LIMIT_X - 2 || sz >= WORLD_LIMIT_Z - 2) continue;
                 for (int sy = WORLD_H - PORTAL_IH - 2; sy >= 2; sy--) {
                     for (int a = 0; a < 2; a++) {
                         int dx = a ? 0 : 1, dz = a ? 1 : 0;
@@ -192,9 +192,9 @@ void findOrCreate(World* w, int x, int z, int* outX, int* outY, int* outZ) {
     // Nothing was open anywhere, so carve a shelf and stand the frame on it.
     int fy = WORLD_H / 2;
     if (x < 2) x = 2;
-    if (x > WORLD_W - 8) x = WORLD_W - 8;
+    if (x > WORLD_LIMIT_X - 8) x = WORLD_LIMIT_X - 8;
     if (z < 2) z = 2;
-    if (z > WORLD_D - 8) z = WORLD_D - 8;
+    if (z > WORLD_LIMIT_Z - 8) z = WORLD_LIMIT_Z - 8;
     for (int i = -1; i <= PORTAL_IW; i++)
         for (int s = -1; s <= 1; s++)
             worldSetBlockAndData(w, x + i, fy - 1, z + s, BLOCK_OBSIDIAN, 0);

@@ -86,6 +86,8 @@ static PVert s_model[144];
 
 static PVert s_text[512];
 
+void signRendererPreload(void) { ensureAssets(); }
+
 static void renderSign(SignTileEntity* sign, float a) {
     ensureAssets();
     if (!s_signOk) return;

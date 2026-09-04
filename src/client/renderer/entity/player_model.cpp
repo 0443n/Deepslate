@@ -192,6 +192,13 @@ static void drawArmorLayers(unsigned int brCol) {
     }
 }
 
+void playerModelPreload(void) {
+    loadLocalPlayerSkinIfNeeded();
+    buildArmor();
+    for (int mat = 0; mat < 5; mat++)
+        for (int file = 0; file < 2; file++) armorTexture(mat, file);
+}
+
 void playerModelRender(float a) {
     LocalPlayer* p = g_level.player;
     if (!p) return;

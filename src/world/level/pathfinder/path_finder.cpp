@@ -182,7 +182,13 @@ void PathFinder::reconstruct(Path& path, Node* , Node* to) {
     n = to;
     list[--count] = n;
     while (n->cameFrom) { n = n->cameFrom; list[--count] = n; }
-    path.copyNodes(list, size);
+
+    static short xyz[MAX_NODES * 3];
+    int keep = size > 64 ? 64 : size;
+    for (int i = 0; i < keep; i++) {
+        xyz[i * 3] = list[i]->x; xyz[i * 3 + 1] = list[i]->y; xyz[i * 3 + 2] = list[i]->z;
+    }
+    path.copyPoints(xyz, keep);
 }
 
 Node* PathFinder::newNode(int x, int y, int z) {

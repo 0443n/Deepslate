@@ -1,5 +1,6 @@
 
 #include "client/renderer/entity/entity_renderer.h"
+#include "util/prof.h"
 #include "client/renderer/particle.h"
 #include "client/renderer/render.h"
 #include "world/level/level.h"
@@ -71,6 +72,8 @@ static void renderTileShadow(float x, float y, float z, int xt, int yt, int zt,
     q[5] = (ChunkVertex){ u0, v0, col, x0, y0, z0 };
     s_vcount += 6;
 }
+
+void entityShadowPreload(void) { if (!s_shadowReady) buildShadowTexture(); }
 
 void renderEntityShadow(float x, float y, float z, float off, float radius, float pow) {
     if (!s_shadowReady) buildShadowTexture();
@@ -214,6 +217,7 @@ void renderEntityFlame(float x, float y, float z, float bbY0, float w, float h) 
 void EntityRenderer::postRender(Entity* entity, float x, float y, float z, float a) {
 
     if (entity->isOnFire()) {
+        phaseRow(1, 14);
         renderEntityFlame(x, y, z, entity->bb.y0, entity->bbWidth, entity->bbHeight);
         particlesEntityFlame(entity->entityId, x, y - entity->heightOffset, z,
                              entity->bbWidth, entity->bbHeight, entity->xd, entity->zd);
@@ -224,5 +228,6 @@ void EntityRenderer::postRender(Entity* entity, float x, float y, float z, float
     float dist = dx * dx + dy * dy + dz * dz;
     float pow = (1.0f - dist / (16.0f * 16.0f)) * shadowStrength;
     float r = entity->isBaby() ? shadowRadius * 0.5f : shadowRadius;
+    phaseRow(1, 15);
     if (pow > 0.0f) renderEntityShadow(x, y, z, entity->getShadowHeightOffs(), r, pow);
 }

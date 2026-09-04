@@ -42,8 +42,12 @@ SpiderRenderer::SpiderRenderer() : haveTex(false) {
     shadowRadius = 0.7f; shadowStrength = 1.0f;
 }
 
+void SpiderRenderer::preload() {
+    if (!haveTex) haveTex = textureLoad16("data/images/mob/spider.png", &tex, GU_PSM_5551);
+}
+
 void SpiderRenderer::render(Entity* e, float x, float y, float z, float rot, float a) {
-    if (!haveTex) { haveTex = textureLoad16("data/images/mob/spider.png", &tex, GU_PSM_5551); if (!haveTex) return; }
+    if (!haveTex) return;
     build();
     Mob* mob = (Mob*)e;
 

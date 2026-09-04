@@ -1,3 +1,5 @@
+#include "util/prof.h"
+#include "platform/fbtext.h"
 #include "client/renderer/render.h"
 #include "client/renderer/entity/mob_model.h"
 #include "world/entity/mob.h"
@@ -51,20 +53,35 @@ static inline unsigned int mul(unsigned int a, unsigned int b) {
     return (aa << 24) | (bb << 16) | (gg << 8) | rr;
 }
 
+static inline unsigned int fbits(float f) { union { float f; unsigned int u; } c; c.f = f; return c.u; }
+
+// The old subtract loop needed one turn per revolution, so a rotation that had
+// gone wild froze the machine instead of drawing a wrong angle.
+static float wrapDeg(float d) {
+    if (d >= -180.0f && d <= 180.0f) return d;
+    if (!(d > -1.0e7f && d < 1.0e7f)) return 0.0f;
+    return d - 360.0f * floorf((d + 180.0f) * (1.0f / 360.0f));
+}
+
 MobAnim mobAnimSetup(Mob* mob, float rot, float a) {
     MobAnim m;
-    float dBody = mob->yBodyRot - mob->yBodyRotO;
-    while (dBody > 180.0f) dBody -= 360.0f;
-    while (dBody < -180.0f) dBody += 360.0f;
+    fbTextHex(0, 24, 1, 2);
+    fbTextHex(2, 0, fbits(mob->yBodyRot), 8);
+    fbTextHex(2, 9, fbits(mob->yBodyRotO), 8);
+    fbTextHex(2, 18, fbits(mob->xRot), 8);
+    fbTextHex(3, 0, fbits(mob->walkAnimPos), 8);
+    fbTextHex(3, 9, fbits(mob->walkAnimSpeed), 8);
+    fbTextHex(3, 18, fbits(rot), 8);
+    float dBody = wrapDeg(mob->yBodyRot - mob->yBodyRotO);
     m.bodyRot = mob->yBodyRotO + dBody * a;
-    m.headYaw = rot - m.bodyRot;
-    while (m.headYaw > 180.0f) m.headYaw -= 360.0f;
-    while (m.headYaw < -180.0f) m.headYaw += 360.0f;
+    m.headYaw = wrapDeg(rot - m.bodyRot);
     m.pitch = mob->xRotO + (mob->xRot - mob->xRotO) * a;
     m.speed = mob->walkAnimSpeedO + (mob->walkAnimSpeed - mob->walkAnimSpeedO) * a;
     if (m.speed > 1.0f) m.speed = 1.0f;
     m.pos = mob->walkAnimPos - mob->walkAnimSpeed * (1.0f - a);
+    fbTextHex(0, 24, 2, 2);
     if (mob->isBaby()) m.pos *= 3.0f;
+    fbTextHex(0, 24, 3, 2);
     return m;
 }
 
@@ -72,6 +89,8 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
                     float x, float y, float z, float ibody, float a, unsigned int tint,
                     float babyHeadY, float babyHeadZ, float modelScale,
                     float overlayWhite, int bowPartIndex, float modelScaleY, short heldItemId) {
+    phaseRow(1, 7);
+    fbTextHex(0, 24, 4, 2);
     float feet = y - mob->heightOffset;
 
     int bx = (int)floorf(x), by = (int)floorf(feet + mob->bbHeight * 0.66f), bz = (int)floorf(z);
@@ -88,8 +107,10 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
 
     if (count > MOB_MAX_PARTS) count = MOB_MAX_PARTS;
 
+    phaseRow(1, 8);
     textureBind(tex);
     sceGuDisable(GU_CULL_FACE);
+    phaseRow(1, 9);
 
     sceGumMatrixMode(GU_MODEL);
     sceGumPushMatrix();
@@ -128,8 +149,10 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
                                            g_nearZPlane, MOB_DEPTH_BIAS_BLOCKS));
     }
 
+    phaseRow(1, 10);
     sceGuColor(brCol);
     for (int i = 0; i < count; i++) {
+        phaseRow(4, i);
         sceGumPushMatrix();
         MOB_BABY_XFORM(i);
         ScePspFVector3 piv = { parts[i].px, parts[i].py, parts[i].pz }; sceGumTranslate(&piv);
@@ -142,6 +165,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         sceGumPopMatrix();
     }
 
+    phaseRow(1, 11);
     if (bowPartIndex >= 0 && bowPartIndex < count) {
         MobPart& ap = parts[bowPartIndex];
         short drawId = heldItemId ? heldItemId : ITEM_BOW;
@@ -173,6 +197,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
         }
     }
 
+    phaseRow(1, 12);
     if (overlayWhite > 0.01f) {
         unsigned int wa = (unsigned int)(overlayWhite * 255.0f); if (wa > 255) wa = 255;
         const unsigned int WHITE = (wa << 24) | 0x00FFFFFFu;
@@ -202,6 +227,7 @@ void mobRenderParts(Mob* mob, MobPart* parts, int count, Texture* tex,
     }
     #undef MOB_BABY_XFORM
 
+    phaseRow(1, 13);
     sceGuDepthOffset(0);
     sceGuColor(0xFFFFFFFFu);
 

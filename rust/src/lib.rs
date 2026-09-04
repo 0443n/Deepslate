@@ -23,12 +23,16 @@ pub mod ffi;
 #[cfg(target_os = "psp")]
 mod heap;
 pub mod mcpegen;
+pub mod mob;
 pub mod mth;
 pub mod newlib;
 pub mod nether;
 pub mod noise;
+pub mod pathfinder;
 #[cfg(target_os = "psp")]
 pub mod psp_world;
+pub mod psp_spawn;
+pub mod spawner;
 pub mod random;
 pub mod world;
 

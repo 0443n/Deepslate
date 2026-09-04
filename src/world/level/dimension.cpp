@@ -20,13 +20,13 @@ static int s_destX = 0, s_destZ = 0;
 // round trip lands back near where it started instead of drifting to a corner.
 static void scaleCoords(int from, int x, int z, int* ox, int* oz) {
     float s = (from == DIM_OVERWORLD) ? 0.125f : 8.0f;
-    int cx = WORLD_W / 2, cz = WORLD_D / 2;
+    int cx = WORLD_LIMIT_X / 2, cz = WORLD_LIMIT_Z / 2;
     int nx = cx + (int)((float)(x - cx) * s);
     int nz = cz + (int)((float)(z - cz) * s);
     if (nx < 8) nx = 8;
-    if (nx > WORLD_W - 9) nx = WORLD_W - 9;
+    if (nx > WORLD_LIMIT_X - 9) nx = WORLD_LIMIT_X - 9;
     if (nz < 8) nz = 8;
-    if (nz > WORLD_D - 9) nz = WORLD_D - 9;
+    if (nz > WORLD_LIMIT_Z - 9) nz = WORLD_LIMIT_Z - 9;
     *ox = nx; *oz = nz;
 }
 
@@ -43,7 +43,6 @@ void dimensionSwapTearDown(World* w) {
 
     LevelStorage::saveDimension(w);
 
-    worldGenWorkerStop();
     g_level.removeAllEntities();
     g_level.removeAllTileEntities();
     worldFree(w);

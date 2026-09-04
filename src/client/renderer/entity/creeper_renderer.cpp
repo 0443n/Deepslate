@@ -34,8 +34,12 @@ CreeperRenderer::CreeperRenderer() : haveTex(false) {
     shadowRadius = 0.5f; shadowStrength = 1.0f;
 }
 
+void CreeperRenderer::preload() {
+    if (!haveTex) haveTex = textureLoad16("data/images/mob/creeper.png", &tex, GU_PSM_5551);
+}
+
 void CreeperRenderer::render(Entity* e, float x, float y, float z, float rot, float a) {
-    if (!haveTex) { haveTex = textureLoad16("data/images/mob/creeper.png", &tex, GU_PSM_5551); if (!haveTex) return; }
+    if (!haveTex) return;
     build();
     Creeper* cr = (Creeper*)e;
     Mob* mob = (Mob*)e;

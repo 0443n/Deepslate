@@ -9,15 +9,12 @@ class CompoundTag;
 class Animal : public PathfinderMob {
 public:
 
+    // Herds are capped at 15 and cost real entity slots, so one you found stays
+    // found. Nothing here ever despawns on distance.
     virtual bool removeWhenFarAway() { return false; }
     Animal(Level* level);
 
-    void setDespawnProtected();
-
-    virtual void aiStep();
-
     virtual bool  hurt(Entity* source, int damage);
-    virtual float getWalkTargetValue(int x, int y, int z);
     virtual int   getCreatureBaseType() const;
 
     virtual int   getAmbientSoundInterval() { return 12 * TicksPerSecond; }
@@ -31,13 +28,7 @@ protected:
     virtual void addAdditonalSaveData(CompoundTag* tag);
     virtual void readAdditionalSaveData(CompoundTag* tag);
 
-    void updateDespawnProtectedState();
-
-    static const int MAX_WANDER_DISTANCE = 20;
-
     int age = 0;
-    bool despawnProtected = true;
-    int  minWanderX = 0, maxWanderX = 0, minWanderZ = 0, maxWanderZ = 0;
 };
 
 #endif

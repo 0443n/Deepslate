@@ -36,8 +36,12 @@ static void build() {
 
 PigRenderer::PigRenderer() { shadowRadius = 0.5f; shadowStrength = 1.0f; }
 
+static void ensureTex() { if (!g_have) g_have = textureLoad16("data/images/mob/pig.png", &g_tex, GU_PSM_5551); }
+
+void PigRenderer::preload() { ensureTex(); }
+
 void PigRenderer::render(Entity* e, float x, float y, float z, float rot, float a) {
-    if (!g_have) { g_have = textureLoad16("data/images/mob/pig.png", &g_tex, GU_PSM_5551); if (!g_have) return; }
+    if (!g_have) return;
     build();
     Mob* mob = (Mob*)e;
 

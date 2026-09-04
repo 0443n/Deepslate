@@ -82,6 +82,7 @@ static char s_dir[256];
 static bool s_haveDir = false;
 
 static unsigned char* s_payload = 0;
+static unsigned char* s_packed = 0;
 
 static inline int regionOf(int c) { return c >> 5; }
 
@@ -146,6 +147,7 @@ void chunkStorageShutdown() {
     s_next = 0;
     s_haveDir = false;
     free(s_payload); s_payload = 0;
+    free(s_packed); s_packed = 0;
 }
 
 bool chunkStorageHasSave(const char* absDir) {
@@ -155,6 +157,50 @@ bool chunkStorageHasSave(const char* absDir) {
     FILE* f = fopen(path, "rb");
     if (f) { fclose(f); return true; }
     return false;
+}
+
+
+// Chunk payloads are long runs of one block id, so a byte RLE turns an 82 KB
+// write into roughly 8 KB. A stored length of exactly CH_PAYLOAD still means
+// raw, which keeps saves written before this change loadable.
+static const unsigned char RLE_ESC = 0xFF;
+
+static int rleEncode(const unsigned char* src, int n, unsigned char* dst, int cap) {
+    int o = 0;
+    for (int i = 0; i < n; ) {
+        unsigned char c = src[i];
+        int j = i + 1;
+        while (j < n && src[j] == c && j - i < 255) j++;
+        int run = j - i;
+        if (run >= 3 || c == RLE_ESC) {
+            if (o + 3 > cap) return -1;
+            dst[o++] = RLE_ESC; dst[o++] = c; dst[o++] = (unsigned char)run;
+        } else {
+            if (o + run > cap) return -1;
+            for (int k = 0; k < run; k++) dst[o++] = c;
+        }
+        i = j;
+    }
+    return o;
+}
+
+static bool rleDecode(const unsigned char* src, int n, unsigned char* dst, int cap) {
+    int o = 0;
+    for (int i = 0; i < n; ) {
+        unsigned char c = src[i++];
+        if (c != RLE_ESC) { if (o >= cap) return false; dst[o++] = c; continue; }
+        if (i + 1 >= n) return false;
+        unsigned char v = src[i++];
+        int run = src[i++];
+        if (run == 0 || o + run > cap) return false;
+        for (int k = 0; k < run; k++) dst[o++] = v;
+    }
+    return o == cap;
+}
+
+static unsigned char* packed() {
+    if (!s_packed) s_packed = (unsigned char*)malloc(CH_PAYLOAD);
+    return s_packed;
 }
 
 static unsigned char* payload() {
@@ -173,11 +219,20 @@ bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopu
     unsigned char* buf = NULL;
     int len = 0;
     if (!rf->readChunk(cx & 31, cz & 31, &buf, &len)) return false;
+
+    // Anything other than the raw payload length was packed on the way out.
+    unsigned char* src = buf;
+    if (len != CH_PAYLOAD) {
+        unsigned char* full = payload();
+        if (!full || !rleDecode(buf, len, full, CH_PAYLOAD)) { delete[] buf; return false; }
+        src = full;
+        len = CH_PAYLOAD;
+    }
     if (len < OFF_DATA + CH_NIBBLE) { delete[] buf; return false; }
 
     if (len >= OFF_CRC + 4) {
-        unsigned int stored = crcGet(buf);
-        if (stored && stored != payloadCrc(buf)) {
+        unsigned int stored = crcGet(src);
+        if (stored && stored != payloadCrc(src)) {
             LOGI("chunkStorage: chunk %d,%d fails its checksum -- regenerating\n", cx, cz);
             g_chunkCrcFails++;
             delete[] buf;
@@ -186,19 +241,19 @@ bool chunkStorageLoad(World* w, int cx, int cz, bool* outGotLight, bool* outPopu
     }
 
     if (len < OFF_UPD && outGotLight) *outGotLight = false;
-    if (outPopulated && len > OFF_UPD && buf[OFF_UPD] == CH_UNPOPULATED) *outPopulated = false;
+    if (outPopulated && len > OFF_UPD && src[OFF_UPD] == CH_UNPOPULATED) *outPopulated = false;
 
     for (int lx = 0; lx < 16; lx++) {
         for (int lz = 0; lz < 16; lz++) {
             int gx = cx * 16 + lx, gz = cz * 16 + lz;
             int dstBase = chunkIdx(lx, lz, 0);
 
-            blockColumnPut(w, gx, gz, buf + dstBase);
+            blockColumnPut(w, gx, gz, src + dstBase);
 
-            worldDataColumnPut(w, gx, gz, buf + OFF_DATA + (dstBase >> 1));
+            worldDataColumnPut(w, gx, gz, src + OFF_DATA + (dstBase >> 1));
             for (int y = 0; y < 128; y++) {
 
-                if (buf[dstBase + y] == BLOCK_ORE_REDSTONE_LIT)
+                if (src[dstBase + y] == BLOCK_ORE_REDSTONE_LIT)
                     worldScheduleTick(w, gx, y, gz, BLOCK_ORE_REDSTONE_LIT, 30);
             }
         }
@@ -241,7 +296,13 @@ bool chunkStorageSave(World* w, int cx, int cz) {
         }
     }
     crcPut(buf, payloadCrc(buf));
-    if (!rf->writeChunk(cx & 31, cz & 31, buf, CH_PAYLOAD)) return false;
+    const unsigned char* outBuf = buf;
+    int outLen = CH_PAYLOAD;
+    if (unsigned char* pk = packed()) {
+        int n = rleEncode(buf, CH_PAYLOAD, pk, CH_PAYLOAD - 1);
+        if (n > 0) { outBuf = pk; outLen = n; }
+    }
+    if (!rf->writeChunk(cx & 31, cz & 31, outBuf, outLen)) return false;
     worldSlot(w, cx, cz)->unsaved = false;
     return true;
 }

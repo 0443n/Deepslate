@@ -176,52 +176,29 @@ void worldEnsureArea(World* w, int cx, int cz, int r) {
             worldGetChunk(w, cx + dx, cz + dz);
 }
 
-static volatile bool g_jobPending = false, g_jobDone = false, g_workerQuit = false;
-static volatile int  g_jobX = 0, g_jobZ = 0;
-static int s_workerThid = -1;
+// NOTE: terrain used to be generated on a second thread, which real hardware
+// would not survive. worldReady admits a chunk the moment claim marks it
+// resident, so liquid flow and player edits reach into a chunk while it is
+// still being generated, and two threads then race inside secPageUp and
+// secRawUp, where secRawUp frees the section page the other one is writing
+// through. The block store has to grow a staging buffer before the worker can
+// come back.
 
-static World* volatile s_genWorld = 0;
-
-static int genWorker(SceSize, void*) {
-    while (!g_workerQuit) {
-        if (!g_jobPending) { sceKernelDelayThread(2000); continue; }
-        activeLevelSource().buildChunk(s_genWorld, g_jobX, g_jobZ);
-        g_jobPending = false;
-        g_jobDone = true;
-    }
-    return 0;
-}
-
-void worldGenWorkerStart(World* w) {
-    if (s_workerThid >= 0) return;
-
-    if (worldFitsInWindow(w)) return;
-    g_workerQuit = false; g_jobPending = false; g_jobDone = false; s_pend = false;
-
-    s_workerThid = sceKernelCreateThread("chunk_gen", genWorker, 0x24, 0x10000, 0, 0);
-    if (s_workerThid >= 0) sceKernelStartThread(s_workerThid, 0, 0);
-}
-
-void worldGenWorkerStop() {
-    if (s_workerThid < 0) return;
-    g_workerQuit = true;
-
-    sceKernelWaitThreadEnd(s_workerThid, 0);
-    sceKernelDeleteThread(s_workerThid);
-    s_workerThid = -1;
-
-    g_jobPending = false; g_jobDone = false; s_pend = false;
-}
-
-static int loadRadius(const World* w) {
+int worldLoadRadius(const World* w) {
     extern float g_viewDistEff;
     float d = (g_viewDistEff > 0.0f) ? g_viewDistEff : WORLD_VIEW_DIST;
     int r = (int)(d / 16.0f) + 2;
-
     if (r < 4) r = 4;
-    int cap = w->slotN / 2;
-    return r > cap ? cap : r;
+
+    // The load square has to leave the window spare slots. Capping on slotN
+    // alone lets it ask for 289 chunks out of 256, and then every slot is
+    // resident, nothing is ever evictable, and the heap sits at its ceiling.
+    const int spare = w->slotN * w->slotN - 64;
+    while (r > 4 && (2 * r + 1) * (2 * r + 1) > spare) r--;
+    return r;
 }
+
+static inline int loadRadius(const World* w) { return worldLoadRadius(w); }
 
 int worldStream(World* w, float px, float pz, int budgetMs) {
 
@@ -232,29 +209,30 @@ int worldStream(World* w, float px, float pz, int budgetMs) {
     const unsigned int tStart = sceKernelGetSystemTimeLow();
     int brought = 0;
 
+    // Eviction is memory hygiene, not a prerequisite for loading, since claim
+    // frees the one slot a new chunk needs. Terrain generates far slower than
+    // the loop can throw chunks away, so evicting on distance alone empties the
+    // window the moment the player moves faster than a walk.
+    int keep = (2 * R + 1) * (2 * R + 1) + 32;
+    if (keep > w->slotN * w->slotN - 32) keep = w->slotN * w->slotN - 32;
+    int residentN = 0;
+    for (int i = 0; i < w->slotN * w->slotN; i++) if (w->slots[i].resident) residentN++;
+
     const unsigned int EVICT_BUDGET_US = 2000;
-    for (int i = 0; i < w->slotN * w->slotN; i++) {
+    for (int i = 0; i < w->slotN * w->slotN && residentN > keep; i++) {
         LevelChunk* c = &w->slots[i];
         if (!c->resident) continue;
         if (c->x >= pcx - E && c->x <= pcx + E && c->z >= pcz - E && c->z <= pcz + E) continue;
         if (worldSlotBusy(c)) continue;
         evict(w, i);
+        residentN--;
         if ((unsigned int)(sceKernelGetSystemTimeLow() - tStart) > EVICT_BUDGET_US) break;
-    }
-
-    if (g_jobDone && !s_pend) {
-        g_jobDone = false;
-        LevelChunk* c = worldSlot(w, g_jobX, g_jobZ);
-
-        if (c->x == g_jobX && c->z == g_jobZ && c->resident) finishBegin(w, g_jobX, g_jobZ);
-        else                                                 c->generating = false;
     }
 
     if (finishStep(w)) {
         if (!s_pend) brought++;
         return brought;
     }
-    if (g_jobPending) return brought;
 
     {
         if ((unsigned int)(sceKernelGetSystemTimeLow() - tStart) > (unsigned int)budgetMs * 1000u)
@@ -281,19 +259,11 @@ int worldStream(World* w, float px, float pz, int budgetMs) {
             finishBegin(w, bestX, bestZ);
             return brought;
         }
-        if (s_workerThid < 0) {
-            GenScope gen(w);
-            profBegin(PROF_SGEN);
-            activeLevelSource().buildChunk(w, bestX, bestZ);
-            profEnd(PROF_SGEN);
-            finishBegin(w, bestX, bestZ);
-            return brought;
-        }
-
-        worldSlot(w, bestX, bestZ)->generating = true;
-        s_genWorld = w;
-        g_jobX = bestX; g_jobZ = bestZ;
-        g_jobPending = true;
+        GenScope gen(w);
+        profBegin(PROF_SGEN);
+        activeLevelSource().buildChunk(w, bestX, bestZ);
+        profEnd(PROF_SGEN);
+        finishBegin(w, bestX, bestZ);
     }
     return brought;
 }

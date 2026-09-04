@@ -45,8 +45,12 @@ static void build() {
 
 CowRenderer::CowRenderer() { shadowRadius = 0.7f; shadowStrength = 1.0f; }
 
+static void ensureTex() { if (!g_have) g_have = textureLoad16("data/images/mob/cow.png", &g_tex, GU_PSM_5551); }
+
+void CowRenderer::preload() { ensureTex(); }
+
 void CowRenderer::render(Entity* e, float x, float y, float z, float rot, float a) {
-    if (!g_have) { g_have = textureLoad16("data/images/mob/cow.png", &g_tex, GU_PSM_5551); if (!g_have) return; }
+    if (!g_have) return;
     build();
     Mob* mob = (Mob*)e;
 

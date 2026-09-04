@@ -88,6 +88,31 @@ enum { PROFC_PARTICLES, PROFC_SECTIONS, PROFC_PENDLIST, PROFC_STREAMIN,
 
        PROFC_MARKED, PROFC_N };
 
+// Live even with the profiler off. One byte stored per section entry is cheap
+// enough to ship, and it lets the watchdog name the phase a hung frame died in.
+extern volatile unsigned char g_profPhase;
+const char* profSlotName(int slot);
+
+// A CPU fault kills every thread at once, so nothing written to the stick
+// survives it. The displayed framebuffer does, because the display controller
+// keeps scanning it out, so the frame's progress is drawn straight into it.
+void phaseFrameBegin(void);
+void phaseMark(int slot);
+
+// Row 0 is the frame phase, rows 1 to 3 are whatever the phase wants to name.
+void phaseRow(int row, int value);
+
+// libpng keeps its signature in small data, past the code guard's end, and
+// something writes 16 bit pixels over it. Two words are cheap enough to check
+// at every phase change, which names the phase that did it.
+extern const unsigned int* g_sdWatch;
+extern unsigned int g_sdWant0, g_sdWant1;
+void guardTripped(int slot);
+static inline void guardTripCheck(int slot) {
+    if (!g_sdWatch) return;
+    if (g_sdWatch[0] != g_sdWant0 || g_sdWatch[1] != g_sdWant1) guardTripped(slot);
+}
+
 #if PROF
 void profListBytes(unsigned bytes);
 void profAdd(int slot, int n);
@@ -97,7 +122,10 @@ void profFrameEnd(void);
 #else
 static inline void profListBytes(unsigned) {}
 static inline void profAdd(int, int) {}
-static inline void profBegin(int) {}
+static inline void profBegin(int slot) {
+    if ((int)g_profPhase != slot) { g_profPhase = (unsigned char)slot; phaseMark(slot); }
+    guardTripCheck(slot);
+}
 static inline void profEnd(int) {}
 static inline void profFrameEnd(void) {}
 #endif

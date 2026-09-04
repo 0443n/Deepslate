@@ -12,12 +12,11 @@ public:
 
     bool flying;
 
-    float xxa, yya, yRotA;
+    float xxa, yya;
     bool  jumping;
     float walkingSpeed, flyingSpeed;
 
     float flySlowdown;
-    float defaultLookAngle;
 
     int   health, lastHealth, lastHurt;
     int   hurtTime, hurtDuration, deathTime, attackTime;
@@ -30,7 +29,6 @@ public:
     float walkAnimSpeed, walkAnimSpeedO;
     float walkAnimPos,   walkAnimPosO;
     float run, oRun, animStep, animStepO;
-    int   lookTime;
 
     float attackAnim, oAttackAnim;
     int   swingTime;
@@ -57,7 +55,8 @@ public:
     virtual void tick();
     virtual void baseTick();
     virtual void aiStep();
-    virtual void updateAi();
+    // Mob has no AI of its own, PathfinderMob drives the Rust side.
+    virtual void updateAi() {}
 
     void applySwimUrge();
 

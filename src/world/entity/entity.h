@@ -34,6 +34,9 @@ public:
     int  hashCode();
     bool operator==(Entity& rhs);
 
+    // AI goals are not Entity subclasses, so they reach the shared stream here.
+    static Random& random() { return sharedRandom; }
+
     virtual void setLevel(Level* level);
     virtual void remove();
 

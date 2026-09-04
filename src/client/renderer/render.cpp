@@ -18,8 +18,10 @@
 #include "client/renderer/tileentity/tile_entity_renderer.h"
 #include "world/level/chunk/chunk.h"
 #include "platform/path.h"
+#include "platform/trace.h"
 #include "client/renderer/item_hand.h"
 #include "client/renderer/entity/player_model.h"
+#include "client/renderer/entity/entity_renderer.h"
 #include "client/renderer/particle.h"
 #include "world/level/storage/level_storage.h"
 #include "util/prof.h"
@@ -36,6 +38,10 @@
 #include <pspgum.h>
 #include <pspkernel.h>
 #include <psputils.h>
+
+extern void chestRendererPreload(void);
+extern void signRendererPreload(void);
+extern void loadCharIfNeeded(void);
 
 extern World g_world;
 extern Level g_level;
@@ -1070,6 +1076,20 @@ char g_iconShotPath[320] = {0};
 
 bool gameProgressScreenUp() { return g_saveRequested || !g_worldBuilt; }
 
+// Background work writes through raw pointers into the world, and the HOME
+// button can reach teardown while a save or a generate is still running.
+static volatile int s_bgWorkers = 0;
+
+void worldJoinBackgroundWork() {
+    if (s_bgWorkers <= 0) return;
+    traceMark("QUIT waiting on %d background worker(s)", s_bgWorkers);
+    unsigned int t0 = sceKernelGetSystemTimeLow();
+    while (s_bgWorkers > 0 &&
+           (unsigned int)(sceKernelGetSystemTimeLow() - t0) < 15u * 1000u * 1000u)
+        sceKernelDelayThread(10 * 1000);
+    traceMark("QUIT background %s", s_bgWorkers > 0 ? "TIMED OUT" : "drained");
+}
+
 void gameRender(MenuState& s) {
 
     profBegin(PROF_GPRE);
@@ -1113,13 +1133,16 @@ void gameRender(MenuState& s) {
             g_saveThreadDone = false;
             int thid = sceKernelCreateThread("world_save", [](SceSize, void* argp) -> int {
                 SaveArgs* a = (SaveArgs*)argp;
+                traceMark("SAVE begin %s", a->dir);
                 LevelStorage::save(a->w, a->dir, a->seed, a->gamemode, a->name);
+                traceMark("SAVE end");
                 g_saveThreadDone = true;
+                s_bgWorkers--;
 
                 sceKernelExitDeleteThread(0);
                 return 0;
             }, 0x22, 0x10000, 0, 0);
-            if (thid >= 0) sceKernelStartThread(thid, sizeof(SaveArgs), &sArgs);
+            if (thid >= 0) { s_bgWorkers++; sceKernelStartThread(thid, sizeof(SaveArgs), &sArgs); }
             else { LevelStorage::save(sArgs.w, sArgs.dir, sArgs.seed, sArgs.gamemode, sArgs.name); g_saveThreadDone = true; }
             drawGeneratingScreen(s, 0, "Saving chunks");
             saveStage = 1;
@@ -1169,10 +1192,11 @@ void gameRender(MenuState& s) {
             int thid = sceKernelCreateThread("dim_swap", [](SceSize, void*) -> int {
                 if (!dimensionSwapBuild(&g_world)) g_worldAllocFailed = true;
                 g_terrainThreadDone = true;
+                s_bgWorkers--;
                 sceKernelExitDeleteThread(0);
                 return 0;
             }, 0x22, 0x10000, 0, 0);
-            if (thid >= 0) sceKernelStartThread(thid, 0, 0);
+            if (thid >= 0) { s_bgWorkers++; sceKernelStartThread(thid, 0, 0); }
             else {
                 if (!dimensionSwapBuild(&g_world)) g_worldAllocFailed = true;
                 g_terrainThreadDone = true;
@@ -1242,6 +1266,7 @@ void gameRender(MenuState& s) {
             g_terrainThreadDone = false;
             int thid = sceKernelCreateThread("terrain_gen", [](SceSize args, void* argp) -> int {
                 TerrainArgs* a = (TerrainArgs*)argp;
+                traceMark("WORLD begin %s", a->dir);
                 if (LevelStorage::hasSave(a->dir)) {
                     long s2; int gt;
 
@@ -1258,13 +1283,16 @@ void gameRender(MenuState& s) {
                     LevelStorage::save(a->w, a->dir, a->seed, a->gamemode, a->name, true);
                     g_saveShowProgress = true;
                 }
+                traceMark("WORLD end");
                 g_terrainThreadDone = true;
+                s_bgWorkers--;
 
                 sceKernelExitDeleteThread(0);
                 return 0;
             }, 0x22, 0x10000, 0, 0);
 
             if (thid >= 0) {
+                s_bgWorkers++;
                 sceKernelStartThread(thid, sizeof(TerrainArgs), &tArgs);
                 g_genStage = GS_TERRAIN_WAIT;
             } else {
@@ -1319,8 +1347,15 @@ void gameRender(MenuState& s) {
 
             if (done >= total) {
 
-                worldGenWorkerStart(&g_world);
                 g_worldBuilt = true; g_genStage = GS_IDLE;
+                // The loading screen is the only place with no display list open
+                // and no frame budget, so every mob texture is read here.
+                EntityRenderDispatcher::getInstance()->preloadAll();
+                playerModelPreload();
+                entityShadowPreload();
+                chestRendererPreload();
+                signRendererPreload();
+                loadCharIfNeeded();
                 extern int g_autosaveTick; g_autosaveTick = 0;
                 particlesReset();
                 bool freshWorld = !(g_loadedFromDisk && LevelStorage::loadedValidPlayerPos());
@@ -1703,17 +1738,26 @@ void gameRender(MenuState& s) {
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     profBegin(PROF_ENTITY);
+    codeGuardFull("preent");
     EntityRenderDispatcher::getInstance()->renderAll(&g_level, a);
+    codeGuardFull("postent");
+    // The frame-end check reports an overrun long after the pass that caused it.
+    if (guListCanaryCheck()) traceMark("GELIST canary broken after entity pass");
+    phaseRow(1, 20);
     renderAllTileEntities(&g_level, a);
 
+    phaseRow(1, 21);
     renderMiningCrack(px0, py0, pz0);
 
     extern bool g_thirdPerson;
 
+    phaseRow(1, 22);
     if (g_thirdPerson && !(g_level.player && g_level.player->isSleeping()))
         playerModelRender(a);
 
+    phaseRow(1, 23);
     guListSync();
+    phaseRow(1, 0);
     profEnd(PROF_ENTITY);
 
     profBegin(PROF_GMID);

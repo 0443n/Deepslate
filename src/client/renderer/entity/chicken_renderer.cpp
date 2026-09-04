@@ -43,8 +43,12 @@ static void build() {
 
 ChickenRenderer::ChickenRenderer() { shadowRadius = 0.3f; shadowStrength = 1.0f; }
 
+static void ensureTex() { if (!g_have) g_have = textureLoad16("data/images/mob/chicken.png", &g_tex, GU_PSM_5551); }
+
+void ChickenRenderer::preload() { ensureTex(); }
+
 void ChickenRenderer::render(Entity* e, float x, float y, float z, float rot, float a) {
-    if (!g_have) { g_have = textureLoad16("data/images/mob/chicken.png", &g_tex, GU_PSM_5551); if (!g_have) return; }
+    if (!g_have) return;
     build();
     Mob*     mob = (Mob*)e;
     Chicken* ch  = (Chicken*)e;

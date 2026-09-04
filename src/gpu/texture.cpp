@@ -5,9 +5,11 @@
 
 #include <pspgu.h>
 #include <pspkernel.h>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include "platform/dcache.h"
+#include "platform/trace.h"
 #include <malloc.h>
 
 static const Texture* s_lastBound = nullptr;
@@ -36,13 +38,36 @@ static unsigned int probeLargestBlock(void) {
 }
 
 static char s_failed[32][80];
+static unsigned char s_failedTries[32];
 static int  s_failedCount = 0;
-static bool alreadyFailed(const char* path) {
+static const unsigned char TEX_MAX_TRIES = 3;
+
+static int failSlot(const char* path) {
     for (int i = 0; i < s_failedCount; i++)
-        if (strcmp(s_failed[i], path) == 0) return true;
-    return false;
+        if (strcmp(s_failed[i], path) == 0) return i;
+    return -1;
+}
+static bool alreadyFailed(const char* path) {
+    int i = failSlot(path);
+    return i >= 0 && s_failedTries[i] >= TEX_MAX_TRIES;
 }
 void textureForgetFailures() { s_failedCount = 0; }
+
+// A header that fails its signature check either went bad on the stick or was
+// read wrong. The raw bytes of a fresh read tell the trace which one it was.
+static void traceBadHeader(const char* path, const char* why) {
+    unsigned char sig[8] = { 0 };
+    size_t got = 0;
+    FILE* f = fopen(path, "rb");
+    if (f) { got = fread(sig, 1, 8, f); fclose(f); }
+    struct mallinfo mi = mallinfo();
+    traceMark("TEXFAIL %s (%s) reread %u %02x%02x%02x%02x%02x%02x%02x%02x "
+              "heap %uK free %uK blocks %d",
+              path, why, (unsigned)got,
+              sig[0], sig[1], sig[2], sig[3], sig[4], sig[5], sig[6], sig[7],
+              (unsigned)mi.uordblks / 1024, (unsigned)mi.fordblks / 1024,
+              mi.ordblks);
+}
 
 static void markFailed(const char* path, const char* why, bool optional = false) {
     if (optional) return;
@@ -55,9 +80,14 @@ static void markFailed(const char* path, const char* why, bool optional = false)
     g_textureFailReason = why;
     std::strncpy(g_textureLastFailed, path, sizeof(g_textureLastFailed) - 1);
     g_textureLastFailed[sizeof(g_textureLastFailed) - 1] = 0;
+    traceBadHeader(path, why);
+
+    int slot = failSlot(path);
+    if (slot >= 0) { if (s_failedTries[slot] < 255) s_failedTries[slot]++; return; }
     if (s_failedCount >= (int)(sizeof(s_failed) / sizeof(s_failed[0]))) return;
     std::strncpy(s_failed[s_failedCount], path, sizeof(s_failed[0]) - 1);
     s_failed[s_failedCount][sizeof(s_failed[0]) - 1] = 0;
+    s_failedTries[s_failedCount] = 1;
     s_failedCount++;
 }
 
@@ -93,6 +123,7 @@ static bool textureLoadPsm(const char* path, Texture* out, int psm, bool wantVra
 #if TEXTURE_FORCE_8888
     psm = GU_PSM_8888;
 #endif
+    if (g_inFrame) traceMark("TEXLATE %s", path);
     if (alreadyFailed(path)) { memset(out, 0, sizeof(*out)); return false; }
 
     memset(out, 0, sizeof(*out));

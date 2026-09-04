@@ -57,12 +57,15 @@ void worldGenerateMCPE(World* w, long seed, int genMask) {
 }
 
 void worldGenerateWindow(World* w) {
-    const int side = worldFitsInWindow(w) ? WORLD_SIZE_CHUNKS : WORLD_CHUNKS_X;
+    const int side = worldFitsInWindow(w) ? WORLD_SIZE_CHUNKS : w->slotN;
+    // A streamed world spawns the player in its middle, so the first window has
+    // to be built there and not at the origin.
+    const int base = worldFitsInWindow(w) ? 0 : (WORLD_SIZE_CHUNKS - side) / 2;
     int totalChunks = side * side;
     int doneChunks = 0;
     for (int cz = 0; cz < side; cz++)
     for (int cx = 0; cx < side; cx++) {
-        worldGetChunk(w, cx, cz);
+        worldGetChunk(w, base + cx, base + cz);
         doneChunks++;
         g_terrainProgress = (doneChunks * 50) / totalChunks;
 

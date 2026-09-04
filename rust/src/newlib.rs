@@ -17,6 +17,10 @@ mod imp {
         fn c_sinf(x: f32) -> f32;
         #[link_name = "cosf"]
         fn c_cosf(x: f32) -> f32;
+        // Two float arguments do not agree across the boundary, so the angle
+        // goes out and comes back as a bit pattern through a C++ shim.
+        #[link_name = "ds_atan2f"]
+        fn c_atan2f(y_bits: u32, x_bits: u32) -> u32;
     }
 
     pub fn sqrtf(x: f32) -> f32 {
@@ -30,6 +34,9 @@ mod imp {
     }
     pub fn cosf(x: f32) -> f32 {
         unsafe { c_cosf(x) }
+    }
+    pub fn atan2f(y: f32, x: f32) -> f32 {
+        f32::from_bits(unsafe { c_atan2f(y.to_bits(), x.to_bits()) })
     }
 }
 
@@ -47,6 +54,9 @@ mod imp {
     pub fn cosf(x: f32) -> f32 {
         x.cos()
     }
+    pub fn atan2f(y: f32, x: f32) -> f32 {
+        y.atan2(x)
+    }
 }
 
-pub use imp::{cosf, logf, sinf, sqrtf};
+pub use imp::{atan2f, cosf, logf, sinf, sqrtf};

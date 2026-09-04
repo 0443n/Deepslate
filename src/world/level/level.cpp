@@ -1,4 +1,5 @@
 #include "world/level/level.h"
+#include "platform/trace.h"
 #include "world/level/world.h"
 #include "world/level/chunk/chunk.h"
 #include "world/level/tile/material.h"
@@ -8,14 +9,14 @@
 #include "world/entity/mob_category.h"
 #include "world/level/tile/entity/tile_entity.h"
 #include "client/player/physics.h"
-#include "world/level/pathfinder/path_finder.h"
+#include "world/level/pathfinder/path_bridge.h"
 #include "world/level/mob_spawner.h"
 #include "world/level/tile/tile.h"
 #include "platform/audio/sound.h"
 #include "util/mth.h"
 
 Level::Level(World* world) : w(world), player(0), isClientSide(false),
-                             spawnX(WORLD_W / 2), spawnY(64), spawnZ(WORLD_D / 2),
+                             spawnX(WORLD_LIMIT_X / 2), spawnY(64), spawnZ(WORLD_LIMIT_Z / 2),
                              caveMood(0.0f) {
     entities.reserve(Entity::ENTITY_POOL + 16);
     boxes.reserve(64);
@@ -45,9 +46,36 @@ void Level::unlinkEntity(Entity* e) {
     int col = e->zChunk * WORLD_CHUNKS_X + e->xChunk;
     Entity** p = &chunkEntityHead[col];
     while (*p && *p != e) p = &(*p)->nextInChunk;
+
+    // Not finding it means some other bucket still holds it, and the delete
+    // that follows would leave that bucket pointing at freed memory.
     if (*p) *p = e->nextInChunk;
+    else traceMark("ENTLEAK col %d type %d at %d %d %d", col, e->getEntityTypeId(),
+                   (int)e->x, (int)e->y, (int)e->z);
+
     e->nextInChunk = 0;
     e->inChunk = false;
+}
+
+void Level::guardEntities() const {
+    for (size_t i = 0; i < entities.size(); i++) {
+        unsigned int p = (unsigned int)entities[i];
+        if (p < 0x08800000u || p >= 0x0A000000u || (p & 3)) {
+            traceMark("EPTR %u ptr %08x", (unsigned)i, p);
+            continue;
+        }
+        unsigned int v = *(const unsigned int*)p;
+        if (!codePtrOk(v)) traceMark("EVPTR %u ptr %08x vptr %08x", (unsigned)i, p, v);
+    }
+}
+
+void Level::linkStats(int* reachable, int* expected) const {
+    int r = 0;
+    for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z && r <= 4096; i++)
+        for (Entity* e = chunkEntityHead[i]; e && r <= 4096; e = e->nextInChunk) r++;
+    int x = 0;
+    for (size_t i = 0; i < entities.size(); i++) if (entities[i]->inChunk) x++;
+    *reachable = r; *expected = x;
 }
 
 void Level::relinkIfMoved(Entity* e) {
@@ -210,18 +238,7 @@ bool Level::isUnobstructed(const AABB& box) const {
     return true;
 }
 
-static PathFinder s_pathFinder;
 
-void Level::findPath(Path* path, Entity* from, Entity* to, float maxDist, bool , bool avoidWater) {
-    s_pathFinder.setLevel(this);
-    s_pathFinder.avoidWater = avoidWater;
-    s_pathFinder.findPath(path, from, to, maxDist);
-}
-void Level::findPath(Path* path, Entity* from, int x, int y, int z, float maxDist, bool , bool avoidWater) {
-    s_pathFinder.setLevel(this);
-    s_pathFinder.avoidWater = avoidWater;
-    s_pathFinder.findPath(path, from, x, y, z, maxDist);
-}
 
 bool Level::isLoadedAt(float x, float z) const {
     return worldChunkSettled(w, Mth::floor(x) >> 4, Mth::floor(z) >> 4);

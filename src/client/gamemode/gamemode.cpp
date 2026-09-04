@@ -1,3 +1,4 @@
+#include "util/mth.h"
 #include "client/gamemode/gamemode.h"
 #include "world/level/level.h"
 #include "world/entity/local_player.h"

@@ -49,6 +49,8 @@ OBJS = \
 	src/gpu/font.o \
 	src/gpu/widgets.o \
 	src/platform/path.o \
+	src/platform/trace.o \
+	src/platform/fbtext.o \
 	src/platform/png_loader.o \
 	src/platform/malloc_lock.o \
 	src/platform/audio/sound.o \
@@ -111,8 +113,7 @@ OBJS = \
 	src/world/entity/monster/creeper.o \
 	src/world/entity/monster/spider.o \
 	src/world/entity/monster/pig_zombie.o \
-	src/world/level/pathfinder/path.o \
-	src/world/level/pathfinder/path_finder.o \
+	src/world/level/pathfinder/path_bridge.o \
 	src/client/renderer/entity/entity_render_dispatcher.o \
 	src/client/renderer/entity/entity_renderer.o \
 	src/client/renderer/entity/painting_renderer.o \
@@ -176,7 +177,9 @@ INCDIR = src
 # offsets). -MP adds a dummy rule per header so a DELETED header doesn't wedge
 # make with "no rule to make target".
 # EXTRA_CFLAGS: build-time switches that must not be edited into the file for
-# one run. The diagnostic build is `make EXTRA_CFLAGS=-DPROF=1`, which turns
+# one run. `make EXTRA_CFLAGS=-DWORLD_SIZE_CHUNKS=128` grows the world past the
+# resident window, which turns the chunk streaming on.
+# The diagnostic build is `make EXTRA_CFLAGS=-DPROF=1`, which turns
 # on the 30-phase profiler (prof.txt) alongside the per-frame trace ring
 # (framelog.csv, always on). Default empty -- the shipped build carries neither.
 EXTRA_CFLAGS ?=
@@ -256,3 +259,7 @@ dist: EBOOT.PBP
 	@rm -rf build/data/sound/cave build/data/sound/extra   # WAV sources: packed into *.bin, never read at runtime
 	@printf 'Deepslate - Minecraft for PSP (test build)\n\n=== Run on a real PSP ===\n1. On the memory stick make a folder:  PSP/GAME/DEEPSLATE\n2. Put EBOOT.PBP and the data/ folder inside it, so you have:\n     PSP/GAME/DEEPSLATE/EBOOT.PBP\n     PSP/GAME/DEEPSLATE/data/\n3. Launch it from the PSP Game menu.\n\n=== PPSSPP ===\nJust open EBOOT.PBP.\n\nKeep EBOOT.PBP and data/ together - textures load from data/ next to\nthe EBOOT, and worlds save into a saves/ folder created beside it.\n' > build/README.txt
 	@echo "Packaged -> build/  (copy its contents into ms0:/PSP/GAME/DEEPSLATE/)"
+
+deploy: ; @tools/deploy.sh $(ARGS)
+trace:  ; @tools/deploy.sh --trace
+.PHONY: deploy trace

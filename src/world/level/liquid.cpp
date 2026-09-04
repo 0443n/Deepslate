@@ -425,17 +425,11 @@ void worldScheduleChunkTicks(World* w, int cx, int cz) {
 }
 
 void worldScheduleLoadedTicks(World* w) {
-    for (int x = 0; x < WORLD_W; x++)
-    for (int z = 0; z < WORLD_D; z++)
-    for (int y = 0; y < WORLD_H; y++) {
-        unsigned char id = worldBlock(w, x, y, z);
-        if (id == BLOCK_FIRE) { scheduleFire(w, x, y, z); continue; }
-        if (id == BLOCK_ORE_REDSTONE_LIT) { worldScheduleTick(w, x, y, z, id, REDSTONE_LIT_DELAY); continue; }
-        if (!isLiquidId(id)) continue;
-        if (worldData(w, x, y, z) == 0) continue;
-        unsigned char dyn = dynOf(id);
-        if (id != dyn) blockPut(w, x, y, z, dyn);
-        worldScheduleTick(w, x, y, z, dyn, isWaterId(dyn) ? 5 : 30);
+    // Only the resident window can be scheduled, the rest of a streamed world
+    // gets its ticks from worldScheduleChunkTicks as each chunk arrives.
+    for (int i = 0; i < w->slotN * w->slotN; i++) {
+        const LevelChunk* c = &w->slots[i];
+        if (c->resident) worldScheduleChunkTicks(w, c->x, c->z);
     }
 }
 

@@ -12,10 +12,10 @@ int worldStream(World* w, float px, float pz, int budgetMs);
 
 bool worldStreamBusy();
 
-void worldSaveResident(World* w);
+// Chunk radius the window can actually feed, which caps usable view distance.
+int worldLoadRadius(const World* w);
 
-void worldGenWorkerStart(World* w);
-void worldGenWorkerStop();
+void worldSaveResident(World* w);
 
 extern unsigned int g_streamIn, g_streamOut;
 

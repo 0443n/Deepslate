@@ -59,10 +59,15 @@ public:
     void unlinkEntity(Entity* e);
     void relinkIfMoved(Entity* e);
 
+    // Nodes reachable through the per-chunk lists, against the entities that
+    // claim to be in one. A mismatch means a list is corrupt.
+    void linkStats(int* reachable, int* expected) const;
+
+    // Checks every entity still looks like an object before anything calls one.
+    void guardEntities() const;
+
     bool isUnobstructed(const AABB& box) const;
 
-    void findPath(Path* path, Entity* from, Entity* to, float maxDist, bool openDoors, bool avoidWater);
-    void findPath(Path* path, Entity* from, int x, int y, int z, float maxDist, bool openDoors, bool avoidWater);
 
     void addEntity(Entity* e);
     void tickEntities();

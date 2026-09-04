@@ -13,3 +13,7 @@ build/
 
 rust/target/
 rust/libdeepslate_psp.a
+
+logs/
+deepslate_trace.txt
+options.txt

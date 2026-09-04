@@ -7,7 +7,9 @@ typedef unsigned int   u32;
 void memcpy_vfpu( void* dst, const void* src, size_t size )
 {
 
-	if( ((u32)src&0x3) != ((u32)dst&0x3) && (size<16) )
+	// Mismatched phase can never be fixed by aligning dst alone, and the u32
+	// loops below would then issue unaligned loads, which fault on MIPS.
+	if( ((u32)src&0x3) != ((u32)dst&0x3) || (size<16) )
     {
         memcpy( dst, src, size );
         return;
@@ -25,7 +27,9 @@ void memcpy_vfpu( void* dst, const void* src, size_t size )
 	u32 *dst32=(u32*)dst8;
 	u32 *src32=(u32*)src8;
 
-	while( ((u32)dst32&0xF)!=0 )
+	// size is unsigned, so aligning past the end of a short copy wraps it and
+	// the quadword loop below then runs off the end of both buffers.
+	while( ((u32)dst32&0xF)!=0 && size>=4 )
 	{
 		*dst32++ = *src32++;
 		size -= 4;

@@ -46,6 +46,8 @@ static void drawMesh(AVert* m, int n) {
                     n, 0, v);
 }
 
+void ArrowRenderer::preload() { ensureTex(); }
+
 void ArrowRenderer::render(Entity* entity, float x, float y, float z, float , float a) {
     ensureTex();
     if (!s_ok) return;

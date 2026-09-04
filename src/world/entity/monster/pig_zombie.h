@@ -9,7 +9,8 @@ public:
     PigZombie(Level* level);
 
     virtual void tick();
-    virtual bool hurt(Entity* source, int damage);
+    virtual int  getAiKind() const { return DS_MOB_PIG_ZOMBIE; }
+
     virtual int  getEntityTypeId() const;
     virtual int  getAttackTime() { return 40; }
 
@@ -17,10 +18,11 @@ public:
     virtual const char* getHurtSound()    { return "mob.zombiepig.zpighurt"; }
     virtual const char* getDeathSound()   { return "mob.zombiepig.zpigdeath"; }
 
-    void alert(Entity* target);
+    virtual void alerted();
+
+    virtual bool canAttack(Entity* target);
 
 protected:
-    virtual Entity* findAttackTarget();
     virtual void dropDeathLoot();
     virtual int  getDeathLoot() { return 0; }
 

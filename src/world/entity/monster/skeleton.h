@@ -9,7 +9,8 @@ public:
     Skeleton(Level* level);
 
     virtual int  getMaxHealth() { return 10; }
-    virtual void aiStep();
+    virtual int  getAiKind() const { return DS_MOB_SKELETON; }
+
     virtual int  getEntityTypeId() const;
     virtual void dropDeathLoot();
 
@@ -18,7 +19,8 @@ public:
     virtual const char* getDeathSound()   { return "mob.skeletonhurt"; }
 
 protected:
-    virtual void checkHurtTarget(Entity* target, float d);
+    virtual void performRangedAttack(Entity* target, float dist);
+
 };
 
 #endif

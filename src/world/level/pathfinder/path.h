@@ -2,7 +2,6 @@
 #ifndef MCPSP_WORLD_LEVEL_PATHFINDER_PATH_H
 #define MCPSP_WORLD_LEVEL_PATHFINDER_PATH_H
 
-#include "world/level/pathfinder/node.h"
 #include "world/level/pathfinder/vec3.h"
 
 class Entity;
@@ -10,9 +9,8 @@ class Entity;
 class Path {
 public:
     Path();
-    ~Path();
 
-    void  copyNodes(Node** nodes, int length);
+    void  copyPoints(const short* xyz, int length);
     void  destroy();
     void  next();
 
@@ -20,22 +18,25 @@ public:
     bool  isEmpty() const;
     bool  isDone() const;
 
-    Node* last() const;
-    Node* get(int i) const;
     int   getIndex() const;
     void  setIndex(int index);
 
     Vec3  currentPos(Entity* e) const;
-    Node* currentPos();
     Vec3  getPos(Entity* e, int index) const;
+
+    void  getPoint(int index, int& x, int& y, int& z) const;
+    void  lastPoint(int& x, int& y, int& z) const;
 
 private:
 
+    // NOTE: only the position survives the search, the g/h/f and cameFrom
+    // bookkeeping stays behind in PathFinder::_nodes.
+    struct Point { short x, y, z; };
+
     static const int MAX_PATH = 64;
-    Node nodes[MAX_PATH];
-    int length;
-    int index;
-    static int p;
+    Point points[MAX_PATH];
+    short length;
+    short index;
 };
 
 #endif

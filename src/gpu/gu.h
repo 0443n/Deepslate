@@ -28,6 +28,17 @@ int guDitherWanted(void);
 #endif
 
 extern unsigned int g_canaryBroken;
+extern unsigned int g_listPeakBytes;
+// Reading a file inside an open display list is what froze the console, so
+// any load that slips back in names itself in the trace.
+extern volatile int g_inFrame;
+extern unsigned int g_listOverruns;
+extern unsigned int g_listBadFinish;
+extern unsigned int g_frameAllocFails;
+extern unsigned int g_frameAllocListFails;
+
+// Returns non-zero once the current list has run past its end into the canary.
+int guListCanaryCheck(void);
 
 unsigned int guFrameId(void);
 

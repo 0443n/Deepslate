@@ -127,7 +127,9 @@ bool worldInitTerrain(World* w, long seed, int worldType) {
     levelSourceFor(worldType).buildTerrain(w, seed);
 
     g_terrainProgress = 60;
-    worldInitLight(w);
+    // A streamed world is lit chunk by chunk as the window fills, and the whole
+    // world pass below would walk the origin square instead of that window.
+    if (worldFitsInWindow(w)) worldInitLight(w);
     g_terrainProgress = 90;
 
     w->lightReady = true;
@@ -250,7 +252,6 @@ void worldFree(World* w) {
 
     chunkStorageShutdown();
 
-    worldGenWorkerStop();
     worldGenFree();
     for (int i = 0; i < WORLD_CHUNKS_X * WORLD_CHUNKS_Z; i++)
         chunkFreeMesh(&w->chunks[i]);
